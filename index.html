@@ -149,29 +149,20 @@ async function fetchAll(){
     }
   }
 
-  // KRX ETF - 네이버 polling API (빠른 JSON 방식)
+  // KRX ETF
   const codes=[...new Set([...ST.pen.map(e=>e.t),...ST.irp.map(e=>e.t)].filter(Boolean))];
-  if(codes.length){
-    try{
-      const query=codes.map(c=>`SERVICE_ITEM:${c}`).join("|");
-      const url=`https://polling.finance.naver.com/api/realtime?query=${encodeURIComponent(query)}`;
-      const proxy=`https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
-      const d=await fetch(proxy).then(r=>r.json());
-      const results=d?.result?.areas?.[0]?.datas||[];
-      for(const item of results){
-        const code=item.cd;
-        const price=Number(item.nv||item.cv||0);
-        if(code&&price>100) px[code]=price;
-      }
-    }catch{}
-    // fallback: 개별 종목 HTML 파싱
-    for(const code of codes){
-      if(px[code]) continue;
+  for(const code of codes){
+    const proxies=[
+      `https://api.allorigins.win/raw?url=${encodeURIComponent(`https://finance.naver.com/item/sise.naver?code=${code}`)}`,
+      `https://corsproxy.io/?${encodeURIComponent(`https://finance.naver.com/item/sise.naver?code=${code}`)}`,
+    ];
+    for(const url of proxies){
       try{
-        const url=`https://api.allorigins.win/raw?url=${encodeURIComponent(`https://finance.naver.com/item/sise.naver?code=${code}`)}`;
         const html=await fetch(url).then(r=>r.text());
         const pats=[/id="now_value">([0-9,]+)/,/"now">([0-9,]+)</,/class="tah p11"[^>]*>([0-9,]+)/];
-        for(const p of pats){const m=html.match(p);if(m){const v=parseInt(m[1].replace(/,/g,""),10);if(v>100){px[code]=v;break;}}}
+        let found=false;
+        for(const p of pats){const m=html.match(p);if(m){const v=parseInt(m[1].replace(/,/g,""),10);if(v>100){px[code]=v;found=true;break;}}}
+        if(found)break;
       }catch{}
     }
   }
@@ -296,7 +287,6 @@ function buildSection(title,list,key,accent,total){
       <td class="r" style="font-size:12px">${priceStr}</td>
       <td class="r" style="font-weight:600;font-size:13px" data-calc="val">${won(valKrw)||"₩0"}</td>
       <td class="r ${cls(gp)}" style="font-size:13px" data-calc="gp">${pct(gp)}</td>
-      <td><button style="background:#7f1d1d;border:none;color:#fca5a5;border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer" data-del="${item.id}" data-key="${key}">✕</button></td>
     </tr>`;}
     return`<tr>
       <td style="min-width:110px"><div style="font-weight:600;font-size:12px">${item.t}</div><div style="font-size:10px;color:#64748b;margin-top:1px">${item.n}</div></td>
@@ -305,7 +295,6 @@ function buildSection(title,list,key,accent,total){
       <td class="r" style="font-size:12px">${priceStr}</td>
       <td class="r" style="font-weight:600;font-size:13px">${won(valKrw)||"₩0"}</td>
       <td class="r ${cls(gp)}" style="font-size:13px;font-weight:700">${pct(gp)}</td>
-      ${editMode?"<td></td>":""}
     </tr>`;
   }).join("");
   return`
@@ -317,7 +306,6 @@ function buildSection(title,list,key,accent,total){
   <div class="tbl-wrap"><table>
     <thead><tr>
       <th style="text-align:left">종목</th><th class="r">수량</th><th class="r">평단</th><th class="r">현재가(원)</th><th class="r">평가금액</th><th class="r">수익률</th>
-      ${editMode?"<th></th>":""}
     </tr></thead>
     <tbody>${rows}</tbody>
   </table></div>
@@ -391,13 +379,6 @@ function bindAll(){
     });
   });
 
-  document.querySelectorAll("[data-del]").forEach(b=>b.addEventListener("click",()=>{
-    const id=b.dataset.del,key=b.dataset.key;
-    if(key==="us")ST.us=ST.us.filter(x=>x.id!==id);
-    else if(key==="pen")ST.pen=ST.pen.filter(x=>x.id!==id);
-    else ST.irp=ST.irp.filter(x=>x.id!==id);
-    render();
-  }));
   document.getElementById("inp-cash")?.addEventListener("input",e=>{ST.cash=Number(e.target.value)||0;sv();});
   document.getElementById("inp-eth-q")?.addEventListener("input",e=>{ST.eth.q=Number(e.target.value)||0;sv();});
   document.getElementById("inp-eth-a")?.addEventListener("input",e=>{ST.eth.a=Number(e.target.value)||0;sv();});
