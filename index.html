@@ -51,20 +51,22 @@
 // 자동완성 DB
 // ═══════════════════════════════════════
 const US_DB={NVO:"Novo Nordisk",TQQQ:"ProShares UltraPro QQQ",JEPQ:"JPMorgan Nasdaq Eq Premium",QLD:"ProShares Ultra QQQ",SGOV:"iShares 0-3M Treasury",QQQ:"Invesco QQQ",SPY:"SPDR S&P500",VOO:"Vanguard S&P500",VTI:"Vanguard Total Market",NVDA:"NVIDIA",AAPL:"Apple",MSFT:"Microsoft",GOOGL:"Alphabet",AMZN:"Amazon",META:"Meta",TSLA:"Tesla",SOXL:"Direxion Semi 3X",UPRO:"ProShares UltraPro S&P500",TLT:"iShares 20Y Treasury",GLD:"SPDR Gold",PLTR:"Palantir",AMD:"AMD",JEPI:"JPMorgan Equity Premium",SCHD:"Schwab US Dividend",EQIX:"Equinix"};
-const KRX_ETF_DB={"381170":"TIGER 미국테크TOP10 INDXX","360750":"TIGER 미국S&P500","381180":"TIGER 미국필라델피아반도체","411060":"ACE KRX금현물","367380":"ACE 미국나스닥100","360200":"ACE 미국S&P500","473540":"ACE 미국S&P500채권혼합50액티브","069500":"KODEX 200","133690":"TIGER 미국나스닥100","379800":"KODEX 미국S&P500","448290":"KODEX 미국배당다우존스"};
+const KRX_ETF_DB={"381170":"TIGER 미국테크TOP10 INDXX","360750":"TIGER 미국S&P500","381180":"TIGER 미국필라델피아반도체","411060":"ACE KRX금현물","367380":"ACE 미국나스닥100","360200":"ACE 미국S&P500","438080":"ACE 미국S&P500미국채혼합50액티브","069500":"KODEX 200","133690":"TIGER 미국나스닥100","379800":"KODEX 미국S&P500","448290":"KODEX 미국배당다우존스"};
 const KRX_STOCK_DB={"005930":"삼성전자","000660":"SK하이닉스","035420":"NAVER","035720":"카카오","000270":"기아","005380":"현대차","051910":"LG화학","006400":"삼성SDI","207940":"삼성바이오로직스","068270":"셀트리온","105560":"KB금융","055550":"신한지주","086790":"하나금융지주","003550":"LG","066570":"LG전자","017670":"SK텔레콤","030200":"KT","000100":"유한양행","096770":"SK이노베이션"};
 
 // ═══════════════════════════════════════
 // 기본 데이터
 // ═══════════════════════════════════════
 const SK="asset_v6";
+const DFLT_TAB_ORDER=["overview","us","krx","pen","irp","coins","cash"];
 const DFLT={
   us:[{id:"us1",t:"NVO",n:"Novo Nordisk",q:0,a:0},{id:"us2",t:"TQQQ",n:"ProShares UltraPro QQQ",q:0,a:0},{id:"us3",t:"JEPQ",n:"JPMorgan Nasdaq Eq Premium",q:0,a:0},{id:"us4",t:"QLD",n:"ProShares Ultra QQQ",q:0,a:0}],
   krx:[],
   pen:[{id:"p1",t:"381170",n:"TIGER 미국테크TOP10 INDXX",q:68,a:0},{id:"p2",t:"360750",n:"TIGER 미국S&P500",q:73,a:0},{id:"p3",t:"381180",n:"TIGER 미국필라델피아반도체",q:29,a:0},{id:"p4",t:"411060",n:"ACE KRX금현물",q:14,a:0}],
-  irp:[{id:"i1",t:"367380",n:"ACE 미국나스닥100",q:0,a:0},{id:"i2",t:"411060",n:"ACE KRX금현물",q:0,a:0},{id:"i3",t:"360200",n:"ACE 미국S&P500",q:0,a:0},{id:"i4",t:"473540",n:"ACE 미국S&P500채권혼합50액티브",q:0,a:0}],
+  irp:[{id:"i1",t:"367380",n:"ACE 미국나스닥100",q:0,a:0},{id:"i2",t:"411060",n:"ACE KRX금현물",q:0,a:0},{id:"i3",t:"360200",n:"ACE 미국S&P500",q:0,a:0},{id:"i4",t:"438080",n:"ACE 미국S&P500미국채혼합50액티브",q:0,a:0}],
   coins:[{id:"c1",t:"ETH",n:"이더리움",q:0,a:0}],
   cash:[{id:"ca1",n:"현금",a:0}],
+  tabOrder:[...DFLT_TAB_ORDER],
 };
 
 function ld(){
@@ -77,7 +79,8 @@ function ld(){
     const d=JSON.parse(raw);
     if(!d.krx) d.krx=[];
     if(!d.coins) d.coins=d.eth?[{id:"c1",t:"ETH",n:"이더리움",q:d.eth.q||0,a:d.eth.a||0}]:[{id:"c1",t:"ETH",n:"이더리움",q:0,a:0}];
-    if(!d.cash) d.cash=[{id:"ca1",n:"현금",a:d.cashAmt||0}];
+    if(!d.cash||!Array.isArray(d.cash)) d.cash=[{id:"ca1",n:"현금",a:(typeof d.cash==='number'?d.cash:0)}];
+    if(!d.tabOrder) d.tabOrder=[...DFLT_TAB_ORDER];
     if(!d.pen) d.pen=d.pensionEtfs||[];
     if(!d.irp) d.irp=d.irpEtfs||[];
     if(!d.us) d.us=d.usStocks||[];
@@ -151,24 +154,31 @@ async function fetchAll(){
     }catch{}
   }
 
-  // KRX (연저펀 + IRP + 한국주식) - 네이버 모바일 API
+  // KRX (연저펀 + IRP + 한국주식) - 네이버 일괄 조회 API (1번 요청으로 전체)
   const krxCodes=[...new Set([...ST.pen.map(e=>e.t),...ST.irp.map(e=>e.t),...ST.krx.map(e=>e.t)].filter(Boolean))];
-  await Promise.all(krxCodes.map(async code=>{
-    // 방법1: 네이버 모바일
+  if(krxCodes.length){
+    // 방법1: 네이버 polling API (여러 종목 한번에)
     try{
-      const url="https://m.stock.naver.com/api/stock/"+code+"/basic";
+      const query=krxCodes.map(c=>"SERVICE_ITEM:"+c).join("|");
+      const url="https://polling.finance.naver.com/api/realtime?query="+encodeURIComponent(query);
       const d=await fetch("https://api.allorigins.win/raw?url="+encodeURIComponent(url)).then(r=>r.json());
-      const p=Number((d?.closePrice||d?.currentPrice||"").toString().replace(/,/g,""));
-      if(p>100){px[code]=p;return;}
+      const datas=d?.result?.areas?.[0]?.datas||[];
+      for(const item of datas){
+        const p=Number(item.nv||item.cv||0);
+        if(item.cd&&p>100) px[item.cd]=p;
+      }
     }catch{}
-    // 방법2: fchart
-    try{
-      const url="https://fchart.stock.naver.com/sise.nhn?symbol="+code+"&timeframe=day&count=1&requestType=0";
-      const txt=await fetch("https://api.allorigins.win/raw?url="+encodeURIComponent(url)).then(r=>r.text());
-      const m=txt.match(/data="[^|]+\|[^|]+\|[^|]+\|[^|]+\|([^"]+)"/);
-      if(m){const p=Number(m[1]);if(p>100){px[code]=p;return;}}
-    }catch{}
-  }));
+    // 방법2: 아직 못받은 종목은 개별로
+    const missing=krxCodes.filter(c=>!px[c]);
+    await Promise.all(missing.map(async code=>{
+      try{
+        const url="https://m.stock.naver.com/api/stock/"+code+"/basic";
+        const d=await fetch("https://api.allorigins.win/raw?url="+encodeURIComponent(url)).then(r=>r.json());
+        const p=Number((d?.closePrice||d?.currentPrice||"").toString().replace(/,/g,""));
+        if(p>100) px[code]=p;
+      }catch{}
+    }));
+  }
 
   // 코인 - Upbit
   const coinTickers=[...new Set(ST.coins.map(x=>x.t).filter(Boolean))];
@@ -188,9 +198,14 @@ async function fetchAll(){
 // 렌더
 // ═══════════════════════════════════════
 function render(){
-  document.getElementById("app").innerHTML=buildPage();
-  bindAll();
-  sv();
+  try{
+    document.getElementById("app").innerHTML=buildPage();
+    bindAll();
+    sv();
+  }catch(e){
+    document.getElementById("app").innerHTML=
+      '<div style="padding:20px;color:#ef4444;font-size:13px">렌더 오류: '+e.message+'<br><pre style="font-size:10px;color:#94a3b8;white-space:pre-wrap">'+e.stack+'</pre></div>';
+  }
 }
 function updateHeaderOnly(){
   const el=document.getElementById("hdr-sub");
@@ -214,7 +229,8 @@ function buildPage(){
   const rateStr=usdKrw?`USD/KRW ₩${Math.round(usdKrw).toLocaleString()}`:"환율 로딩 중...";
   const subStr=lastUp?`${lastUp.toLocaleTimeString("ko-KR")} 기준`:"—";
 
-  const TABS=[["overview","전체"],["us","미국주식"],["krx","한국주식"],["pen","연금저축"],["irp","IRP"],["coins","코인"],["cash","현금"]];
+  const TAB_LABELS={"overview":"전체","us":"미국주식","krx":"한국주식","pen":"연금저축","irp":"IRP","coins":"코인","cash":"현금"};
+  const TABS=(ST.tabOrder||DFLT_TAB_ORDER).map(k=>[k,TAB_LABELS[k]||k]);
 
   return `
 <div class="hdr">
@@ -229,7 +245,11 @@ function buildPage(){
   </div>
 </div>
 <div class="tabs">
-  ${TABS.map(([k,l])=>`<button class="tab ${tab===k?"on":""}" data-tab="${k}">${l}</button>`).join("")}
+  ${TABS.map(([k,l])=>editMode
+    ? `<button class="tab ${tab===k?"on":""}" data-tab="${k}" draggable="true" data-drag="${k}" style="cursor:grab;position:relative">
+        <span style="font-size:9px;color:#64748b;margin-right:3px">⠿</span>${l}</button>`
+    : `<button class="tab ${tab===k?"on":""}" data-tab="${k}">${l}</button>`
+  ).join("")}
 </div>
 ${tab==="overview"?buildOverview(tot,usT,krxT,penT,irpT,coinsT,cashT,pp):""}
 ${tab==="us"?buildStockSection("미국 주식","us",ST.us,"#6366f1",usT,true):""}
@@ -407,8 +427,45 @@ function bindAll(){
   document.getElementById("btn-refresh")?.addEventListener("click",fetchAll);
   document.getElementById("btn-edit")?.addEventListener("click",()=>{editMode=!editMode;render();});
 
-  // 탭
+  // 탭 클릭
   document.querySelectorAll("[data-tab]").forEach(b=>b.addEventListener("click",()=>{tab=b.dataset.tab;render();}));
+
+  // 탭 드래그 순서 변경 (편집모드에서만)
+  if(editMode){
+    let dragKey=null;
+    document.querySelectorAll("[data-drag]").forEach(b=>{
+      b.addEventListener("dragstart",e=>{
+        dragKey=b.dataset.drag;
+        e.dataTransfer.effectAllowed="move";
+        b.style.opacity="0.4";
+      });
+      b.addEventListener("dragend",()=>{ b.style.opacity="1"; });
+      b.addEventListener("dragover",e=>{
+        e.preventDefault();
+        e.dataTransfer.dropEffect="move";
+        b.style.background="#334155";
+      });
+      b.addEventListener("dragleave",()=>{
+        b.style.background=tab===b.dataset.drag?"#6366f1":"#1e293b";
+      });
+      b.addEventListener("drop",e=>{
+        e.preventDefault();
+        const toKey=b.dataset.drag;
+        if(dragKey&&toKey&&dragKey!==toKey){
+          const order=ST.tabOrder||[...DFLT_TAB_ORDER];
+          const fromIdx=order.indexOf(dragKey);
+          const toIdx=order.indexOf(toKey);
+          if(fromIdx>-1&&toIdx>-1){
+            order.splice(fromIdx,1);
+            order.splice(toIdx,0,dragKey);
+            ST.tabOrder=order;
+            sv();
+            render();
+          }
+        }
+      });
+    });
+  }
 
   // 추가
   document.querySelectorAll("[data-add]").forEach(b=>b.addEventListener("click",()=>{
@@ -469,9 +526,14 @@ function bindAll(){
 // ═══════════════════════════════════════
 // 시작
 // ═══════════════════════════════════════
-render();
-fetchAll();
-setInterval(fetchAll,60000);
+try{
+  render();
+  fetchAll();
+  setInterval(fetchAll,60000);
+}catch(e){
+  document.getElementById("app").innerHTML=
+    '<div style="padding:20px;color:#ef4444;font-size:13px">오류: '+e.message+'<br><br><pre style="font-size:10px;color:#94a3b8;white-space:pre-wrap">'+e.stack+'</pre></div>';
+}
 </script>
 </body>
 </html>
