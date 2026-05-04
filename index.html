@@ -195,9 +195,14 @@ async function fetchAll(){
 // 렌더
 // ═══════════════════════════════════════
 function render(){
-  document.getElementById("app").innerHTML=buildPage();
-  bindAll();
-  sv();
+  try{
+    document.getElementById("app").innerHTML=buildPage();
+    bindAll();
+    sv();
+  }catch(e){
+    document.getElementById("app").innerHTML=
+      '<div style="padding:20px;color:#ef4444;font-size:13px">렌더 오류: '+e.message+'<br><pre style="font-size:10px;color:#94a3b8;white-space:pre-wrap">'+e.stack+'</pre></div>';
+  }
 }
 function updateHeaderOnly(){
   const el=document.getElementById("hdr-sub");
@@ -476,9 +481,14 @@ function bindAll(){
 // ═══════════════════════════════════════
 // 시작
 // ═══════════════════════════════════════
-render();
-fetchAll();
-setInterval(fetchAll,60000);
+try{
+  render();
+  fetchAll();
+  setInterval(fetchAll,60000);
+}catch(e){
+  document.getElementById("app").innerHTML=
+    '<div style="padding:20px;color:#ef4444;font-size:13px">오류: '+e.message+'<br><br><pre style="font-size:10px;color:#94a3b8;white-space:pre-wrap">'+e.stack+'</pre></div>';
+}
 </script>
 </body>
 </html>
