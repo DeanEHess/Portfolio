@@ -151,24 +151,31 @@ async function fetchAll(){
     }catch{}
   }
 
-  // KRX (연저펀 + IRP + 한국주식) - 네이버 모바일 API
+  // KRX (연저펀 + IRP + 한국주식) - 네이버 일괄 조회 API (1번 요청으로 전체)
   const krxCodes=[...new Set([...ST.pen.map(e=>e.t),...ST.irp.map(e=>e.t),...ST.krx.map(e=>e.t)].filter(Boolean))];
-  await Promise.all(krxCodes.map(async code=>{
-    // 방법1: 네이버 모바일
+  if(krxCodes.length){
+    // 방법1: 네이버 polling API (여러 종목 한번에)
     try{
-      const url="https://m.stock.naver.com/api/stock/"+code+"/basic";
+      const query=krxCodes.map(c=>"SERVICE_ITEM:"+c).join("|");
+      const url="https://polling.finance.naver.com/api/realtime?query="+encodeURIComponent(query);
       const d=await fetch("https://api.allorigins.win/raw?url="+encodeURIComponent(url)).then(r=>r.json());
-      const p=Number((d?.closePrice||d?.currentPrice||"").toString().replace(/,/g,""));
-      if(p>100){px[code]=p;return;}
+      const datas=d?.result?.areas?.[0]?.datas||[];
+      for(const item of datas){
+        const p=Number(item.nv||item.cv||0);
+        if(item.cd&&p>100) px[item.cd]=p;
+      }
     }catch{}
-    // 방법2: fchart
-    try{
-      const url="https://fchart.stock.naver.com/sise.nhn?symbol="+code+"&timeframe=day&count=1&requestType=0";
-      const txt=await fetch("https://api.allorigins.win/raw?url="+encodeURIComponent(url)).then(r=>r.text());
-      const m=txt.match(/data="[^|]+\|[^|]+\|[^|]+\|[^|]+\|([^"]+)"/);
-      if(m){const p=Number(m[1]);if(p>100){px[code]=p;return;}}
-    }catch{}
-  }));
+    // 방법2: 아직 못받은 종목은 개별로
+    const missing=krxCodes.filter(c=>!px[c]);
+    await Promise.all(missing.map(async code=>{
+      try{
+        const url="https://m.stock.naver.com/api/stock/"+code+"/basic";
+        const d=await fetch("https://api.allorigins.win/raw?url="+encodeURIComponent(url)).then(r=>r.json());
+        const p=Number((d?.closePrice||d?.currentPrice||"").toString().replace(/,/g,""));
+        if(p>100) px[code]=p;
+      }catch{}
+    }));
+  }
 
   // 코인 - Upbit
   const coinTickers=[...new Set(ST.coins.map(x=>x.t).filter(Boolean))];
