@@ -77,7 +77,7 @@ function ld(){
     const d=JSON.parse(raw);
     if(!d.krx) d.krx=[];
     if(!d.coins) d.coins=d.eth?[{id:"c1",t:"ETH",n:"이더리움",q:d.eth.q||0,a:d.eth.a||0}]:[{id:"c1",t:"ETH",n:"이더리움",q:0,a:0}];
-    if(!d.cash||!Array.isArray(d.cash)) d.cash=[{id:"ca1",n:"현금",a:(typeof d.cash==='number'?d.cash:0)}];
+    if(!d.cash) d.cash=[{id:"ca1",n:"현금",a:d.cashAmt||0}];
     if(!d.pen) d.pen=d.pensionEtfs||[];
     if(!d.irp) d.irp=d.irpEtfs||[];
     if(!d.us) d.us=d.usStocks||[];
@@ -151,31 +151,24 @@ async function fetchAll(){
     }catch{}
   }
 
-  // KRX (연저펀 + IRP + 한국주식) - 네이버 일괄 조회 API (1번 요청으로 전체)
+  // KRX (연저펀 + IRP + 한국주식) - 네이버 모바일 API
   const krxCodes=[...new Set([...ST.pen.map(e=>e.t),...ST.irp.map(e=>e.t),...ST.krx.map(e=>e.t)].filter(Boolean))];
-  if(krxCodes.length){
-    // 방법1: 네이버 polling API (여러 종목 한번에)
+  await Promise.all(krxCodes.map(async code=>{
+    // 방법1: 네이버 모바일
     try{
-      const query=krxCodes.map(c=>"SERVICE_ITEM:"+c).join("|");
-      const url="https://polling.finance.naver.com/api/realtime?query="+encodeURIComponent(query);
+      const url="https://m.stock.naver.com/api/stock/"+code+"/basic";
       const d=await fetch("https://api.allorigins.win/raw?url="+encodeURIComponent(url)).then(r=>r.json());
-      const datas=d?.result?.areas?.[0]?.datas||[];
-      for(const item of datas){
-        const p=Number(item.nv||item.cv||0);
-        if(item.cd&&p>100) px[item.cd]=p;
-      }
+      const p=Number((d?.closePrice||d?.currentPrice||"").toString().replace(/,/g,""));
+      if(p>100){px[code]=p;return;}
     }catch{}
-    // 방법2: 아직 못받은 종목은 개별로
-    const missing=krxCodes.filter(c=>!px[c]);
-    await Promise.all(missing.map(async code=>{
-      try{
-        const url="https://m.stock.naver.com/api/stock/"+code+"/basic";
-        const d=await fetch("https://api.allorigins.win/raw?url="+encodeURIComponent(url)).then(r=>r.json());
-        const p=Number((d?.closePrice||d?.currentPrice||"").toString().replace(/,/g,""));
-        if(p>100) px[code]=p;
-      }catch{}
-    }));
-  }
+    // 방법2: fchart
+    try{
+      const url="https://fchart.stock.naver.com/sise.nhn?symbol="+code+"&timeframe=day&count=1&requestType=0";
+      const txt=await fetch("https://api.allorigins.win/raw?url="+encodeURIComponent(url)).then(r=>r.text());
+      const m=txt.match(/data="[^|]+\|[^|]+\|[^|]+\|[^|]+\|([^"]+)"/);
+      if(m){const p=Number(m[1]);if(p>100){px[code]=p;return;}}
+    }catch{}
+  }));
 
   // 코인 - Upbit
   const coinTickers=[...new Set(ST.coins.map(x=>x.t).filter(Boolean))];
@@ -195,14 +188,9 @@ async function fetchAll(){
 // 렌더
 // ═══════════════════════════════════════
 function render(){
-  try{
-    document.getElementById("app").innerHTML=buildPage();
-    bindAll();
-    sv();
-  }catch(e){
-    document.getElementById("app").innerHTML=
-      '<div style="padding:20px;color:#ef4444;font-size:13px">렌더 오류: '+e.message+'<br><pre style="font-size:10px;color:#94a3b8;white-space:pre-wrap">'+e.stack+'</pre></div>';
-  }
+  document.getElementById("app").innerHTML=buildPage();
+  bindAll();
+  sv();
 }
 function updateHeaderOnly(){
   const el=document.getElementById("hdr-sub");
@@ -481,14 +469,9 @@ function bindAll(){
 // ═══════════════════════════════════════
 // 시작
 // ═══════════════════════════════════════
-try{
-  render();
-  fetchAll();
-  setInterval(fetchAll,60000);
-}catch(e){
-  document.getElementById("app").innerHTML=
-    '<div style="padding:20px;color:#ef4444;font-size:13px">오류: '+e.message+'<br><br><pre style="font-size:10px;color:#94a3b8;white-space:pre-wrap">'+e.stack+'</pre></div>';
-}
+render();
+fetchAll();
+setInterval(fetchAll,60000);
 </script>
 </body>
 </html>
