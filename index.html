@@ -53,6 +53,7 @@
 // DB
 // ═══════════════════════════════════════════
 const US_DB={NVO:"Novo Nordisk",TQQQ:"ProShares UltraPro QQQ",JEPQ:"JPMorgan Nasdaq Eq Premium",QLD:"ProShares Ultra QQQ",SGOV:"iShares 0-3M Treasury",QQQ:"Invesco QQQ",SPY:"SPDR S&P500",VOO:"Vanguard S&P500",NVDA:"NVIDIA",AAPL:"Apple",MSFT:"Microsoft",GOOGL:"Alphabet",AMZN:"Amazon",META:"Meta",TSLA:"Tesla",SOXL:"Direxion Semi Bull 3X",UPRO:"ProShares UltraPro S&P500",TLT:"iShares 20Y Treasury",GLD:"SPDR Gold",PLTR:"Palantir",AMD:"AMD"};
+const KRX_STOCK_DB={"005930":"삼성전자","000660":"SK하이닉스","035420":"NAVER","035720":"카카오","000270":"기아","005380":"현대차","051910":"LG화학","006400":"삼성SDI","207940":"삼성바이오로직스","068270":"셀트리온","105560":"KB금융","055550":"신한지주","086790":"하나금융지주","316140":"우리금융지주","032830":"삼성생명","011200":"HMM","003550":"LG","066570":"LG전자","017670":"SK텔레콤","030200":"KT"};
 const KRX_DB={"381170":"TIGER 미국테크TOP10 INDXX","360750":"TIGER 미국S&P500","381180":"TIGER 미국필라델피아반도체","411060":"ACE KRX금현물","367380":"ACE 미국나스닥100","360200":"ACE 미국S&P500","473540":"ACE 미국S&P500채권혼합50액티브","069500":"KODEX 200","133690":"TIGER 미국나스닥100","379800":"KODEX 미국S&P500"};
 
 // ═══════════════════════════════════════════
@@ -63,9 +64,25 @@ const DFLT={
   us:[{id:"us1",t:"NVO",n:"Novo Nordisk",q:0,a:0},{id:"us2",t:"TQQQ",n:"ProShares UltraPro QQQ",q:0,a:0},{id:"us3",t:"JEPQ",n:"JPMorgan Nasdaq Eq Premium",q:0,a:0},{id:"us4",t:"QLD",n:"ProShares Ultra QQQ",q:0,a:0}],
   pen:[{id:"p1",t:"381170",n:"TIGER 미국테크TOP10 INDXX",q:68,a:0},{id:"p2",t:"360750",n:"TIGER 미국S&P500",q:73,a:0},{id:"p3",t:"381180",n:"TIGER 미국필라델피아반도체",q:29,a:0},{id:"p4",t:"411060",n:"ACE KRX금현물",q:14,a:0}],
   irp:[{id:"i1",t:"367380",n:"ACE 미국나스닥100",q:0,a:0},{id:"i2",t:"411060",n:"ACE KRX금현물",q:0,a:0},{id:"i3",t:"360200",n:"ACE 미국S&P500",q:0,a:0},{id:"i4",t:"473540",n:"ACE 미국S&P500채권혼합50액티브",q:0,a:0}],
+  coins:[{id:"c1",t:"ETH",n:"이더리움",q:0,a:0}],
+  krx:[],
+  cashItems:[{id:"ca1",n:"현금",a:0}],
   eth:{q:0,a:0},cash:0
 };
-function ld(){try{const r=localStorage.getItem(SK);return r?JSON.parse(r):JSON.parse(JSON.stringify(DFLT));}catch{return JSON.parse(JSON.stringify(DFLT));}}
+function ld(){
+  try{
+    const r=localStorage.getItem(SK);
+    if(!r)return JSON.parse(JSON.stringify(DFLT));
+    const d=JSON.parse(r);
+    // 구버전 호환: coins/krx 없으면 기본값
+    if(!d.coins){
+      d.coins=d.eth?[{id:"c1",t:"ETH",n:"이더리움",q:d.eth.q||0,a:d.eth.a||0}]:[{id:"c1",t:"ETH",n:"이더리움",q:0,a:0}];
+    }
+    if(!d.krx) d.krx=[];
+    if(!d.cashItems) d.cashItems=d.cash?[{id:"ca1",n:"현금",a:d.cash||0}]:[{id:"ca1",n:"현금",a:0}];
+    return d;
+  }catch{return JSON.parse(JSON.stringify(DFLT));}
+}
 function sv(){try{localStorage.setItem(SK,JSON.stringify(ST));}catch{}}
 
 // ═══════════════════════════════════════════
@@ -149,29 +166,55 @@ async function fetchAll(){
     }
   }
 
-  // KRX ETF
+  // KRX ETF - 네이버 모바일 API (종목별 JSON)
   const codes=[...new Set([...ST.pen.map(e=>e.t),...ST.irp.map(e=>e.t)].filter(Boolean))];
-  for(const code of codes){
-    const proxies=[
-      `https://api.allorigins.win/raw?url=${encodeURIComponent(`https://finance.naver.com/item/sise.naver?code=${code}`)}`,
-      `https://corsproxy.io/?${encodeURIComponent(`https://finance.naver.com/item/sise.naver?code=${code}`)}`,
-    ];
-    for(const url of proxies){
-      try{
-        const html=await fetch(url).then(r=>r.text());
-        const pats=[/id="now_value">([0-9,]+)/,/"now">([0-9,]+)</,/class="tah p11"[^>]*>([0-9,]+)/];
-        let found=false;
-        for(const p of pats){const m=html.match(p);if(m){const v=parseInt(m[1].replace(/,/g,""),10);if(v>100){px[code]=v;found=true;break;}}}
-        if(found)break;
-      }catch{}
-    }
-  }
+  await Promise.all(codes.map(async code=>{
+    // 방법1: 네이버 모바일 stock API
+    try{
+      const url=`https://m.stock.naver.com/api/stock/${code}/basic`;
+      const proxy=`https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
+      const d=await fetch(proxy).then(r=>r.json());
+      const price=Number((d?.closePrice||d?.currentPrice||"").toString().replace(/,/g,""));
+      if(price>100){px[code]=price;return;}
+    }catch{}
+    // 방법2: 네이버 금융 fchart API
+    try{
+      const url=`https://fchart.stock.naver.com/sise.nhn?symbol=${code}&timeframe=day&count=1&requestType=0`;
+      const proxy=`https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
+      const text=await fetch(proxy).then(r=>r.text());
+      const m=text.match(/<item data="([^|]+)\|([^|]+)\|([^|]+)\|([^|]+)\|([^"]+)"/);
+      if(m){const price=Number(m[5]);if(price>100){px[code]=price;return;}}
+    }catch{}
+    // 방법3: HTML 파싱 fallback
+    try{
+      const url=`https://finance.naver.com/item/sise.naver?code=${code}`;
+      const proxy=`https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
+      const html=await fetch(proxy).then(r=>r.text());
+      const pats=[/id="now_value">([0-9,]+)/,/"now">([0-9,]+)</,/class="tah p11"[^>]*>([0-9,]+)/];
+      for(const p of pats){const m=html.match(p);if(m){const v=parseInt(m[1].replace(/,/g,""),10);if(v>100){px[code]=v;return;}}}
+    }catch{}
+  }));
 
-  // ETH
-  try{
-    const d=await fetch("https://api.upbit.com/v1/ticker?markets=KRW-ETH").then(r=>r.json());
-    if(d?.[0]?.trade_price) px["ETH"]=d[0].trade_price;
-  }catch{}
+  // 코인 - Upbit
+  const coinTickers=[...new Set(ST.coins.map(x=>x.t).filter(Boolean))];
+  if(coinTickers.length){
+    try{
+      const markets=coinTickers.map(t=>"KRW-"+t).join(",");
+      const d=await fetch("https://api.upbit.com/v1/ticker?markets="+markets).then(r=>r.json());
+      for(const item of d){const t=item.market.replace("KRW-","");if(item.trade_price)px[t]=item.trade_price;}
+    }catch{}
+  }
+  // 한국 개별주식 - 네이버 모바일 API
+  const krxStockCodes=[...new Set(ST.krx.map(x=>x.t).filter(Boolean))];
+  await Promise.all(krxStockCodes.map(async code=>{
+    if(px[code])return;
+    try{
+      const url="https://m.stock.naver.com/api/stock/"+code+"/basic";
+      const d=await fetch("https://api.allorigins.win/raw?url="+encodeURIComponent(url)).then(r=>r.json());
+      const price=Number((d?.closePrice||d?.currentPrice||"").toString().replace(/,/g,""));
+      if(price>100)px[code]=price;
+    }catch{}
+  }));
 
   loading=false;lastUp=new Date();
   render();
@@ -196,8 +239,11 @@ function buildPage(){
   const usT=ST.us.reduce((s,x)=>s+usVal(x),0);
   const penT=ST.pen.reduce((s,x)=>s+krxVal(x),0);
   const irpT=ST.irp.reduce((s,x)=>s+krxVal(x),0);
-  const ethV=px["ETH"]?px["ETH"]*ST.eth.q:ST.eth.a*ST.eth.q;
-  const tot=usT+penT+irpT+ethV+ST.cash;
+  const coinsT=ST.coins.reduce((s,x)=>s+(px[x.t]?px[x.t]*x.q:x.a*x.q),0);
+  const krxT=ST.krx.reduce((s,x)=>s+krxVal(x),0);
+  const cashT=ST.cashItems.reduce((s,x)=>s+(x.a||0),0);
+  const ethV=coinsT;
+  const tot=usT+penT+irpT+coinsT+krxT+cashT;
   const pp=v=>tot>0?(v/tot*100).toFixed(1):"0.0";
 
   const rateStr=usdKrw?`USD/KRW ₩${Math.round(usdKrw).toLocaleString()}`:"환율 로딩 중...";
@@ -216,19 +262,21 @@ function buildPage(){
   </div>
 </div>
 <div class="tabs">
-  ${[["overview","전체"],["us","미국주식"],["pension","연금저축"],["irp","IRP"],["crypto","코인"]]
+  ${[["overview","전체"],["us","미국주식"],["krx","한국주식"],["pension","연금저축"],["irp","IRP"],["crypto","코인"],["cash","현금/예금"]]
     .map(([k,l])=>`<button class="tab ${tab===k?"on":""}" data-tab="${k}">${l}</button>`).join("")}
 </div>
 ${tab==="overview"?buildOverview(tot,usT,penT,irpT,ethV,pp):""}
 ${tab==="us"?buildSection("미국 주식",ST.us,"us","#6366f1",usT):""}
 ${tab==="pension"?buildSection("연금저축펀드",ST.pen,"pen","#f59e0b",penT):""}
 ${tab==="irp"?buildSection("IRP",ST.irp,"irp","#10b981",irpT):""}
-${tab==="crypto"?buildCrypto(ethV):""}
+${tab==="krx"?buildSection("한국 주식",ST.krx,"krx","#f43f5e",krxT):""}
+${tab==="crypto"?buildCrypto(coinsT):""}
+${tab==="cash"?buildCashTab(cashT):""}
 <div style="height:32px"></div>`;
 }
 
 function buildOverview(tot,usT,penT,irpT,ethV,pp){
-  const segs=[{l:"미국주식",v:usT,c:"#6366f1"},{l:"연금저축",v:penT,c:"#f59e0b"},{l:"IRP",v:irpT,c:"#10b981"},{l:"ETH",v:ethV,c:"#3b82f6"},{l:"현금",v:ST.cash,c:"#475569"}].filter(s=>s.v>0);
+  const segs=[{l:"미국주식",v:usT,c:"#6366f1"},{l:"한국주식",v:krxT,c:"#f43f5e"},{l:"연금저축",v:penT,c:"#f59e0b"},{l:"IRP",v:irpT,c:"#10b981"},{l:"코인",v:coinsT,c:"#3b82f6"},{l:"현금/예금",v:cashT,c:"#475569"}].filter(s=>s.v>0);
   const cx=80,cy=80,R=65,r=38;let ang=-Math.PI/2;
   const donutPaths=segs.length?segs.map(seg=>{
     const a=seg.v/tot*Math.PI*2,x1=cx+R*Math.cos(ang),y1=cy+R*Math.sin(ang);
@@ -241,7 +289,7 @@ function buildOverview(tot,usT,penT,irpT,ethV,pp){
   <div style="font-size:12px;color:#64748b;margin-bottom:6px">총 평가 자산</div>
   <div style="font-size:32px;font-weight:800;letter-spacing:-1px">${won(tot)||"₩0"}</div>
   <div style="margin-top:8px;display:flex;gap:14px;flex-wrap:wrap">
-    ${[{l:"미국주식",v:usT},{l:"연금저축",v:penT},{l:"IRP",v:irpT},{l:"ETH",v:ethV},{l:"현금",v:ST.cash}]
+    ${[{l:"미국주식",v:usT},{l:"한국주식",v:krxT},{l:"연금저축",v:penT},{l:"IRP",v:irpT},{l:"코인",v:coinsT},{l:"현금/예금",v:cashT}]
       .map(x=>`<span style="font-size:11px;color:#64748b">${x.l} <b style="color:#94a3b8">${pp(x.v)}%</b></span>`).join("")}
   </div>
 </div>
@@ -261,13 +309,7 @@ function buildOverview(tot,usT,penT,irpT,ethV,pp){
     </div>
   </div>
 </div>
-<div class="card">
-  <div class="card-hdr"><span style="font-weight:700;font-size:14px">현금/예금</span><span style="color:#94a3b8;font-weight:700">${won(ST.cash)}</span></div>
-  <div style="display:flex;gap:8px;align-items:center">
-    <input class="inp-big" type="number" id="inp-cash" value="${ST.cash||""}" placeholder="보유 현금 (원)"/>
-    <span style="color:#475569;font-size:12px">원</span>
-  </div>
-</div>`;
+`;
 }
 
 function buildSection(title,list,key,accent,total){
@@ -287,6 +329,7 @@ function buildSection(title,list,key,accent,total){
       <td class="r" style="font-size:12px">${priceStr}</td>
       <td class="r" style="font-weight:600;font-size:13px" data-calc="val">${won(valKrw)||"₩0"}</td>
       <td class="r ${cls(gp)}" style="font-size:13px" data-calc="gp">${pct(gp)}</td>
+      <td><button style="background:#7f1d1d;border:none;color:#fca5a5;border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer" data-del="${item.id}" data-key="${key}">✕</button></td>
     </tr>`;}
     return`<tr>
       <td style="min-width:110px"><div style="font-weight:600;font-size:12px">${item.t}</div><div style="font-size:10px;color:#64748b;margin-top:1px">${item.n}</div></td>
@@ -295,6 +338,7 @@ function buildSection(title,list,key,accent,total){
       <td class="r" style="font-size:12px">${priceStr}</td>
       <td class="r" style="font-weight:600;font-size:13px">${won(valKrw)||"₩0"}</td>
       <td class="r ${cls(gp)}" style="font-size:13px;font-weight:700">${pct(gp)}</td>
+      ${editMode?"<td></td>":""}
     </tr>`;
   }).join("");
   return`
@@ -306,6 +350,7 @@ function buildSection(title,list,key,accent,total){
   <div class="tbl-wrap"><table>
     <thead><tr>
       <th style="text-align:left">종목</th><th class="r">수량</th><th class="r">평단</th><th class="r">현재가(원)</th><th class="r">평가금액</th><th class="r">수익률</th>
+      ${editMode?"<th></th>":""}
     </tr></thead>
     <tbody>${rows}</tbody>
   </table></div>
@@ -313,22 +358,73 @@ function buildSection(title,list,key,accent,total){
 </div>`;
 }
 
-function buildCrypto(ethV){
-  const ep=px["ETH"];
-  const gp=(ep&&ST.eth.a)?((ep-ST.eth.a)/ST.eth.a)*100:null;
+function buildCashTab(cashT){
+  const rows=ST.cashItems.map(item=>{
+    if(editMode){return`<tr data-id="${item.id}" data-key="cashItems">
+      <td style="min-width:160px"><input class="inp" style="text-align:left;font-size:13px" data-f="n" data-id="${item.id}" value="${item.n}" placeholder="예) 예금, 적금, 주택청약"/></td>
+      <td class="r"><input class="inp" style="text-align:right" type="number" data-f="a" data-id="${item.id}" value="${item.a||""}" placeholder="0"/></td>
+      <td><button style="background:#7f1d1d;border:none;color:#fca5a5;border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer" data-del="${item.id}" data-key="cashItems">✕</button></td>
+    </tr>`;}
+    return`<tr>
+      <td style="font-size:13px;font-weight:500">${item.n}</td>
+      <td class="r" style="font-size:13px;font-weight:600">${won(item.a)||"₩0"}</td>
+    </tr>`;
+  }).join("");
+  return`
+<div class="card" style="border-top:3px solid #475569">
+  <div class="card-hdr">
+    <span style="font-weight:700;font-size:14px">현금 / 예금</span>
+    <span style="font-weight:800;font-size:17px;color:#94a3b8">${won(cashT)||"₩0"}</span>
+  </div>
+  <div class="tbl-wrap"><table>
+    <thead><tr>
+      <th style="text-align:left">항목</th>
+      <th class="r">금액</th>
+      ${editMode?"<th></th>":""}
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table></div>
+  ${editMode?`<button class="add-btn" data-add="cashItems">+ 항목 추가</button>`:""}
+</div>`;
+}
+
+function buildCrypto(coinsT){
+  const rows=ST.coins.map(item=>{
+    const price=px[item.t]||0;
+    const val=price?price*item.q:item.a*item.q;
+    const gp=(price&&item.a)?((price-item.a)/item.a)*100:null;
+    if(editMode){return`<tr data-id="${item.id}" data-key="coins">
+      <td style="min-width:110px">
+        <input class="inp" style="text-align:left;font-weight:600;font-size:12px;margin-bottom:3px" data-f="t" data-id="${item.id}" value="${item.t}" placeholder="ETH"/>
+        <input class="inp" style="text-align:left;font-size:10px;color:#94a3b8" data-f="n" data-id="${item.id}" value="${item.n}" placeholder="코인명"/>
+      </td>
+      <td class="r"><input class="inp" style="text-align:right" type="number" step="0.0001" data-f="q" data-id="${item.id}" value="${item.q||""}" placeholder="0"/></td>
+      <td class="r"><input class="inp" style="text-align:right" type="number" data-f="a" data-id="${item.id}" value="${item.a||""}" placeholder="KRW"/></td>
+      <td class="r" style="font-size:12px">${price?won(price):"<span class='dim'>—</span>"}</td>
+      <td class="r" style="font-weight:600;font-size:13px" data-calc="val">${won(val)||"₩0"}</td>
+      <td class="r ${cls(gp)}" style="font-size:13px" data-calc="gp">${pct(gp)}</td>
+      <td><button style="background:#7f1d1d;border:none;color:#fca5a5;border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer" data-del="${item.id}" data-key="coins">✕</button></td>
+    </tr>`;}
+    return`<tr>
+      <td style="min-width:110px"><div style="font-weight:600;font-size:12px">${item.t}</div><div style="font-size:10px;color:#64748b">${item.n}</div></td>
+      <td class="r" style="font-size:13px">${item.q}</td>
+      <td class="r" style="font-size:12px;color:#94a3b8">${won(item.a)}</td>
+      <td class="r" style="font-size:12px">${price?won(price):"<span class='dim'>—</span>"}</td>
+      <td class="r" style="font-weight:600;font-size:13px">${won(val)||"₩0"}</td>
+      <td class="r ${cls(gp)}" style="font-size:13px;font-weight:700">${pct(gp)}</td>
+    </tr>`;
+  }).join("");
   return`
 <div class="card" style="border-top:3px solid #3b82f6">
-  <div class="card-hdr"><span style="font-weight:700;font-size:14px">코인 (업비트)</span><span style="font-weight:800;font-size:17px;color:#3b82f6">${won(ethV)||"₩0"}</span></div>
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-    <div><div style="font-weight:700;font-size:15px">ETH</div><div style="font-size:11px;color:#64748b">이더리움 · Upbit</div></div>
-    <div style="text-align:right"><div style="font-size:22px;font-weight:800">${ep?won(ep):"—"}</div><div style="font-size:11px;color:#64748b">현재가</div></div>
-  </div>
-  <div style="display:flex;gap:12px;margin-bottom:16px">
-    <div style="flex:1"><div style="font-size:11px;color:#64748b;margin-bottom:4px">보유 수량 (ETH)</div><input class="inp-big" type="number" step="0.0001" id="inp-eth-q" value="${ST.eth.q||""}" placeholder="0.0000"/></div>
-    <div style="flex:1"><div style="font-size:11px;color:#64748b;margin-bottom:4px">평균 매수가 (원)</div><input class="inp-big" type="number" id="inp-eth-a" value="${ST.eth.a||""}" placeholder="0"/></div>
-  </div>
-  <div style="display:flex;justify-content:space-between;margin-bottom:6px"><span style="color:#64748b;font-size:13px">평가금액</span><span style="font-weight:700;font-size:15px">${won(ethV)||"₩0"}</span></div>
-  ${gp!=null?`<div style="display:flex;justify-content:space-between"><span style="color:#64748b;font-size:13px">수익률</span><span class="${cls(gp)}" style="font-size:15px">${pct(gp)}</span></div>`:""}
+  <div class="card-hdr"><span style="font-weight:700;font-size:14px">코인 (업비트)</span><span style="font-weight:800;font-size:17px;color:#3b82f6">${won(coinsT)||"₩0"}</span></div>
+  <div class="tbl-wrap"><table>
+    <thead><tr>
+      <th style="text-align:left">종목</th><th class="r">수량</th><th class="r">평단(원)</th><th class="r">현재가(원)</th><th class="r">평가금액</th><th class="r">수익률</th>
+      ${editMode?"<th></th>":""}
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table></div>
+  ${editMode?`<button class="add-btn" data-add="coins">+ 코인 추가</button>`:""}
 </div>`;
 }
 
@@ -343,6 +439,10 @@ function bindAll(){
     const k=b.dataset.add,id=k+Date.now();
     if(k==="us")ST.us.push({id,t:"",n:"",q:0,a:0});
     else if(k==="pen")ST.pen.push({id,t:"",n:"",q:0,a:0});
+    else if(k==="irp")ST.irp.push({id,t:"",n:"",q:0,a:0});
+    else if(k==="coins")ST.coins.push({id,t:"",n:"",q:0,a:0});
+    else if(k==="krx")ST.krx.push({id,t:"",n:"",q:0,a:0});
+    else if(k==="cashItems")ST.cashItems.push({id,n:"새 항목",a:0});
     else ST.irp.push({id,t:"",n:"",q:0,a:0});
     render();
   }));
@@ -354,12 +454,14 @@ function bindAll(){
       const list=findList(id);
       const item=list?.find(x=>x.id===id);
       if(!item)return;
-      const isUSD=inp.closest("tr")?.dataset.key==="us";
+      const key2=inp.closest("tr")?.dataset.key;
+      const isUSD=key2==="us";
 
       if(f==="t"){
         const v=e.target.value.toUpperCase();
         item.t=v; e.target.value=v;
-        const auto=isUSD?US_DB[v]:KRX_DB[v];
+        const key2=inp.closest("tr")?.dataset.key;
+        const auto=key2==="us"?US_DB[v]:key2==="coins"?v:(KRX_DB[v]||KRX_STOCK_DB[v]);
         if(auto){item.n=auto;const ni=inp.closest("tr").querySelector('[data-f="n"]');if(ni)ni.value=auto;}
       } else if(f==="n"){
         item.n=e.target.value;
@@ -379,15 +481,27 @@ function bindAll(){
     });
   });
 
-  document.getElementById("inp-cash")?.addEventListener("input",e=>{ST.cash=Number(e.target.value)||0;sv();});
-  document.getElementById("inp-eth-q")?.addEventListener("input",e=>{ST.eth.q=Number(e.target.value)||0;sv();});
-  document.getElementById("inp-eth-a")?.addEventListener("input",e=>{ST.eth.a=Number(e.target.value)||0;sv();});
+  document.querySelectorAll("[data-del]").forEach(b=>b.addEventListener("click",()=>{
+    const id=b.dataset.del,key=b.dataset.key;
+    if(key==="us")ST.us=ST.us.filter(x=>x.id!==id);
+    else if(key==="pen")ST.pen=ST.pen.filter(x=>x.id!==id);
+    else if(key==="irp")ST.irp=ST.irp.filter(x=>x.id!==id);
+    else if(key==="coins")ST.coins=ST.coins.filter(x=>x.id!==id);
+    else if(key==="krx")ST.krx=ST.krx.filter(x=>x.id!==id);
+    else if(key==="cashItems")ST.cashItems=ST.cashItems.filter(x=>x.id!==id);
+    render();
+  }));
+
+
 }
 
 function findList(id){
   if(ST.us.find(x=>x.id===id))return ST.us;
   if(ST.pen.find(x=>x.id===id))return ST.pen;
   if(ST.irp.find(x=>x.id===id))return ST.irp;
+  if(ST.coins.find(x=>x.id===id))return ST.coins;
+  if(ST.krx.find(x=>x.id===id))return ST.krx;
+  if(ST.cashItems.find(x=>x.id===id))return ST.cashItems;
   return null;
 }
 
