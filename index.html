@@ -362,6 +362,7 @@ function buildStockSection(title,key,list,accent,total,isUSD){
     <tbody>${rows}</tbody>
   </table></div>
   ${editMode?`<button class="add-btn" data-add="${key}">+ 종목 추가</button>`:""}
+  ${buildSectionDonut(list, isUSD?usVal:krxVal, title)}
 </div>`;
 }
 
@@ -405,6 +406,7 @@ function buildCoins(coinsT){
     <tbody>${rows}</tbody>
   </table></div>
   ${editMode?`<button class="add-btn" data-add="coins">+ 코인 추가</button>`:""}
+  ${buildSectionDonut(ST.coins, x=>(px[x.t]?px[x.t]*x.q:(x.a*x.q)), "코인")}
 </div>`;
 }
 
@@ -442,6 +444,91 @@ function buildCash(cashT){
 // ═══════════════════════════════════════
 function getList(key){
   return{us:ST.us,krx:ST.krx,pen:ST.pen,irp:ST.irp,coins:ST.coins,cash:ST.cash}[key]||null;
+}
+
+
+function buildSectionDonut(list, valFn, title){
+  const items=list.filter(x=>x.t||x.n).map(x=>({
+    label:x.t||x.n,
+    name:x.n||x.t,
+    val:valFn(x)
+  })).filter(x=>x.val>0);
+  if(!items.length) return "";
+  const total=items.reduce((s,x)=>s+x.val,0);
+  const COLORS=["#6366f1","#f59e0b","#10b981","#3b82f6","#f43f5e","#a855f7","#06b6d4","#84cc16","#f97316","#ec4899","#14b8a6","#8b5cf6"];
+  const cx=90,cy=90,R=75,r=45;
+  let ang=-Math.PI/2;
+  const paths=items.map((item,i)=>{
+    const a=item.val/total*Math.PI*2;
+    const x1=cx+R*Math.cos(ang),y1=cy+R*Math.sin(ang);
+    ang+=a;
+    const x2=cx+R*Math.cos(ang),y2=cy+R*Math.sin(ang);
+    const xi1=cx+r*Math.cos(ang-a),yi1=cy+r*Math.sin(ang-a);
+    const xi2=cx+r*Math.cos(ang),yi2=cy+r*Math.sin(ang);
+    const lg=a>Math.PI?1:0;
+    const pct=(item.val/total*100).toFixed(1);
+    return`<path d="M${xi1},${yi1}L${x1},${y1}A${R},${R} 0 ${lg},1 ${x2},${y2}L${xi2},${yi2}A${r},${r} 0 ${lg},0 ${xi1},${yi1}Z"
+      fill="${COLORS[i%COLORS.length]}" stroke="#0f172a" stroke-width="2"
+      data-label="${item.label}" data-name="${item.name}" data-pct="${pct}" data-val="${Math.round(item.val)}"
+      class="donut-seg" style="cursor:pointer;transition:opacity 0.15s"/>`;
+  }).join("");
+  const legend=items.map((item,i)=>`
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+      <div style="display:flex;align-items:center;gap:6px">
+        <div style="width:8px;height:8px;border-radius:2px;background:${COLORS[i%COLORS.length]};flex-shrink:0"></div>
+        <span style="font-size:11px;color:#cbd5e1">${item.label}</span>
+      </div>
+      <div style="text-align:right">
+        <span style="font-size:11px;font-weight:600">₩${Math.round(item.val).toLocaleString("ko-KR")}</span>
+        <span style="font-size:10px;color:#475569;margin-left:4px">${(item.val/total*100).toFixed(1)}%</span>
+      </div>
+    </div>`).join("");
+  return`
+<div class="card" style="margin-top:4px">
+  <div style="font-weight:700;font-size:14px;margin-bottom:12px">${title} 비중</div>
+  <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+    <div style="position:relative;flex-shrink:0">
+      <svg width="180" height="180" viewBox="0 0 180 180" id="donut-${title.replace(/ /g,'')}">
+        ${paths}
+        <text x="${cx}" y="${cy-5}" text-anchor="middle" fill="#94a3b8" font-size="10" id="donut-lbl-t">탭하여</text>
+        <text x="${cx}" y="${cy+10}" text-anchor="middle" fill="#94a3b8" font-size="10" id="donut-lbl-b">확인</text>
+      </svg>
+    </div>
+    <div style="flex:1;min-width:150px">${legend}</div>
+  </div>
+</div>`;
+}
+
+function bindDonut(){
+  document.querySelectorAll(".donut-seg").forEach(seg=>{
+    seg.addEventListener("click",()=>{
+      // 다른 조각 흐리게
+      document.querySelectorAll(".donut-seg").forEach(s=>s.style.opacity="0.35");
+      seg.style.opacity="1";
+      // 중앙 텍스트 업데이트
+      const svg=seg.closest("svg");
+      const lt=svg.querySelector("#donut-lbl-t");
+      const lb=svg.querySelector("#donut-lbl-b");
+      if(lt) lt.textContent=seg.dataset.label;
+      if(lb) lb.textContent=seg.dataset.pct+"%";
+      // 툴팁 카드
+      let tip=document.getElementById("donut-tip");
+      if(!tip){tip=document.createElement("div");tip.id="donut-tip";document.body.appendChild(tip);}
+      tip.style.cssText="position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#1e293b;border:1px solid #334155;border-radius:12px;padding:10px 16px;font-size:13px;color:#e2e8f0;z-index:999;text-align:center;min-width:180px;box-shadow:0 4px 20px rgba(0,0,0,0.4)";
+      tip.innerHTML=`<div style="font-weight:700;font-size:15px">${seg.dataset.label}</div>
+        <div style="color:#94a3b8;font-size:11px;margin-top:2px">${seg.dataset.name}</div>
+        <div style="font-size:18px;font-weight:800;margin-top:6px">₩${Number(seg.dataset.val).toLocaleString("ko-KR")}</div>
+        <div style="color:#6366f1;font-weight:700;font-size:14px">${seg.dataset.pct}%</div>`;
+      clearTimeout(window._tipTimer);
+      window._tipTimer=setTimeout(()=>{
+        tip.remove();
+        document.querySelectorAll(".donut-seg").forEach(s=>s.style.opacity="1");
+        const lt2=seg.closest("svg")?.querySelector("#donut-lbl-t");
+        const lb2=seg.closest("svg")?.querySelector("#donut-lbl-b");
+        if(lt2)lt2.textContent="탭하여";if(lb2)lb2.textContent="확인";
+      },3000);
+    });
+  });
 }
 
 function bindAll(){
@@ -507,6 +594,8 @@ function bindAll(){
   }));
 
   // 인풋 — 리렌더 없이 상태만 업데이트
+  bindDonut();
+
   document.querySelectorAll(".inp[data-id]").forEach(inp=>{
     const id=inp.dataset.id, f=inp.dataset.f;
     const tr=inp.closest("tr");
