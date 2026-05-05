@@ -378,7 +378,12 @@ function buildSectionDonut(items, title) {
 
 // ─── 주식/ETF 섹션 ────────────────────────────────────────────
 function buildSection(title, key, list, accent, total, isUSD) {
-  const rows = list.map(item => {
+  const sorted = [...list].sort((a,b)=>{
+    const va=isUSD?usVal(a):krxVal(a);
+    const vb=isUSD?usVal(b):krxVal(b);
+    return vb-va;
+  });
+  const rows = sorted.map(item => {
     const priceKrw = isUSD ? usPriceKrw(item) : (px[item.t]||null);
     const val = isUSD ? usVal(item) : krxVal(item);
     const gp  = isUSD ? usGp(item)  : krxGp(item);
@@ -407,7 +412,7 @@ function buildSection(title, key, list, accent, total, isUSD) {
       +'</tr>';
   }).join("");
 
-  const donutItems = list.map(item=>({label:item.t, name:item.n, val:isUSD?usVal(item):krxVal(item)})).filter(x=>x.val>0);
+  const donutItems = sorted.filter(x=>x.t&&x.q>0).map(item=>({label:item.t, name:item.n, val:isUSD?usVal(item):krxVal(item)})).filter(x=>x.val>0);
 
   return '<div class="card" style="border-top:3px solid '+accent+'">'
     +'<div class="card-hdr"><span style="font-weight:700;font-size:14px">'+title+'</span><span style="font-weight:800;font-size:17px;color:'+accent+'">'+(total?won(total):"₩0")+'</span></div>'
@@ -425,7 +430,8 @@ function buildSection(title, key, list, accent, total, isUSD) {
 
 // ─── 코인 섹션 ────────────────────────────────────────────────
 function buildCoins(coinsT) {
-  const rows = ST.coins.map(item => {
+  const sortedCoins = [...ST.coins].sort((a,b)=>coinVal(b)-coinVal(a));
+  const rows = sortedCoins.map(item => {
     const p = px[item.t] || 0;
     const val = p ? p*item.q : item.a*item.q;
     const gp = (p&&item.a) ? ((p-item.a)/item.a)*100 : null;
@@ -452,7 +458,7 @@ function buildCoins(coinsT) {
       +'<td class="r '+cls(gp)+'" style="padding:8px 6px;font-size:13px;font-weight:700">'+pct(gp)+'</td>'
       +'</tr>';
   }).join("");
-  const donutItems = ST.coins.map(x=>({label:x.t,name:x.n,val:coinVal(x)})).filter(x=>x.val>0);
+  const donutItems = sortedCoins.filter(x=>x.t&&x.q>0).map(x=>({label:x.t,name:x.n,val:coinVal(x)})).filter(x=>x.val>0);
   return '<div class="card" style="border-top:3px solid #3b82f6">'
     +'<div class="card-hdr"><span style="font-weight:700;font-size:14px">코인 (업비트)</span><span style="font-weight:800;font-size:17px;color:#3b82f6">'+(coinsT?won(coinsT):"₩0")+'</span></div>'
     +'<div class="tbl-wrap"><table>'
@@ -465,7 +471,8 @@ function buildCoins(coinsT) {
 
 // ─── 현금 섹션 ────────────────────────────────────────────────
 function buildCash(cashT) {
-  const rows = ST.cash.map(item => {
+  const sortedCash = [...ST.cash].sort((a,b)=>(Number(b.a)||0)-(Number(a.a)||0));
+  const rows = sortedCash.map(item => {
     if (editMode) {
       return '<tr data-id="'+item.id+'" data-key="cash">'
         +'<td style="padding:8px 6px"><input class="inp" style="text-align:left;font-size:13px" data-f="n" data-id="'+item.id+'" value="'+item.n+'" placeholder="예) 예금, 적금, 주택청약"/></td>'
