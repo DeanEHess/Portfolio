@@ -174,15 +174,28 @@ async function fetchAll() {
     } catch {}
   }
 
-  // 2) 미국주식 — Yahoo Finance (allorigins 프록시)
-  await Promise.all(ST.us.filter(s => s.t).map(async s => {
+  // 2) 미국주식 — Yahoo Finance v7 (여러 종목 한번에)
+  const usTickers = ST.us.map(s => s.t).filter(Boolean);
+  if (usTickers.length) {
+    // 방법1: v7 배치 요청 (한번에)
     try {
-      const url = "https://query1.finance.yahoo.com/v8/finance/chart/" + s.t + "?interval=1d&range=1d";
+      const url = "https://query1.finance.yahoo.com/v7/finance/quote?symbols=" + usTickers.join(",");
       const d = await fetch("https://api.allorigins.win/raw?url=" + encodeURIComponent(url)).then(r => r.json());
-      const p = d?.chart?.result?.[0]?.meta?.regularMarketPrice;
-      if (p) px[s.t] = p;
+      for (const item of (d?.quoteResponse?.result || [])) {
+        if (item.regularMarketPrice) px[item.symbol] = item.regularMarketPrice;
+      }
     } catch {}
-  }));
+    // 방법2: 못받은 종목만 개별 fallback
+    const missing = usTickers.filter(t => !px[t]);
+    await Promise.all(missing.map(async t => {
+      try {
+        const url = "https://query1.finance.yahoo.com/v8/finance/chart/" + t + "?interval=1d&range=1d";
+        const d = await fetch("https://api.allorigins.win/raw?url=" + encodeURIComponent(url)).then(r => r.json());
+        const p = d?.chart?.result?.[0]?.meta?.regularMarketPrice;
+        if (p) px[t] = p;
+      } catch {}
+    }));
+  }
 
   // 3) KRX — 네이버 polling (일괄) → 개별 fallback
   const krxCodes = [...new Set([...ST.pen, ...ST.irp, ...ST.krx].map(e => e.t).filter(Boolean))];
