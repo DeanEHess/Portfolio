@@ -289,7 +289,7 @@ function buildRows(list, key, isUSD, valFn, gpFn, priceKrwFn, avgFmt) {
 
 // ─── 종목 비중 도넛 ───────────────────────────────────────────
 function buildSectionDonut(list, valFn, title) {
-  const items = list.filter(x => x.t && x.q > 0).map(x => ({ l: x.t, v: valFn(x) })).filter(x => x.v > 0);
+  const items = sortByVal(list, valFn === usVal).filter(x => x.t && x.q > 0).map(x => ({ l: x.t, v: valFn(x) })).filter(x => x.v > 0);
   if (!items.length) return "";
   const total = items.reduce((s, x) => s + x.v, 0);
   const paths = buildDonut(items, total, 90, 90, 75, 45, true);
