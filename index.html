@@ -402,7 +402,7 @@ function buildOverview() {
   ].filter(s => s.v > 0);
 
   const lbl = tot >= 1e8 ? (tot/1e8).toFixed(1)+"억" : (tot/1e4).toFixed(0)+"만";
-  const paths = buildDonut(segs, tot, 80, 80, 65, 38, false);
+  const paths = buildDonut(segs, tot, 80, 80, 65, 38, true);
   const legend = segs.map(s => `
     <div style="display:flex;justify-content:space-between;margin-bottom:7px;align-items:center">
       <div style="display:flex;align-items:center;gap:6px">
@@ -429,8 +429,8 @@ function buildOverview() {
     <div style="display:flex;align-items:center;gap:20px;flex-wrap:wrap">
       <svg width="160" height="160" viewBox="0 0 160 160" style="flex-shrink:0">
         ${paths}
-        <text x="80" y="75" text-anchor="middle" fill="#94a3b8" font-size="9">총자산</text>
-        <text x="80" y="88" text-anchor="middle" fill="#e2e8f0" font-size="9" font-weight="bold">${lbl}</text>
+        <text x="80" y="72" text-anchor="middle" fill="#94a3b8" font-size="9" class="donut-ct">탭하여</text>
+        <text x="80" y="85" text-anchor="middle" fill="#94a3b8" font-size="9" class="donut-cb">확인</text>
       </svg>
       <div style="flex:1;min-width:140px">${legend}</div>
     </div>` : `<div style="color:#475569;text-align:center;padding:16px;font-size:12px">자산을 입력해주세요</div>`}
