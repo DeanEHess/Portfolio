@@ -387,12 +387,15 @@ function buildSectionDonut(items, title) {
 // ─── 주식/ETF 섹션 ────────────────────────────────────────────
 function buildSection(title, key, list, accent, total, isUSD) {
   const sorted = [...list].sort((a,b)=>{
-    const va = isUSD ? usVal(a) : krxVal(a);
-    const vb = isUSD ? usVal(b) : krxVal(b);
-    if (va && vb) return vb-va;  // 둘 다 현재가 있으면 정렬
-    if (va) return -1;            // a만 있으면 a 위로
-    if (vb) return 1;             // b만 있으면 b 위로
-    return 0;                     // 둘 다 없으면 순서 유지
+    // 현재가(px) 기준으로만 판단 - val 함수 말고 직접 비교
+    const aPriceExists = isUSD ? (px[a.t] && usdKrw) : px[a.t];
+    const bPriceExists = isUSD ? (px[b.t] && usdKrw) : px[b.t];
+    const va = aPriceExists ? (isUSD ? px[a.t]*a.q*usdKrw : px[a.t]*a.q) : 0;
+    const vb = bPriceExists ? (isUSD ? px[b.t]*b.q*usdKrw : px[b.t]*b.q) : 0;
+    if (aPriceExists && bPriceExists) return vb-va;
+    if (aPriceExists) return -1;
+    if (bPriceExists) return 1;
+    return 0;
   });
   const rows = sorted.map(item => {
     const priceKrw = isUSD ? usPriceKrw(item) : (px[item.t]||null);
