@@ -161,71 +161,36 @@ async function fetchAll() {
   loading = true;
   render();
 
-  // 1) 환율 — 네이버 금융 → exchangerate-api fallback
-  try {
-    const url = "https://m.stock.naver.com/api/forex/FX_USDKRW";
-    const d = await fetch("https://api.allorigins.win/raw?url=" + encodeURIComponent(url)).then(r => r.json());
-    const p = Number((d?.closePrice || d?.currentPrice || "").toString().replace(/,/g, ""));
-    if (p > 100) usdKrw = p; else throw "";
-  } catch {
-    try {
-      const d = await fetch("https://api.exchangerate-api.com/v4/latest/USD").then(r => r.json());
-      if (d.rates?.KRW) usdKrw = d.rates.KRW;
-    } catch {}
-  }
-
-  // 2) 미국주식 — Yahoo Finance (allorigins 프록시)
-  await Promise.all(ST.us.filter(s => s.t).map(async s => {
-    try {
-      const url = "https://query1.finance.yahoo.com/v8/finance/chart/" + s.t + "?interval=1d&range=1d";
-      const d = await fetch("https://api.allorigins.win/raw?url=" + encodeURIComponent(url)).then(r => r.json());
-      const p = d?.chart?.result?.[0]?.meta?.regularMarketPrice;
-      if (p) px[s.t] = p;
-    } catch {}
-  }));
-
-  // 3) KRX — 네이버 polling (일괄) → 개별 fallback
-  const krxCodes = [...new Set([...ST.pen, ...ST.irp, ...ST.krx].map(e => e.t).filter(Boolean))];
-  if (krxCodes.length) {
-    try {
-      const query = krxCodes.map(c => "SERVICE_ITEM:" + c).join("|");
-      const url = "https://polling.finance.naver.com/api/realtime?query=" + encodeURIComponent(query);
-      const d = await fetch("https://api.allorigins.win/raw?url=" + encodeURIComponent(url)).then(r => r.json());
-      for (const item of (d?.result?.areas?.[0]?.datas || [])) {
-        const p = Number(item.nv || item.cv || 0);
-        if (item.cd && p > 100) px[item.cd] = p;
-      }
-    } catch {}
-    // 못받은 종목 개별 fallback
-    await Promise.all(krxCodes.filter(c => !px[c]).map(async code => {
-      try {
-        const url = "https://m.stock.naver.com/api/stock/" + code + "/basic";
-        const d = await fetch("https://api.allorigins.win/raw?url=" + encodeURIComponent(url)).then(r => r.json());
-        const p = Number((d?.closePrice || d?.currentPrice || "").toString().replace(/,/g, ""));
-        if (p > 100) px[code] = p;
-      } catch {}
-    }));
-  }
-
-  // 4) 코인 — CoinGecko → Upbit fallback
+  // 전체 데이터 한 번에 요청 (Worker에서 병렬 처리)
+  const usTickers   = ST.us.map(s => s.t).filter(Boolean);
+  const krxCodes    = [...new Set([...ST.pen, ...ST.irp, ...ST.krx].map(e => e.t).filter(Boolean))];
   const coinTickers = [...new Set(ST.coins.map(x => x.t).filter(Boolean))];
-  if (coinTickers.length) {
-    const ids = coinTickers.map(t => GECKO_ID[t.toUpperCase()]).filter(Boolean);
-    try {
-      const url = "https://api.coingecko.com/api/v3/simple/price?ids=" + ids.join(",") + "&vs_currencies=krw";
-      const d = await fetch(url).then(r => r.json());
-      coinTickers.forEach(t => { const id = GECKO_ID[t.toUpperCase()]; if (id && d[id]?.krw) px[t] = d[id].krw; });
-    } catch {}
-    // Upbit fallback
-    const missing = coinTickers.filter(t => !px[t]);
-    if (missing.length) {
-      try {
-        const markets = missing.map(t => "KRW-" + t).join(",");
-        const d = await fetch("https://api.upbit.com/v1/ticker?markets=" + markets).then(r => r.json());
-        for (const item of d) { const t = item.market.replace("KRW-", ""); if (item.trade_price) px[t] = item.trade_price; }
-      } catch {}
-    }
-  }
+  const coinIds     = coinTickers.map(t => GECKO_ID[t.toUpperCase()]).filter(Boolean);
+
+  try {
+    const params = new URLSearchParams({
+      type:  "all",
+      us:    usTickers.join(","),
+      krx:   krxCodes.join(","),
+      coins: coinIds.join(","),
+    });
+    const d = await fetch("https://asset-proxy.omyakryl0541.workers.dev?" + params).then(r => r.json());
+
+    // 환율
+    if (d.fx) usdKrw = d.fx;
+
+    // 미국주식
+    Object.assign(px, d.us || {});
+
+    // KRX
+    Object.assign(px, d.krx || {});
+
+    // 코인
+    coinTickers.forEach(t => {
+      const id = GECKO_ID[t.toUpperCase()];
+      if (id && d.coins?.[id]?.krw) px[t] = d.coins[id].krw;
+    });
+  } catch {}
 
   loading = false;
   lastUp = new Date();
@@ -289,7 +254,7 @@ function buildRows(list, key, isUSD, valFn, gpFn, priceKrwFn, avgFmt) {
 
 // ─── 종목 비중 도넛 ───────────────────────────────────────────
 function buildSectionDonut(list, valFn, title) {
-  const items = list.filter(x => x.t && x.q > 0).map(x => ({ l: x.t, v: valFn(x) })).filter(x => x.v > 0);
+  const items = sortByVal(list, valFn === usVal).filter(x => x.t && x.q > 0).map(x => ({ l: x.t, v: valFn(x) })).filter(x => x.v > 0);
   if (!items.length) return "";
   const total = items.reduce((s, x) => s + x.v, 0);
   const paths = buildDonut(items, total, 90, 90, 75, 45, true);
@@ -402,7 +367,7 @@ function buildOverview() {
   ].filter(s => s.v > 0);
 
   const lbl = tot >= 1e8 ? (tot/1e8).toFixed(1)+"억" : (tot/1e4).toFixed(0)+"만";
-  const paths = buildDonut(segs, tot, 80, 80, 65, 38, false);
+  const paths = buildDonut(segs, tot, 80, 80, 65, 38, true);
   const legend = segs.map(s => `
     <div style="display:flex;justify-content:space-between;margin-bottom:7px;align-items:center">
       <div style="display:flex;align-items:center;gap:6px">
@@ -429,8 +394,8 @@ function buildOverview() {
     <div style="display:flex;align-items:center;gap:20px;flex-wrap:wrap">
       <svg width="160" height="160" viewBox="0 0 160 160" style="flex-shrink:0">
         ${paths}
-        <text x="80" y="75" text-anchor="middle" fill="#94a3b8" font-size="9">총자산</text>
-        <text x="80" y="88" text-anchor="middle" fill="#e2e8f0" font-size="9" font-weight="bold">${lbl}</text>
+        <text x="80" y="72" text-anchor="middle" fill="#94a3b8" font-size="9" class="donut-ct">탭하여</text>
+        <text x="80" y="85" text-anchor="middle" fill="#94a3b8" font-size="9" class="donut-cb">확인</text>
       </svg>
       <div style="flex:1;min-width:140px">${legend}</div>
     </div>` : `<div style="color:#475569;text-align:center;padding:16px;font-size:12px">자산을 입력해주세요</div>`}
@@ -572,44 +537,6 @@ function bindEvents() {
           const vc = tr.querySelector("[data-calc='val']");
           const gc = tr.querySelector("[data-calc='gp']");
           if (vc) vc.textContent = won(valFn(item)) || "₩0";
-          if (gc) { gc.textContent = fPct(gpFn(item)); gc.className = `r ${gCls(gpFn(item))}`; }
-        }
-      }
-      saveData();
-    });
-  });
-
-  // 도넛 조각 클릭
-  document.querySelectorAll(".donut-seg").forEach(seg => {
-    seg.addEventListener("click", () => {
-      document.querySelectorAll(".donut-seg").forEach(s => s.style.opacity = "0.3");
-      seg.style.opacity = "1";
-      const svg = seg.closest("svg");
-      const ct = svg?.querySelector(".donut-ct"); if (ct) ct.textContent = seg.dataset.label;
-      const cb = svg?.querySelector(".donut-cb"); if (cb) cb.textContent = seg.dataset.pct + "%";
-      const tip = document.getElementById("tip");
-      tip.innerHTML = `<div style="font-weight:700;font-size:15px">${seg.dataset.label}</div>
-        <div style="font-size:18px;font-weight:800;margin-top:6px">₩${Number(seg.dataset.val).toLocaleString("ko-KR")}</div>
-        <div style="color:#6366f1;font-weight:700;font-size:14px">${seg.dataset.pct}%</div>`;
-      tip.style.display = "block";
-      clearTimeout(window._tipTimer);
-      window._tipTimer = setTimeout(() => {
-        tip.style.display = "none";
-        document.querySelectorAll(".donut-seg").forEach(s => s.style.opacity = "1");
-        if (ct) ct.textContent = "탭하여";
-        if (cb) cb.textContent = "확인";
-      }, 3000);
-    });
-  });
-}
-
-// ─── 시작 ────────────────────────────────────────────────────
-render();
-fetchAll();
-setInterval(fetchAll, 60000);
-</script>
-</body>
-</html>
           if (gc) { gc.textContent = fPct(gpFn(item)); gc.className = `r ${gCls(gpFn(item))}`; }
         }
       }
