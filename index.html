@@ -98,6 +98,12 @@ const DEFAULT_DATA = {
   us:[], krx:[], pen:[], irp:[],
   coins:[], cash:[{id:"ca1",n:"현금",a:0}],
   tabOrder:[...DEFAULT_TAB_ORDER],
+  goals:[
+    {id:"g1", year:2027, target:50000000,  snapshot:null},
+    {id:"g2", year:2028, target:100000000, snapshot:null},
+    {id:"g3", year:2030, target:300000000, snapshot:null},
+    {id:"g4", year:2033, target:500000000, snapshot:null},
+  ],
 };
 
 function loadData() {
@@ -109,6 +115,7 @@ function loadData() {
     if (!d.coins)               d.coins = [];
     if (!Array.isArray(d.cash)) d.cash = [{id:"ca1",n:"현금",a:typeof d.cash==="number"?d.cash:0}];
     if (!d.tabOrder)            d.tabOrder = [...DEFAULT_TAB_ORDER];
+    if (!d.goals)               d.goals = JSON.parse(JSON.stringify(DEFAULT_DATA.goals));
     return d;
   } catch { return JSON.parse(JSON.stringify(DEFAULT_DATA)); }
 }
@@ -140,13 +147,10 @@ const secTotal = (list,isUSD) => list.reduce((s,x)=>s+(isUSD?usVal(x):krxVal(x))
 // 평가금액 내림차순 정렬 (현재가 있는 것 우선)
 function sortByVal(list, isUSD) {
   return [...list].sort((a,b) => {
-    const hasPa = !!px[a.t], hasPb = !!px[b.t];
-    const va = hasPa ? (isUSD ? px[a.t]*a.q*(usdKrw||0) : px[a.t]*a.q) : 0;
-    const vb = hasPb ? (isUSD ? px[b.t]*b.q*(usdKrw||0) : px[b.t]*b.q) : 0;
-    if (hasPa && hasPb) return vb - va;
-    if (hasPa) return -1;
-    if (hasPb) return 1;
-    return 0;
+    // 실제 평가금액 함수와 동일한 기준으로 정렬 (불일치 방지)
+    const va = isUSD ? usVal(a) : krxVal(a);
+    const vb = isUSD ? usVal(b) : krxVal(b);
+    return vb - va;
   });
 }
 
@@ -350,6 +354,89 @@ function buildCash() {
     +'</div>';
 }
 
+// ─── 목표 추적 ───────────────────────────────────────────────
+function buildGoals(tot) {
+  const now     = new Date();
+  const curYear = now.getFullYear();
+  const goals   = ST.goals || [];
+  if (!goals.length) return "";
+
+  // 연도 지난 목표에 snapshot 저장 (미달성 기록)
+  goals.forEach(g => {
+    if (curYear > g.year && g.snapshot === null) {
+      g.snapshot = tot;  // 기간 종료 시점 자산 기록
+      saveData();
+    }
+  });
+
+  const rows = goals.map((g, i) => {
+    const isExpired  = curYear > g.year;
+    const isCurrent  = !isExpired && (i===0 || curYear > goals[i-1].year);
+    const isAchieved = tot >= g.target || (isExpired && g.snapshot >= g.target);
+    const val        = isExpired ? (g.snapshot||0) : tot;
+    const pct        = Math.min(100, Math.round(val / g.target * 100));
+    const isFuture   = !isExpired && !isCurrent;
+
+    let statusIcon, statusColor, barColor;
+    if (isAchieved)       { statusIcon="✅"; statusColor="#10b981"; barColor="#10b981"; }
+    else if (isExpired)   { statusIcon="⚠️"; statusColor="#f59e0b"; barColor="#f59e0b"; }
+    else if (isCurrent)   { statusIcon="🎯"; statusColor="#6366f1"; barColor="#6366f1"; }
+    else                  { statusIcon="";   statusColor="#475569"; barColor="#334155"; }
+
+    const targetStr = g.target >= 1e8
+      ? (g.target/1e8).toFixed(g.target%1e8===0?0:1)+"억"
+      : (g.target/1e4).toFixed(0)+"만";
+
+    if (isFuture) {
+      return '<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;opacity:0.4">'
+        +'<div style="font-size:11px;color:#475569;width:36px;flex-shrink:0">'+g.year+'</div>'
+        +'<div style="font-size:12px;color:#475569;width:52px;flex-shrink:0">'+targetStr+'</div>'
+        +'<div style="flex:1;height:4px;background:#1e293b;border-radius:2px"></div>'
+        +'</div>';
+    }
+
+    return '<div style="margin-bottom:12px">'
+      // 헤더 행
+      +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px">'
+      +'<span style="font-size:12px">'+statusIcon+'</span>'
+      +'<span style="font-size:12px;color:#94a3b8;width:36px;flex-shrink:0">'+g.year+'</span>'
+      +'<span style="font-size:12px;font-weight:600;color:#e2e8f0;flex:1">'+targetStr+'</span>'
+      +'<span style="font-size:12px;font-weight:700;color:'+statusColor+'">'+pct+'%</span>'
+      +(isExpired&&!isAchieved?'<span style="font-size:10px;color:#f59e0b;margin-left:4px">기간종료</span>':"")
+      +'</div>'
+      // 진행바
+      +'<div style="height:6px;background:#1e293b;border-radius:3px;overflow:hidden">'
+      +'<div style="height:100%;width:'+pct+'%;background:'+barColor+';border-radius:3px;transition:width 0.5s"></div>'
+      +'</div>'
+      // 현재 금액
+      +(isCurrent||isExpired
+        ? '<div style="font-size:10px;color:#475569;margin-top:3px;text-align:right">'
+          +(isExpired?'종료시 ':'현재 ')+won(val)
+          +(isExpired&&!isAchieved?' · '+won(g.target-g.snapshot)+" 미달":'')
+          +'</div>'
+        : "")
+      +'</div>';
+  }).join("");
+
+  // 편집 모드: 목표 수정 UI
+  const editRows = editMode ? goals.map(g =>
+    '<div style="display:flex;gap:6px;margin-bottom:6px;align-items:center">'
+    +'<input class="inp inp-r" type="number" style="width:56px" data-gf="year" data-gid="'+g.id+'" value="'+g.year+'" placeholder="연도"/>'
+    +'<input class="inp inp-r" type="number" style="flex:1" data-gf="target" data-gid="'+g.id+'" value="'+g.target+'" placeholder="목표금액(원)"/>'
+    +'<button class="del-btn" data-gdel="'+g.id+'">✕</button>'
+    +'</div>'
+  ).join("")
+  +'<button class="add-btn" id="btn-add-goal">+ 목표 추가</button>'
+  : "";
+
+  return '<div style="background:#1e293b;border-radius:16px;padding:14px;margin-bottom:12px;border:1px solid #334155;border-top:3px solid #6366f1">'
+    +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">'
+    +'<span style="font-weight:700;font-size:14px">📈 목표 달성 현황</span>'
+    +'</div>'
+    +(editMode ? editRows : rows)
+    +'</div>';
+}
+
 // ─── 전체 현황 ───────────────────────────────────────────────
 function buildOverview() {
   const usT    = secTotal(ST.us, true);
@@ -373,7 +460,7 @@ function buildOverview() {
   const lbl    = tot>=1e8?(tot/1e8).toFixed(1)+"억":(tot/1e4).toFixed(0)+"만";
   const paths  = buildDonutSVG(segs, tot, 80, 80, 65, 38, true);
   const legend = segs.map(s =>
-    '<div style="display:flex;justify-content:space-between;margin-bottom:7px;align-items:center">'
+    '<div class="legend-item" data-label="'+s.l+'" style="display:flex;justify-content:space-between;margin-bottom:7px;align-items:center;transition:opacity 0.2s">'
     +'<div style="display:flex;align-items:center;gap:6px">'
     +'<div style="width:8px;height:8px;border-radius:2px;background:'+s.c+'"></div>'
     +'<span style="font-size:12px">'+s.l+'</span></div>'
@@ -383,7 +470,8 @@ function buildOverview() {
     +'</div></div>'
   ).join("");
 
-  return '<div class="card-grad">'
+  return buildGoals(tot)
+    +'<div class="card-grad">'
     +'<div style="font-size:12px;color:#64748b;margin-bottom:6px">총 평가 자산</div>'
     +'<div style="font-size:32px;font-weight:800;letter-spacing:-1px">'+(tot?won(tot):"₩0")+'</div>'
     +'<div style="margin-top:8px;display:flex;gap:14px;flex-wrap:wrap">'
@@ -393,7 +481,7 @@ function buildOverview() {
     +'<div class="card-title" style="margin-bottom:12px">자산 배분</div>'
     +(segs.length
       ? '<div style="display:flex;align-items:center;gap:20px;flex-wrap:wrap">'
-        +'<svg width="160" height="160" viewBox="0 0 160 160" style="flex-shrink:0">'
+        +'<svg id="overview-donut" width="160" height="160" viewBox="0 0 160 160" style="flex-shrink:0">'
         +paths
         +'<text x="80" y="75" text-anchor="middle" fill="#94a3b8" font-size="9" class="donut-ct">탭하여</text>'
         +'<text x="80" y="88" text-anchor="middle" fill="#94a3b8" font-size="9" class="donut-cb">확인</text>'
@@ -450,13 +538,93 @@ function render() {
   }
 }
 
+// ─── 도넛 팝업 & 라인 ────────────────────────────────────────
+function clearOverlayLine(svg) {
+  svg?.querySelector(".donut-line")?.remove();
+  svg?.parentElement?.querySelector(".donut-popup")?.remove();
+  if (svg?.parentElement) {
+    const legend = svg.parentElement.querySelector("div");
+    if (legend) legend.style.visibility = "";
+    svg.parentElement.style.position = "";
+  }
+}
+
+function showDonutPopup(seg, svg, card) {
+  clearOverlayLine(svg);
+
+  // 조각 중심점 (SVG 좌표)
+  const bbox = seg.getBBox();
+  const cx   = bbox.x + bbox.width/2;
+  const cy   = bbox.y + bbox.height/2;
+  // 조각 중심 → SVG 오른쪽 가장자리로 꺾은선
+  const dx   = cx - 90, dy = cy - 90;
+  const len  = Math.sqrt(dx*dx+dy*dy)||1;
+  const ex   = 90 + (dx/len)*82;
+  const ey   = 90 + (dy/len)*82;
+  // SVG 오른쪽 끝 (175, ey) → 꺾어서 오른쪽으로
+  const line = document.createElementNS("http://www.w3.org/2000/svg","polyline");
+  line.setAttribute("points", `${cx},${cy} ${ex},${ey} 178,${ey}`);
+  line.setAttribute("fill","none");
+  line.setAttribute("stroke","#6366f1");
+  line.setAttribute("stroke-width","1.5");
+  line.setAttribute("stroke-dasharray","4,3");
+  line.setAttribute("opacity","0.9");
+  line.classList.add("donut-line");
+  svg.appendChild(line);
+
+  // 범례 div (오른쪽 공간)
+  const flex   = svg?.parentElement;
+  const legend = flex?.querySelector("div");  // 첫 번째 div = 범례
+  if (!flex || !legend) return;
+
+  // 범례 내용을 팝업으로 교체 (범례 숨기고 같은 자리에 팝업)
+  legend.style.visibility = "hidden";
+
+  // 팝업을 범례 자리에 absolute로 올림
+  const popup = document.createElement("div");
+  popup.className = "donut-popup";
+  popup.style.cssText = [
+    "position:absolute",
+    "background:#0f172a",
+    "border:1px solid #6366f1",
+    "border-radius:10px",
+    "padding:12px 14px",
+    "box-shadow:0 0 12px rgba(99,102,241,0.3)",
+    "pointer-events:none",
+  ].join(";");
+  popup.innerHTML =
+    '<div style="font-size:11px;color:#94a3b8;margin-bottom:4px">'+seg.dataset.label+'</div>'
+    +'<div style="font-size:16px;font-weight:800;color:#e2e8f0">₩'+Number(seg.dataset.val).toLocaleString("ko-KR")+'</div>'
+    +'<div style="font-size:14px;font-weight:700;color:#6366f1;margin-top:3px">'+seg.dataset.pct+'%</div>';
+
+  // flex 컨테이너를 relative로 설정하고 팝업 삽입
+  flex.style.position = "relative";
+  // 범례 위치 기준으로 팝업 위치 계산
+  const legendRect  = legend.getBoundingClientRect();
+  const flexRect    = flex.getBoundingClientRect();
+  popup.style.top   = (legendRect.top - flexRect.top) + "px";
+  popup.style.left  = (legendRect.left - flexRect.left) + "px";
+  popup.style.width = legendRect.width + "px";
+  flex.appendChild(popup);
+
+  clearTimeout(window._popTimer);
+  window._popTimer = setTimeout(()=>{
+    clearOverlayLine(svg);
+    legend.style.visibility = "";
+    flex.style.position = "";
+    svg?.querySelectorAll(".donut-seg").forEach(s=>{ s.style.opacity="1"; delete s.dataset.active; });
+    const ct=svg?.querySelector(".donut-ct"); if(ct) ct.textContent="탭하여";
+    const cb=svg?.querySelector(".donut-cb"); if(cb) cb.textContent="확인";
+  }, 3000);
+}
+
 // ─── 이벤트 ──────────────────────────────────────────────────
 function getList(key) {
   return {us:ST.us,krx:ST.krx,pen:ST.pen,irp:ST.irp,coins:ST.coins,cash:ST.cash}[key]||null;
 }
 
 function bindEvents() {
-  document.getElementById("btn-refresh")?.addEventListener("click", async()=>{ await fetchAll(); render(); });
+  document.getElementById("btn-refresh")?.addEventListener("click", fetchAll);
   document.getElementById("btn-edit")?.addEventListener("click", ()=>{ editMode=!editMode; render(); });
 
   // 탭 전환
@@ -483,6 +651,31 @@ function bindEvents() {
       });
     });
   }
+
+  // 목표 추가
+  document.getElementById("btn-add-goal")?.addEventListener("click", ()=>{
+    ST.goals.push({id:"g"+Date.now(), year:new Date().getFullYear()+1, target:100000000, snapshot:null});
+    render();
+  });
+
+  // 목표 삭제
+  document.querySelectorAll("[data-gdel]").forEach(b=>
+    b.addEventListener("click", ()=>{
+      const i=ST.goals.findIndex(g=>g.id===b.dataset.gdel);
+      if(i>-1) ST.goals.splice(i,1);
+      render();
+    })
+  );
+
+  // 목표 인풋
+  document.querySelectorAll(".inp[data-gid]").forEach(inp=>{
+    inp.addEventListener("input", e=>{
+      const g=ST.goals.find(x=>x.id===inp.dataset.gid);
+      if(!g) return;
+      g[inp.dataset.gf] = Number(e.target.value)||0;
+      saveData();
+    });
+  });
 
   // 종목 추가
   document.querySelectorAll("[data-add]").forEach(b =>
@@ -540,22 +733,40 @@ function bindEvents() {
   // 도넛 조각 클릭
   document.querySelectorAll(".donut-seg").forEach(seg => {
     seg.addEventListener("click", ()=>{
-      document.querySelectorAll(".donut-seg").forEach(s=>s.style.opacity="0.3");
-      seg.style.opacity="1";
-      const svg=seg.closest("svg");
+      const svg      = seg.closest("svg");
+      const isOverview = svg?.id === 'overview-donut';
+      const allSegs  = svg?.querySelectorAll(".donut-seg") || [];
+      const isActive = seg.dataset.active === "1";
+
+      // 토글: 이미 선택된 조각 클릭 시 해제
+      if (isActive) {
+        allSegs.forEach(s => { s.style.opacity="1"; delete s.dataset.active; });
+        const ct=svg?.querySelector(".donut-ct"); if(ct) ct.textContent="탭하여";
+        const cb=svg?.querySelector(".donut-cb"); if(cb) cb.textContent="확인";
+        clearOverlayLine(svg);
+        // 전체탭: 하이라이트 해제
+        document.querySelectorAll(".legend-item").forEach(el=>el.style.opacity="1");
+        return;
+      }
+
+      // 선택 처리
+      allSegs.forEach(s => { s.style.opacity="0.25"; delete s.dataset.active; });
+      seg.style.opacity="1"; seg.dataset.active="1";
       const ct=svg?.querySelector(".donut-ct"); if(ct) ct.textContent=seg.dataset.label;
       const cb=svg?.querySelector(".donut-cb"); if(cb) cb.textContent=seg.dataset.pct+"%";
-      const tip=document.getElementById("tip");
-      tip.innerHTML='<div style="font-weight:700;font-size:15px">'+seg.dataset.label+'</div>'
-        +'<div style="font-size:18px;font-weight:800;margin-top:6px">₩'+Number(seg.dataset.val).toLocaleString("ko-KR")+'</div>'
-        +'<div style="color:#6366f1;font-weight:700;font-size:14px">'+seg.dataset.pct+'%</div>';
-      tip.style.display="block";
-      clearTimeout(window._tipTimer);
-      window._tipTimer=setTimeout(()=>{
-        tip.style.display="none";
-        document.querySelectorAll(".donut-seg").forEach(s=>s.style.opacity="1");
-        if(ct)ct.textContent="탭하여"; if(cb)cb.textContent="확인";
-      },3000);
+
+      const card = svg?.closest(".card, .card-grad");
+      if (isOverview) {
+        // 전체탭: 오른쪽 범례 하이라이트
+        document.querySelectorAll(".legend-item").forEach(el => {
+          el.style.opacity = el.dataset.label === seg.dataset.label ? "1" : "0.2";
+        });
+        clearOverlayLine(svg);
+      } else {
+        // 각 섹션탭: 꺾은선 + 팝업
+        document.querySelectorAll(".legend-item").forEach(el=>el.style.opacity="1");
+        showDonutPopup(seg, svg, card);
+      }
     });
   });
 }
