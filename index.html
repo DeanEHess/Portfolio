@@ -540,7 +540,6 @@ function render() {
 
 // ─── 도넛 팝업 & 라인 ────────────────────────────────────────
 function clearOverlayLine(svg) {
-  svg?.querySelector(".donut-line")?.remove();
   svg?.parentElement?.querySelector(".donut-popup")?.remove();
   if (svg?.parentElement) {
     const legend = svg.parentElement.querySelector("div");
@@ -551,26 +550,6 @@ function clearOverlayLine(svg) {
 
 function showDonutPopup(seg, svg, card) {
   clearOverlayLine(svg);
-
-  // 조각 중심점 (SVG 좌표)
-  const bbox = seg.getBBox();
-  const cx   = bbox.x + bbox.width/2;
-  const cy   = bbox.y + bbox.height/2;
-  // 조각 중심 → SVG 오른쪽 가장자리로 꺾은선
-  const dx   = cx - 90, dy = cy - 90;
-  const len  = Math.sqrt(dx*dx+dy*dy)||1;
-  const ex   = 90 + (dx/len)*82;
-  const ey   = 90 + (dy/len)*82;
-  // SVG 오른쪽 끝 (175, ey) → 꺾어서 오른쪽으로
-  const line = document.createElementNS("http://www.w3.org/2000/svg","polyline");
-  line.setAttribute("points", `${cx},${cy} ${ex},${ey} 178,${ey}`);
-  line.setAttribute("fill","none");
-  line.setAttribute("stroke","#6366f1");
-  line.setAttribute("stroke-width","1.5");
-  line.setAttribute("stroke-dasharray","4,3");
-  line.setAttribute("opacity","0.9");
-  line.classList.add("donut-line");
-  svg.appendChild(line);
 
   // 범례 div (오른쪽 공간)
   const flex   = svg?.parentElement;
