@@ -174,28 +174,15 @@ async function fetchAll() {
     } catch {}
   }
 
-  // 2) 미국주식 — Yahoo Finance v7 (여러 종목 한번에)
-  const usTickers = ST.us.map(s => s.t).filter(Boolean);
-  if (usTickers.length) {
-    // 방법1: v7 배치 요청 (한번에)
+  // 2) 미국주식 — Yahoo Finance (allorigins 프록시)
+  await Promise.all(ST.us.filter(s => s.t).map(async s => {
     try {
-      const url = "https://query1.finance.yahoo.com/v7/finance/quote?symbols=" + usTickers.join(",");
+      const url = "https://query1.finance.yahoo.com/v8/finance/chart/" + s.t + "?interval=1d&range=1d";
       const d = await fetch("https://api.allorigins.win/raw?url=" + encodeURIComponent(url)).then(r => r.json());
-      for (const item of (d?.quoteResponse?.result || [])) {
-        if (item.regularMarketPrice) px[item.symbol] = item.regularMarketPrice;
-      }
+      const p = d?.chart?.result?.[0]?.meta?.regularMarketPrice;
+      if (p) px[s.t] = p;
     } catch {}
-    // 방법2: 못받은 종목만 개별 fallback
-    const missing = usTickers.filter(t => !px[t]);
-    await Promise.all(missing.map(async t => {
-      try {
-        const url = "https://query1.finance.yahoo.com/v8/finance/chart/" + t + "?interval=1d&range=1d";
-        const d = await fetch("https://api.allorigins.win/raw?url=" + encodeURIComponent(url)).then(r => r.json());
-        const p = d?.chart?.result?.[0]?.meta?.regularMarketPrice;
-        if (p) px[t] = p;
-      } catch {}
-    }));
-  }
+  }));
 
   // 3) KRX — 네이버 polling (일괄) → 개별 fallback
   const krxCodes = [...new Set([...ST.pen, ...ST.irp, ...ST.krx].map(e => e.t).filter(Boolean))];
@@ -302,7 +289,7 @@ function buildRows(list, key, isUSD, valFn, gpFn, priceKrwFn, avgFmt) {
 
 // ─── 종목 비중 도넛 ───────────────────────────────────────────
 function buildSectionDonut(list, valFn, title) {
-  const items = sortByVal(list, valFn === usVal).filter(x => x.t && x.q > 0).map(x => ({ l: x.t, v: valFn(x) })).filter(x => x.v > 0);
+  const items = list.filter(x => x.t && x.q > 0).map(x => ({ l: x.t, v: valFn(x) })).filter(x => x.v > 0);
   if (!items.length) return "";
   const total = items.reduce((s, x) => s + x.v, 0);
   const paths = buildDonut(items, total, 90, 90, 75, 45, true);
@@ -415,7 +402,7 @@ function buildOverview() {
   ].filter(s => s.v > 0);
 
   const lbl = tot >= 1e8 ? (tot/1e8).toFixed(1)+"억" : (tot/1e4).toFixed(0)+"만";
-  const paths = buildDonut(segs, tot, 80, 80, 65, 38, true);
+  const paths = buildDonut(segs, tot, 80, 80, 65, 38, false);
   const legend = segs.map(s => `
     <div style="display:flex;justify-content:space-between;margin-bottom:7px;align-items:center">
       <div style="display:flex;align-items:center;gap:6px">
@@ -442,8 +429,8 @@ function buildOverview() {
     <div style="display:flex;align-items:center;gap:20px;flex-wrap:wrap">
       <svg width="160" height="160" viewBox="0 0 160 160" style="flex-shrink:0">
         ${paths}
-        <text x="80" y="72" text-anchor="middle" fill="#94a3b8" font-size="9" class="donut-ct">탭하여</text>
-        <text x="80" y="85" text-anchor="middle" fill="#94a3b8" font-size="9" class="donut-cb">확인</text>
+        <text x="80" y="75" text-anchor="middle" fill="#94a3b8" font-size="9">총자산</text>
+        <text x="80" y="88" text-anchor="middle" fill="#e2e8f0" font-size="9" font-weight="bold">${lbl}</text>
       </svg>
       <div style="flex:1;min-width:140px">${legend}</div>
     </div>` : `<div style="color:#475569;text-align:center;padding:16px;font-size:12px">자산을 입력해주세요</div>`}
