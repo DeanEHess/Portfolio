@@ -115,6 +115,8 @@ function loadData() {
     if (!d.coins)               d.coins = [];
     if (!Array.isArray(d.cash)) d.cash = [{id:"ca1",n:"현금",a:typeof d.cash==="number"?d.cash:0}];
     if (!d.tabOrder)            d.tabOrder = [...DEFAULT_TAB_ORDER];
+    // 새 탭이 추가됐을 때 기존 tabOrder에 없으면 자동 추가
+    DEFAULT_TAB_ORDER.forEach(k => { if (!d.tabOrder.includes(k)) d.tabOrder.splice(d.tabOrder.indexOf("coins"), 0, k); });
     if (!d.isa)                 d.isa = [];
     if (!d.goals)               d.goals = JSON.parse(JSON.stringify(DEFAULT_DATA.goals));
     return d;
