@@ -610,3 +610,41 @@ setInterval(fetchAll, 60000);
 </script>
 </body>
 </html>
+          if (gc) { gc.textContent = fPct(gpFn(item)); gc.className = `r ${gCls(gpFn(item))}`; }
+        }
+      }
+      saveData();
+    });
+  });
+
+  // 도넛 조각 클릭
+  document.querySelectorAll(".donut-seg").forEach(seg => {
+    seg.addEventListener("click", () => {
+      document.querySelectorAll(".donut-seg").forEach(s => s.style.opacity = "0.3");
+      seg.style.opacity = "1";
+      const svg = seg.closest("svg");
+      const ct = svg?.querySelector(".donut-ct"); if (ct) ct.textContent = seg.dataset.label;
+      const cb = svg?.querySelector(".donut-cb"); if (cb) cb.textContent = seg.dataset.pct + "%";
+      const tip = document.getElementById("tip");
+      tip.innerHTML = `<div style="font-weight:700;font-size:15px">${seg.dataset.label}</div>
+        <div style="font-size:18px;font-weight:800;margin-top:6px">₩${Number(seg.dataset.val).toLocaleString("ko-KR")}</div>
+        <div style="color:#6366f1;font-weight:700;font-size:14px">${seg.dataset.pct}%</div>`;
+      tip.style.display = "block";
+      clearTimeout(window._tipTimer);
+      window._tipTimer = setTimeout(() => {
+        tip.style.display = "none";
+        document.querySelectorAll(".donut-seg").forEach(s => s.style.opacity = "1");
+        if (ct) ct.textContent = "탭하여";
+        if (cb) cb.textContent = "확인";
+      }, 3000);
+    });
+  });
+}
+
+// ─── 시작 ────────────────────────────────────────────────────
+render();
+fetchAll();
+setInterval(fetchAll, 60000);
+</script>
+</body>
+</html>
