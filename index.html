@@ -19,8 +19,14 @@
     ::-webkit-scrollbar-track { background: #0f172a; }
     ::-webkit-scrollbar-thumb { background: #334155; border-radius: 2px; }
 
-    /* 레이아웃 */
     #app { max-width: 600px; margin: 0 auto; padding: 16px 14px; }
+
+    /* 로딩바 */
+    .loading-bar { height: 3px; background: #1e293b; border-radius: 2px; margin-bottom: 12px; overflow: hidden; }
+    .loading-bar-inner { height: 100%; background: linear-gradient(90deg, #6366f1, #3b82f6, #6366f1); background-size: 200% 100%; animation: shimmer 1.2s infinite; }
+    @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+    .cell-loading { color: #475569; animation: blink 1s infinite; }
+    @keyframes blink { 0%,100% { opacity:1; } 50% { opacity:0.3; } }
 
     /* 헤더 */
     .hdr { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; }
@@ -28,8 +34,6 @@
     .hdr-sub { font-size: 11px; color: #475569; margin-top: 3px; }
     .hdr-rate { font-size: 12px; color: #94a3b8; font-weight: 600; margin-top: 2px; }
     .hdr-btns { display: flex; gap: 6px; flex-shrink: 0; }
-
-    /* 버튼 */
     .btn { background: #1e293b; border: 1px solid #334155; color: #e2e8f0; padding: 7px 13px; border-radius: 8px; font-size: 15px; cursor: pointer; }
     .btn.on { background: #6366f1; }
 
@@ -64,7 +68,7 @@
     .add-btn { margin-top: 8px; background: transparent; border: 1px dashed #334155; color: #475569; padding: 6px 12px; border-radius: 8px; font-size: 12px; width: 100%; cursor: pointer; }
     .del-btn { background: #7f1d1d; border: none; color: #fca5a5; border-radius: 6px; padding: 4px 8px; font-size: 11px; cursor: pointer; }
 
-    /* 수익률 색상 */
+    /* 수익률 */
     .up { color: #ef4444; font-weight: 700; }
     .dn { color: #3b82f6; font-weight: 700; }
     .na { color: #94a3b8; }
@@ -78,22 +82,22 @@
 <div id="tip"></div>
 <script>
 // ─── 상수 ────────────────────────────────────────────────────
-const COLORS = ["#6366f1","#f59e0b","#10b981","#3b82f6","#f43f5e","#a855f7","#06b6d4","#84cc16","#f97316","#ec4899"];
+const WORKER  = "https://asset-proxy.omyakryl0541.workers.dev";
+const COLORS  = ["#6366f1","#f59e0b","#10b981","#3b82f6","#f43f5e","#a855f7","#06b6d4","#84cc16","#f97316","#ec4899"];
 const TAB_LABELS = { overview:"전체", us:"미국주식", krx:"한국주식", pen:"연금저축", irp:"IRP", coins:"코인", cash:"현금" };
 const DEFAULT_TAB_ORDER = ["overview","us","krx","pen","irp","coins","cash"];
 
-// 티커 자동완성 DB
-const US_DB = { NVO:"Novo Nordisk", TQQQ:"ProShares UltraPro QQQ", JEPQ:"JPMorgan Nasdaq Eq Premium", QLD:"ProShares Ultra QQQ", SGOV:"iShares 0-3M Treasury", QQQ:"Invesco QQQ", SPY:"SPDR S&P500", VOO:"Vanguard S&P500", VTI:"Vanguard Total Market", NVDA:"NVIDIA", AAPL:"Apple", MSFT:"Microsoft", GOOGL:"Alphabet", AMZN:"Amazon", META:"Meta", TSLA:"Tesla", SOXL:"Direxion Semi 3X", UPRO:"ProShares UltraPro S&P500", TLT:"iShares 20Y Treasury", GLD:"SPDR Gold", PLTR:"Palantir", AMD:"AMD", JEPI:"JPMorgan Equity Premium", SCHD:"Schwab US Dividend", EQIX:"Equinix" };
-const KRX_ETF_DB = { "381170":"TIGER 미국테크TOP10 INDXX", "360750":"TIGER 미국S&P500", "381180":"TIGER 미국필라델피아반도체", "411060":"ACE KRX금현물", "367380":"ACE 미국나스닥100", "360200":"ACE 미국S&P500", "438080":"ACE 미국S&P500미국채혼합50액티브", "069500":"KODEX 200", "133690":"TIGER 미국나스닥100", "379800":"KODEX 미국S&P500", "448290":"KODEX 미국배당다우존스" };
+const US_DB = { NVO:"Novo Nordisk", TQQQ:"ProShares UltraPro QQQ", JEPQ:"JPMorgan Nasdaq Eq Premium", QLD:"ProShares Ultra QQQ", SGOV:"iShares 0-3M Treasury", QQQ:"Invesco QQQ", SPY:"SPDR S&P500", VOO:"Vanguard S&P500", VTI:"Vanguard Total Market", NVDA:"NVIDIA", AAPL:"Apple", MSFT:"Microsoft", GOOGL:"Alphabet", AMZN:"Amazon", META:"Meta", TSLA:"Tesla", SOXL:"Direxion Semi 3X", UPRO:"ProShares UltraPro S&P500", TLT:"iShares 20Y Treasury", GLD:"SPDR Gold", GLDM:"SPDR Gold MiniShares", PLTR:"Palantir", AMD:"AMD", JEPI:"JPMorgan Equity Premium", SCHD:"Schwab US Dividend", EQIX:"Equinix", MCD:"McDonald's", RTX:"RTX Corp", URA:"Global X Uranium", EQT:"EQT Corp" };
+const KRX_ETF_DB = { "381170":"TIGER 미국테크TOP10 INDXX", "360750":"TIGER 미국S&P500", "381180":"TIGER 미국필라델피아반도체", "411060":"ACE KRX금현물", "367380":"ACE 미국나스닥100", "360200":"ACE 미국S&P500", "438080":"ACE 미국S&P500미국채혼합50액티브", "069500":"KODEX 200", "133690":"TIGER 미국나스닥100", "379800":"KODEX 미국S&P500", "448290":"KODEX 미국배당다우존스", "0072R0":"TIGER KRX금현물" };
 const KRX_STOCK_DB = { "005930":"삼성전자", "000660":"SK하이닉스", "035420":"NAVER", "035720":"카카오", "000270":"기아", "005380":"현대차", "051910":"LG화학", "006400":"삼성SDI", "207940":"삼성바이오로직스", "068270":"셀트리온", "105560":"KB금융", "055550":"신한지주", "003550":"LG", "066570":"LG전자", "017670":"SK텔레콤", "030200":"KT" };
-const GECKO_ID = { BTC:"bitcoin", ETH:"ethereum", XRP:"ripple", SOL:"solana", DOGE:"dogecoin", ADA:"cardano", MATIC:"matic-network", AVAX:"avalanche-2", DOT:"polkadot", LINK:"chainlink", UNI:"uniswap", ATOM:"cosmos", LTC:"litecoin", BCH:"bitcoin-cash", NEAR:"near", SHIB:"shiba-inu", TRX:"tron", XLM:"stellar", KLAY:"klay-token", FTM:"fantom" };
+const GECKO_ID = { BTC:"bitcoin", ETH:"ethereum", XRP:"ripple", SOL:"solana", DOGE:"dogecoin", ADA:"cardano", MATIC:"matic-network", AVAX:"avalanche-2", DOT:"polkadot", LINK:"chainlink", UNI:"uniswap", ATOM:"cosmos", LTC:"litecoin", BCH:"bitcoin-cash", NEAR:"near", SHIB:"shiba-inu", TRX:"tron", XLM:"stellar", KLAY:"klay-token" };
 
 // ─── 저장소 ──────────────────────────────────────────────────
 const SK = "asset_v6";
 const DEFAULT_DATA = {
-  us: [], krx: [], pen: [], irp: [],
-  coins: [], cash: [{id:"ca1", n:"현금", a:0}],
-  tabOrder: [...DEFAULT_TAB_ORDER],
+  us:[], krx:[], pen:[], irp:[],
+  coins:[], cash:[{id:"ca1",n:"현금",a:0}],
+  tabOrder:[...DEFAULT_TAB_ORDER],
 };
 
 function loadData() {
@@ -101,54 +105,45 @@ function loadData() {
     const raw = localStorage.getItem(SK);
     if (!raw) return JSON.parse(JSON.stringify(DEFAULT_DATA));
     const d = JSON.parse(raw);
-    if (!d.krx)                    d.krx = [];
-    if (!d.coins)                  d.coins = [];
-    if (!Array.isArray(d.cash))    d.cash = [{ id:"ca1", n:"현금", a: typeof d.cash === "number" ? d.cash : 0 }];
-    if (!d.tabOrder)               d.tabOrder = [...DEFAULT_TAB_ORDER];
+    if (!d.krx)                 d.krx = [];
+    if (!d.coins)               d.coins = [];
+    if (!Array.isArray(d.cash)) d.cash = [{id:"ca1",n:"현금",a:typeof d.cash==="number"?d.cash:0}];
+    if (!d.tabOrder)            d.tabOrder = [...DEFAULT_TAB_ORDER];
     return d;
   } catch { return JSON.parse(JSON.stringify(DEFAULT_DATA)); }
 }
 function saveData() { try { localStorage.setItem(SK, JSON.stringify(ST)); } catch {} }
 
 // ─── 앱 상태 ─────────────────────────────────────────────────
-const ST = loadData();
-let usdKrw   = null;
-let px       = {};
-let loading  = false;
-let lastUp   = null;
-let editMode = false;
-let tab      = "overview";
+const ST      = loadData();
+let usdKrw    = null;
+let px        = {};
+let loading   = false;
+let lastUp    = null;
+let editMode  = false;
+let tab       = "overview";
 
-// ─── 포맷 헬퍼 ───────────────────────────────────────────────
+// ─── 포맷 ────────────────────────────────────────────────────
 const won  = n => n ? "₩" + Math.round(n).toLocaleString("ko-KR") : "—";
-const usd  = n => n ? "$" + Number(n).toLocaleString("en-US", { minimumFractionDigits:2, maximumFractionDigits:2 }) : "—";
-const fPct = n => n == null ? "—" : (n >= 0 ? "+" : "") + n.toFixed(2) + "%";
-const gCls = n => n == null ? "na" : n >= 0 ? "up" : "dn";
+const usd  = n => n ? "$" + Number(n).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2}) : "—";
+const fPct = n => n==null ? "—" : (n>=0?"+":"")+n.toFixed(2)+"%";
+const gCls = n => n==null ? "na" : n>=0 ? "up" : "dn";
 
-// ─── 평가금액 계산 ────────────────────────────────────────────
-// 미국주식: px(USD) × 수량 × 환율, fallback: 평단 × 수량 × 환율
-function usVal(item) {
-  const rate = usdKrw || 0;
-  return ((px[item.t] || item.a || 0)) * item.q * rate;
-}
-// KRX/코인: px(KRW) × 수량, fallback: 평단 × 수량
-function krxVal(item) { return ((px[item.t] || item.a || 0)) * item.q; }
-
-// 수익률
-function usGp(item)  { const p = px[item.t]; return (p && item.a && item.q) ? ((p - item.a) / item.a) * 100 : null; }
-function krxGp(item) { const p = px[item.t]; return (p && item.a && item.q) ? ((p - item.a) / item.a) * 100 : null; }
-
-// 현재가 원화
-function usPriceKrw(item) { const p = px[item.t]; return (p && usdKrw) ? p * usdKrw : null; }
-
-// 섹션 합계
-function sectionTotal(list, isUSD) { return list.reduce((s, x) => s + (isUSD ? usVal(x) : krxVal(x)), 0); }
+// ─── 계산 ────────────────────────────────────────────────────
+const usVal    = item => ((px[item.t]||item.a||0)) * item.q * (usdKrw||0);
+const krxVal   = item => ((px[item.t]||item.a||0)) * item.q;
+const usGp     = item => { const p=px[item.t]; return (p&&item.a&&item.q)?((p-item.a)/item.a)*100:null; };
+const krxGp    = item => { const p=px[item.t]; return (p&&item.a&&item.q)?((p-item.a)/item.a)*100:null; };
+const usPriceKrw = item => { const p=px[item.t]; return (p&&usdKrw)?p*usdKrw:null; };
+const secTotal = (list,isUSD) => list.reduce((s,x)=>s+(isUSD?usVal(x):krxVal(x)),0);
 
 // 평가금액 내림차순 정렬 (현재가 있는 것 우선)
 function sortByVal(list, isUSD) {
-  return [...list].sort((a, b) => {
+  return [...list].sort((a,b) => {
     const hasPa = !!px[a.t], hasPb = !!px[b.t];
-    if (hasPa && hasPb) return (isUSD ? usVal(b) - usVal(a) : krxVal(b) - krxVal(a));
+    const va = hasPa ? (isUSD ? px[a.t]*a.q*(usdKrw||0) : px[a.t]*a.q) : 0;
+    const vb = hasPb ? (isUSD ? px[b.t]*b.q*(usdKrw||0) : px[b.t]*b.q) : 0;
+    if (hasPa && hasPb) return vb - va;
     if (hasPa) return -1;
     if (hasPb) return 1;
     return 0;
@@ -161,315 +156,286 @@ async function fetchAll() {
   loading = true;
   render();
 
-  // 1) 환율 — 네이버 금융 → exchangerate-api fallback
+  const usTickers   = ST.us.map(s=>s.t).filter(Boolean);
+  const krxCodes    = [...new Set([...ST.pen,...ST.irp,...ST.krx].map(e=>e.t).filter(Boolean))];
+  const coinTickers = [...new Set(ST.coins.map(x=>x.t).filter(Boolean))];
+  const coinIds     = coinTickers.map(t=>GECKO_ID[t.toUpperCase()]).filter(Boolean);
+
   try {
-    const url = "https://m.stock.naver.com/api/forex/FX_USDKRW";
-    const d = await fetch("https://api.allorigins.win/raw?url=" + encodeURIComponent(url)).then(r => r.json());
-    const p = Number((d?.closePrice || d?.currentPrice || "").toString().replace(/,/g, ""));
-    if (p > 100) usdKrw = p; else throw "";
-  } catch {
-    try {
-      const d = await fetch("https://api.exchangerate-api.com/v4/latest/USD").then(r => r.json());
-      if (d.rates?.KRW) usdKrw = d.rates.KRW;
-    } catch {}
-  }
-
-  // 2) 미국주식 — Yahoo Finance (allorigins 프록시)
-  await Promise.all(ST.us.filter(s => s.t).map(async s => {
-    try {
-      const url = "https://query1.finance.yahoo.com/v8/finance/chart/" + s.t + "?interval=1d&range=1d";
-      const d = await fetch("https://api.allorigins.win/raw?url=" + encodeURIComponent(url)).then(r => r.json());
-      const p = d?.chart?.result?.[0]?.meta?.regularMarketPrice;
-      if (p) px[s.t] = p;
-    } catch {}
-  }));
-
-  // 3) KRX — 네이버 polling (일괄) → 개별 fallback
-  const krxCodes = [...new Set([...ST.pen, ...ST.irp, ...ST.krx].map(e => e.t).filter(Boolean))];
-  if (krxCodes.length) {
-    try {
-      const query = krxCodes.map(c => "SERVICE_ITEM:" + c).join("|");
-      const url = "https://polling.finance.naver.com/api/realtime?query=" + encodeURIComponent(query);
-      const d = await fetch("https://api.allorigins.win/raw?url=" + encodeURIComponent(url)).then(r => r.json());
-      for (const item of (d?.result?.areas?.[0]?.datas || [])) {
-        const p = Number(item.nv || item.cv || 0);
-        if (item.cd && p > 100) px[item.cd] = p;
-      }
-    } catch {}
-    // 못받은 종목 개별 fallback
-    await Promise.all(krxCodes.filter(c => !px[c]).map(async code => {
-      try {
-        const url = "https://m.stock.naver.com/api/stock/" + code + "/basic";
-        const d = await fetch("https://api.allorigins.win/raw?url=" + encodeURIComponent(url)).then(r => r.json());
-        const p = Number((d?.closePrice || d?.currentPrice || "").toString().replace(/,/g, ""));
-        if (p > 100) px[code] = p;
-      } catch {}
-    }));
-  }
-
-  // 4) 코인 — CoinGecko → Upbit fallback
-  const coinTickers = [...new Set(ST.coins.map(x => x.t).filter(Boolean))];
-  if (coinTickers.length) {
-    const ids = coinTickers.map(t => GECKO_ID[t.toUpperCase()]).filter(Boolean);
-    try {
-      const url = "https://api.coingecko.com/api/v3/simple/price?ids=" + ids.join(",") + "&vs_currencies=krw";
-      const d = await fetch(url).then(r => r.json());
-      coinTickers.forEach(t => { const id = GECKO_ID[t.toUpperCase()]; if (id && d[id]?.krw) px[t] = d[id].krw; });
-    } catch {}
-    // Upbit fallback
-    const missing = coinTickers.filter(t => !px[t]);
-    if (missing.length) {
-      try {
-        const markets = missing.map(t => "KRW-" + t).join(",");
-        const d = await fetch("https://api.upbit.com/v1/ticker?markets=" + markets).then(r => r.json());
-        for (const item of d) { const t = item.market.replace("KRW-", ""); if (item.trade_price) px[t] = item.trade_price; }
-      } catch {}
-    }
-  }
+    const params = new URLSearchParams({
+      type:"all", us:usTickers.join(","), krx:krxCodes.join(","), coins:coinIds.join(",")
+    });
+    const d = await fetch(WORKER+"?"+params).then(r=>r.json());
+    if (d.fx)  usdKrw = d.fx;
+    Object.assign(px, d.us||{});
+    Object.assign(px, d.krx||{});
+    coinTickers.forEach(t => {
+      const id = GECKO_ID[t.toUpperCase()];
+      if (id && d.coins?.[id]?.krw) px[t] = d.coins[id].krw;
+    });
+  } catch {}
 
   loading = false;
-  lastUp = new Date();
+  lastUp  = new Date();
   render();
 }
 
-// ─── SVG 도넛 차트 ────────────────────────────────────────────
-function buildDonut(segs, total, cx, cy, R, r, interactive) {
+// ─── SVG 도넛 ────────────────────────────────────────────────
+// segs: [{l, v, c?}], interactive: 클릭 이벤트 여부
+function buildDonutSVG(segs, total, cx, cy, R, r, interactive) {
   if (!segs.length || !total) return "";
-  let ang = -Math.PI / 2;
-  return segs.map((seg, i) => {
-    const a = seg.v / total * Math.PI * 2;
-    const x1 = cx + R * Math.cos(ang), y1 = cy + R * Math.sin(ang);
-    ang += a;
-    const x2 = cx + R * Math.cos(ang), y2 = cy + R * Math.sin(ang);
-    const xi1 = cx + r * Math.cos(ang - a), yi1 = cy + r * Math.sin(ang - a);
-    const xi2 = cx + r * Math.cos(ang),     yi2 = cy + r * Math.sin(ang);
-    const lg = a > Math.PI ? 1 : 0;
-    const col = seg.c || COLORS[i % COLORS.length];
+  // 단일 종목: 완전한 원
+  if (segs.length === 1) {
+    const col = segs[0].c || COLORS[0];
     const extra = interactive
-      ? ` data-label="${seg.l}" data-pct="${(seg.v/total*100).toFixed(1)}" data-val="${Math.round(seg.v)}" class="donut-seg" style="cursor:pointer"`
+      ? ` data-label="${segs[0].l}" data-pct="100.0" data-val="${Math.round(segs[0].v)}" class="donut-seg" style="cursor:pointer"`
+      : "";
+    return `<circle cx="${cx}" cy="${cy}" r="${(R+r)/2}" fill="none" stroke="${col}" stroke-width="${R-r}"${extra}/>`;
+  }
+  let ang = -Math.PI/2;
+  return segs.map((seg,i) => {
+    const a = seg.v/total * Math.PI*2;
+    const x1=cx+R*Math.cos(ang), y1=cy+R*Math.sin(ang);
+    ang += a;
+    const x2=cx+R*Math.cos(ang), y2=cy+R*Math.sin(ang);
+    const xi1=cx+r*Math.cos(ang-a), yi1=cy+r*Math.sin(ang-a);
+    const xi2=cx+r*Math.cos(ang),   yi2=cy+r*Math.sin(ang);
+    const lg = a > Math.PI ? 1 : 0;
+    const col = seg.c || COLORS[i%COLORS.length];
+    const pct = (seg.v/total*100).toFixed(1);
+    const extra = interactive
+      ? ` data-label="${seg.l}" data-pct="${pct}" data-val="${Math.round(seg.v)}" class="donut-seg" style="cursor:pointer"`
       : "";
     return `<path d="M${xi1},${yi1}L${x1},${y1}A${R},${R} 0 ${lg},1 ${x2},${y2}L${xi2},${yi2}A${r},${r} 0 ${lg},0 ${xi1},${yi1}Z" fill="${col}" stroke="#0f172a" stroke-width="2"${extra}/>`;
   }).join("");
 }
 
-// ─── 테이블 행 생성 (미국/KRX 공통) ──────────────────────────
-// buildSection, buildCoins를 통합 — 중복 제거 핵심
-function buildRows(list, key, isUSD, valFn, gpFn, priceKrwFn, avgFmt) {
-  const sorted = sortByVal(list, isUSD);
-  return sorted.map(item => {
-    const priceKrw = priceKrwFn(item);
-    const val = valFn(item);
-    const gp  = gpFn(item);
-    const priceStr = priceKrw ? won(priceKrw) : `<span class="price-na">—</span>`;
-    if (editMode) {
-      const autoDb = key === "us" ? US_DB : key === "krx" ? KRX_STOCK_DB : key === "coins" ? null : KRX_ETF_DB;
-      return `<tr data-id="${item.id}" data-key="${key}" data-usd="${isUSD}">
-        <td style="min-width:110px">
-          <input class="inp inp-l" style="font-weight:600;font-size:12px;margin-bottom:3px" data-f="t" data-id="${item.id}" value="${item.t}" placeholder="티커/코드"/>
-          <input class="inp inp-l" style="font-size:10px;color:#94a3b8" data-f="n" data-id="${item.id}" value="${item.n||""}" placeholder="종목명"/>
-        </td>
-        <td class="r"><input class="inp inp-r" type="number" ${key==="coins"?'step="0.0001"':''} data-f="q" data-id="${item.id}" value="${item.q||""}"/></td>
-        <td class="r"><input class="inp inp-r" type="number" data-f="a" data-id="${item.id}" value="${item.a||""}" placeholder="${avgFmt}"/></td>
-        <td class="r">${priceStr}</td>
-        <td class="r" style="font-weight:600" data-calc="val">${val ? won(val) : "₩0"}</td>
-        <td class="r ${gCls(gp)}" data-calc="gp">${fPct(gp)}</td>
-        <td><button class="del-btn" data-del="${item.id}" data-key="${key}">✕</button></td>
-      </tr>`;
-    }
-    return `<tr>
-      <td style="min-width:110px"><div class="ticker">${item.t}</div><div class="name">${item.n||""}</div></td>
-      <td class="r">${item.q}</td>
-      <td class="r" style="color:#94a3b8">${avgFmt === "USD" ? usd(item.a) : won(item.a)}</td>
-      <td class="r">${priceStr}</td>
-      <td class="r" style="font-weight:600">${val ? won(val) : "₩0"}</td>
-      <td class="r ${gCls(gp)}" style="font-weight:700">${fPct(gp)}</td>
-    </tr>`;
-  }).join("");
-}
-
-// ─── 종목 비중 도넛 ───────────────────────────────────────────
-function buildSectionDonut(list, valFn, title) {
-  const items = list.filter(x => x.t && x.q > 0).map(x => ({ l: x.t, v: valFn(x) })).filter(x => x.v > 0);
+// 섹션 비중 도넛 카드 (평가금액 순 정렬된 items 받음)
+function buildDonutCard(items, title) {
   if (!items.length) return "";
-  const total = items.reduce((s, x) => s + x.v, 0);
-  const paths = buildDonut(items, total, 90, 90, 75, 45, true);
-  const legend = items.map((item, i) => `
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-      <div style="display:flex;align-items:center;gap:6px">
-        <div style="width:8px;height:8px;border-radius:2px;background:${COLORS[i%COLORS.length]}"></div>
-        <span style="font-size:11px">${item.l}</span>
-      </div>
-      <div>
-        <span style="font-size:11px;font-weight:600">${won(item.v)}</span>
-        <span style="font-size:10px;color:#475569;margin-left:4px">${(item.v/total*100).toFixed(1)}%</span>
-      </div>
-    </div>`).join("");
-  return `<div class="card" style="margin-top:4px">
-    <div class="card-title" style="margin-bottom:12px">${title} 비중</div>
-    <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
-      <svg width="180" height="180" viewBox="0 0 180 180" style="flex-shrink:0">
-        ${paths}
-        <text x="90" y="85" text-anchor="middle" fill="#94a3b8" font-size="10" class="donut-ct">탭하여</text>
-        <text x="90" y="100" text-anchor="middle" fill="#94a3b8" font-size="10" class="donut-cb">확인</text>
-      </svg>
-      <div style="flex:1;min-width:150px">${legend}</div>
-    </div>
-  </div>`;
+  const total = items.reduce((s,x)=>s+x.v, 0);
+  if (!total) return "";
+  const segs  = items.map((x,i) => ({l:x.l, v:x.v, c:COLORS[i%COLORS.length]}));
+  const paths = buildDonutSVG(segs, total, 90, 90, 75, 45, true);
+  const legend = segs.map(seg =>
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">'
+    +'<div style="display:flex;align-items:center;gap:6px">'
+    +'<div style="width:8px;height:8px;border-radius:2px;background:'+seg.c+'"></div>'
+    +'<span style="font-size:11px">'+seg.l+'</span></div>'
+    +'<div>'
+    +'<span style="font-size:11px;font-weight:600">'+won(seg.v)+'</span>'
+    +'<span style="font-size:10px;color:#475569;margin-left:4px">'+(seg.v/total*100).toFixed(1)+'%</span>'
+    +'</div></div>'
+  ).join("");
+  return '<div class="card" style="margin-top:4px">'
+    +'<div class="card-title" style="margin-bottom:12px">'+title+' 비중</div>'
+    +'<div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">'
+    +'<svg width="180" height="180" viewBox="0 0 180 180" style="flex-shrink:0">'
+    +paths
+    +'<text x="90" y="85" text-anchor="middle" fill="#94a3b8" font-size="10" class="donut-ct">탭하여</text>'
+    +'<text x="90" y="100" text-anchor="middle" fill="#94a3b8" font-size="10" class="donut-cb">확인</text>'
+    +'</svg>'
+    +'<div style="flex:1;min-width:150px">'+legend+'</div>'
+    +'</div></div>';
 }
 
-// ─── 섹션 공통 빌더 ──────────────────────────────────────────
-// buildSection + buildCoins를 하나로 통합
+// ─── 테이블 행 ────────────────────────────────────────────────
+function buildRow(item, key, isUSD, valFn, gpFn, priceKrwFn, avgFmt) {
+  const priceKrw = priceKrwFn(item);
+  const val = valFn(item);
+  const gp  = gpFn(item);
+  const priceStr = priceKrw
+    ? won(priceKrw)
+    : (loading ? '<span class="cell-loading">···</span>' : '<span class="price-na">—</span>');
+  if (editMode) {
+    const db = key==="us" ? US_DB : key==="krx" ? KRX_STOCK_DB : key==="coins" ? null : KRX_ETF_DB;
+    return '<tr data-id="'+item.id+'" data-key="'+key+'" data-usd="'+isUSD+'">'
+      +'<td style="min-width:110px">'
+      +'<input class="inp inp-l" style="font-weight:600;font-size:12px;margin-bottom:3px" data-f="t" data-id="'+item.id+'" value="'+item.t+'" placeholder="티커/코드"/>'
+      +'<input class="inp inp-l" style="font-size:10px;color:#94a3b8" data-f="n" data-id="'+item.id+'" value="'+(item.n||"")+'" placeholder="종목명"/>'
+      +'</td>'
+      +'<td class="r"><input class="inp inp-r" type="number" '+(key==="coins"?'step="0.0001" ':'')+' data-f="q" data-id="'+item.id+'" value="'+(item.q||"")+'"/></td>'
+      +'<td class="r"><input class="inp inp-r" type="number" data-f="a" data-id="'+item.id+'" value="'+(item.a||"")+'" placeholder="'+(avgFmt==="USD"?"USD":"KRW")+'"/></td>'
+      +'<td class="r">'+priceStr+'</td>'
+      +'<td class="r" style="font-weight:600" data-calc="val">'+(val?won(val):"₩0")+'</td>'
+      +'<td class="r '+gCls(gp)+'" data-calc="gp">'+fPct(gp)+'</td>'
+      +'<td><button class="del-btn" data-del="'+item.id+'" data-key="'+key+'">✕</button></td>'
+      +'</tr>';
+  }
+  return '<tr>'
+    +'<td style="min-width:110px"><div class="ticker">'+item.t+'</div><div class="name">'+(item.n||"")+'</div></td>'
+    +'<td class="r">'+(key==="coins"?item.q:item.q)+'</td>'
+    +'<td class="r" style="color:#94a3b8">'+(avgFmt==="USD"?usd(item.a):won(item.a))+'</td>'
+    +'<td class="r">'+priceStr+'</td>'
+    +'<td class="r" style="font-weight:600">'+(val?won(val):"₩0")+'</td>'
+    +'<td class="r '+gCls(gp)+'" style="font-weight:700">'+fPct(gp)+'</td>'
+    +'</tr>';
+}
+
+// ─── 섹션 (주식/ETF/코인 공통) ───────────────────────────────
 function buildSection(title, key, list, accent, isUSD) {
-  const valFn     = isUSD ? usVal  : krxVal;
-  const gpFn      = isUSD ? usGp   : krxGp;
-  const priceKrwFn = isUSD ? usPriceKrw : item => px[item.t] || null;
-  const avgFmt    = isUSD ? "USD" : "KRW";
-  const total     = sectionTotal(list, isUSD);
-  const avgLabel  = isUSD ? "평단(USD)" : "평단(원)";
-  const rows      = buildRows(list, key, isUSD, valFn, gpFn, priceKrwFn, avgFmt);
-  return `<div class="card" style="border-top:3px solid ${accent}">
-    <div class="card-hdr">
-      <span class="card-title">${title}</span>
-      <span class="card-total" style="color:${accent}">${total ? won(total) : "₩0"}</span>
-    </div>
-    <div class="tbl-wrap"><table>
-      <thead><tr>
-        <th style="text-align:left">종목</th>
-        <th class="r">수량</th>
-        <th class="r">${avgLabel}</th>
-        <th class="r">현재가(원)</th>
-        <th class="r">평가금액</th>
-        <th class="r">수익률</th>
-        ${editMode ? "<th></th>" : ""}
-      </tr></thead>
-      <tbody>${rows}</tbody>
-    </table></div>
-    ${editMode ? `<button class="add-btn" data-add="${key}">+ 종목 추가</button>` : ""}
-    ${buildSectionDonut(list, valFn, title)}
-  </div>`;
+  const valFn      = isUSD ? usVal  : krxVal;
+  const gpFn       = isUSD ? usGp   : krxGp;
+  const priceKrwFn = isUSD ? usPriceKrw : item => px[item.t]||null;
+  const avgFmt     = isUSD ? "USD" : "KRW";
+  const avgLabel   = isUSD ? "평단(USD)" : "평단(원)";
+  const sorted     = sortByVal(list, isUSD);
+  const total      = secTotal(list, isUSD);
+  const rows       = sorted.map(item => buildRow(item, key, isUSD, valFn, gpFn, priceKrwFn, avgFmt)).join("");
+
+  // 도넛용 데이터 (정렬된 순서 유지, 평가금액 > 0인 것만)
+  const donutItems = sorted
+    .filter(x => x.t && x.q > 0 && valFn(x) > 0)
+    .map(x => ({l: x.t, v: valFn(x)}));
+
+  return '<div class="card" style="border-top:3px solid '+accent+'">'
+    +'<div class="card-hdr">'
+    +'<span class="card-title">'+title+'</span>'
+    +'<span class="card-total" style="color:'+accent+'">'+(total?won(total):"₩0")+'</span>'
+    +'</div>'
+    +'<div class="tbl-wrap"><table>'
+    +'<thead><tr>'
+    +'<th style="text-align:left">종목</th>'
+    +'<th class="r">수량</th>'
+    +'<th class="r">'+avgLabel+'</th>'
+    +'<th class="r">현재가(원)</th>'
+    +'<th class="r">평가금액</th>'
+    +'<th class="r">수익률</th>'
+    +(editMode?'<th></th>':"")
+    +'</tr></thead>'
+    +'<tbody>'+rows+'</tbody>'
+    +'</table></div>'
+    +(editMode?'<button class="add-btn" data-add="'+key+'">+ 종목 추가</button>':"")
+    +buildDonutCard(donutItems, title)
+    +'</div>';
 }
 
 // ─── 현금 섹션 ───────────────────────────────────────────────
 function buildCash() {
-  const cashT = ST.cash.reduce((s, x) => s + (Number(x.a) || 0), 0);
-  const sorted = [...ST.cash].sort((a, b) => (Number(b.a)||0) - (Number(a.a)||0));
-  const rows = sorted.map(item => editMode
-    ? `<tr data-id="${item.id}" data-key="cash">
-        <td><input class="inp inp-l" data-f="n" data-id="${item.id}" value="${item.n}" placeholder="예) 예금, 적금, 주택청약"/></td>
-        <td class="r"><input class="inp inp-r" type="number" data-f="a" data-id="${item.id}" value="${item.a||""}"/></td>
-        <td><button class="del-btn" data-del="${item.id}" data-key="cash">✕</button></td>
-      </tr>`
-    : `<tr>
-        <td style="font-size:13px;font-weight:500">${item.n}</td>
-        <td class="r" style="font-size:13px;font-weight:600">${won(item.a) || "₩0"}</td>
-      </tr>`
+  const sorted = [...ST.cash].sort((a,b)=>(Number(b.a)||0)-(Number(a.a)||0));
+  const cashT  = sorted.reduce((s,x)=>s+(Number(x.a)||0), 0);
+  const rows   = sorted.map(item =>
+    editMode
+      ? '<tr data-id="'+item.id+'" data-key="cash">'
+        +'<td><input class="inp inp-l" data-f="n" data-id="'+item.id+'" value="'+item.n+'" placeholder="예) 예금, 적금, 주택청약"/></td>'
+        +'<td class="r"><input class="inp inp-r" type="number" data-f="a" data-id="'+item.id+'" value="'+(item.a||"")+'"/></td>'
+        +'<td><button class="del-btn" data-del="'+item.id+'" data-key="cash">✕</button></td>'
+        +'</tr>'
+      : '<tr>'
+        +'<td style="font-size:13px;font-weight:500">'+item.n+'</td>'
+        +'<td class="r" style="font-size:13px;font-weight:600">'+(won(item.a)||"₩0")+'</td>'
+        +'</tr>'
   ).join("");
-  return `<div class="card" style="border-top:3px solid #64748b">
-    <div class="card-hdr">
-      <span class="card-title">현금 / 예금</span>
-      <span class="card-total" style="color:#94a3b8">${cashT ? won(cashT) : "₩0"}</span>
-    </div>
-    <div class="tbl-wrap"><table>
-      <thead><tr>
-        <th style="text-align:left">항목</th>
-        <th class="r">금액</th>
-        ${editMode ? "<th></th>" : ""}
-      </tr></thead>
-      <tbody>${rows}</tbody>
-    </table></div>
-    ${editMode ? `<button class="add-btn" data-add="cash">+ 항목 추가</button>` : ""}
-  </div>`;
+
+  // 도넛용 데이터 (금액 > 0인 것만, 이미 정렬됨)
+  const donutItems = sorted
+    .filter(x => Number(x.a) > 0)
+    .map(x => ({l: x.n, v: Number(x.a)}));
+
+  return '<div class="card" style="border-top:3px solid #64748b">'
+    +'<div class="card-hdr">'
+    +'<span class="card-title">현금 / 예금</span>'
+    +'<span class="card-total" style="color:#94a3b8">'+(cashT?won(cashT):"₩0")+'</span>'
+    +'</div>'
+    +'<div class="tbl-wrap"><table>'
+    +'<thead><tr>'
+    +'<th style="text-align:left">항목</th>'
+    +'<th class="r">금액</th>'
+    +(editMode?'<th></th>':"")
+    +'</tr></thead>'
+    +'<tbody>'+rows+'</tbody>'
+    +'</table></div>'
+    +(editMode?'<button class="add-btn" data-add="cash">+ 항목 추가</button>':"")
+    +buildDonutCard(donutItems, "현금/예금")
+    +'</div>';
 }
 
 // ─── 전체 현황 ───────────────────────────────────────────────
 function buildOverview() {
-  const usT    = sectionTotal(ST.us, true);
-  const krxT   = sectionTotal(ST.krx, false);
-  const penT   = sectionTotal(ST.pen, false);
-  const irpT   = sectionTotal(ST.irp, false);
-  const coinsT = sectionTotal(ST.coins, false);
-  const cashT  = ST.cash.reduce((s, x) => s + (Number(x.a) || 0), 0);
-  const tot    = usT + krxT + penT + irpT + coinsT + cashT;
-  const pp     = v => tot > 0 ? (v / tot * 100).toFixed(1) : "0.0";
+  const usT    = secTotal(ST.us, true);
+  const krxT   = secTotal(ST.krx, false);
+  const penT   = secTotal(ST.pen, false);
+  const irpT   = secTotal(ST.irp, false);
+  const coinsT = ST.coins.reduce((s,x)=>s+krxVal(x), 0);
+  const cashT  = ST.cash.reduce((s,x)=>s+(Number(x.a)||0), 0);
+  const tot    = usT+krxT+penT+irpT+coinsT+cashT;
+  const pp     = v => tot>0 ? (v/tot*100).toFixed(1) : "0.0";
 
   const segs = [
-    { l:"미국주식", v:usT,    c:"#6366f1" },
-    { l:"한국주식", v:krxT,   c:"#f43f5e" },
-    { l:"연금저축", v:penT,   c:"#f59e0b" },
-    { l:"IRP",     v:irpT,   c:"#10b981" },
-    { l:"코인",    v:coinsT, c:"#3b82f6" },
-    { l:"현금",    v:cashT,  c:"#475569" },
-  ].filter(s => s.v > 0);
+    {l:"미국주식",v:usT,   c:"#6366f1"},
+    {l:"한국주식",v:krxT,  c:"#f43f5e"},
+    {l:"연금저축",v:penT,  c:"#f59e0b"},
+    {l:"IRP",    v:irpT,  c:"#10b981"},
+    {l:"코인",   v:coinsT,c:"#3b82f6"},
+    {l:"현금",   v:cashT, c:"#475569"},
+  ].filter(s=>s.v>0);
 
-  const lbl = tot >= 1e8 ? (tot/1e8).toFixed(1)+"억" : (tot/1e4).toFixed(0)+"만";
-  const paths = buildDonut(segs, tot, 80, 80, 65, 38, false);
-  const legend = segs.map(s => `
-    <div style="display:flex;justify-content:space-between;margin-bottom:7px;align-items:center">
-      <div style="display:flex;align-items:center;gap:6px">
-        <div style="width:8px;height:8px;border-radius:2px;background:${s.c}"></div>
-        <span style="font-size:12px">${s.l}</span>
-      </div>
-      <div>
-        <span style="font-size:12px;font-weight:600">${won(s.v)}</span>
-        <span style="font-size:10px;color:#475569;margin-left:4px">${pp(s.v)}%</span>
-      </div>
-    </div>`).join("");
+  const lbl    = tot>=1e8?(tot/1e8).toFixed(1)+"억":(tot/1e4).toFixed(0)+"만";
+  const paths  = buildDonutSVG(segs, tot, 80, 80, 65, 38, true);
+  const legend = segs.map(s =>
+    '<div style="display:flex;justify-content:space-between;margin-bottom:7px;align-items:center">'
+    +'<div style="display:flex;align-items:center;gap:6px">'
+    +'<div style="width:8px;height:8px;border-radius:2px;background:'+s.c+'"></div>'
+    +'<span style="font-size:12px">'+s.l+'</span></div>'
+    +'<div>'
+    +'<span style="font-size:12px;font-weight:600">'+won(s.v)+'</span>'
+    +'<span style="font-size:10px;color:#475569;margin-left:4px">'+pp(s.v)+'%</span>'
+    +'</div></div>'
+  ).join("");
 
-  return `
-  <div class="card-grad">
-    <div style="font-size:12px;color:#64748b;margin-bottom:6px">총 평가 자산</div>
-    <div style="font-size:32px;font-weight:800;letter-spacing:-1px">${tot ? won(tot) : "₩0"}</div>
-    <div style="margin-top:8px;display:flex;gap:14px;flex-wrap:wrap">
-      ${segs.map(s => `<span style="font-size:11px;color:#64748b">${s.l} <b style="color:#94a3b8">${pp(s.v)}%</b></span>`).join("")}
-    </div>
-  </div>
-  <div class="card">
-    <div class="card-title" style="margin-bottom:12px">자산 배분</div>
-    ${segs.length ? `
-    <div style="display:flex;align-items:center;gap:20px;flex-wrap:wrap">
-      <svg width="160" height="160" viewBox="0 0 160 160" style="flex-shrink:0">
-        ${paths}
-        <text x="80" y="75" text-anchor="middle" fill="#94a3b8" font-size="9">총자산</text>
-        <text x="80" y="88" text-anchor="middle" fill="#e2e8f0" font-size="9" font-weight="bold">${lbl}</text>
-      </svg>
-      <div style="flex:1;min-width:140px">${legend}</div>
-    </div>` : `<div style="color:#475569;text-align:center;padding:16px;font-size:12px">자산을 입력해주세요</div>`}
-  </div>`;
+  return '<div class="card-grad">'
+    +'<div style="font-size:12px;color:#64748b;margin-bottom:6px">총 평가 자산</div>'
+    +'<div style="font-size:32px;font-weight:800;letter-spacing:-1px">'+(tot?won(tot):"₩0")+'</div>'
+    +'<div style="margin-top:8px;display:flex;gap:14px;flex-wrap:wrap">'
+    +segs.map(s=>'<span style="font-size:11px;color:#64748b">'+s.l+' <b style="color:#94a3b8">'+pp(s.v)+'%</b></span>').join("")
+    +'</div></div>'
+    +'<div class="card">'
+    +'<div class="card-title" style="margin-bottom:12px">자산 배분</div>'
+    +(segs.length
+      ? '<div style="display:flex;align-items:center;gap:20px;flex-wrap:wrap">'
+        +'<svg width="160" height="160" viewBox="0 0 160 160" style="flex-shrink:0">'
+        +paths
+        +'<text x="80" y="75" text-anchor="middle" fill="#94a3b8" font-size="9" class="donut-ct">탭하여</text>'
+        +'<text x="80" y="88" text-anchor="middle" fill="#94a3b8" font-size="9" class="donut-cb">확인</text>'
+        +'</svg>'
+        +'<div style="flex:1;min-width:140px">'+legend+'</div>'
+        +'</div>'
+      : '<div style="color:#475569;text-align:center;padding:16px;font-size:12px">자산을 입력해주세요</div>')
+    +'</div>';
 }
 
 // ─── 페이지 빌드 ─────────────────────────────────────────────
 function buildPage() {
-  const subStr  = loading ? "⟳ 갱신 중..." : (lastUp ? lastUp.toLocaleTimeString("ko-KR") + " 기준" : "—");
-  const rateStr = usdKrw ? "USD/KRW ₩" + Math.round(usdKrw).toLocaleString() : "환율 로딩 중...";
-  const tabs    = (ST.tabOrder || DEFAULT_TAB_ORDER).map(k => [k, TAB_LABELS[k] || k]);
+  const subStr  = loading ? "⟳ 갱신 중..." : (lastUp?lastUp.toLocaleTimeString("ko-KR")+" 기준":"—");
+  const rateStr = usdKrw ? "USD/KRW ₩"+Math.round(usdKrw).toLocaleString() : "환율 로딩 중...";
+  const tabs    = (ST.tabOrder||DEFAULT_TAB_ORDER).map(k=>[k,TAB_LABELS[k]||k]);
 
-  return `
-  <div class="hdr">
-    <div>
-      <div class="hdr-title">📊 자산 대시보드</div>
-      <div class="hdr-sub">${subStr}</div>
-      <div class="hdr-rate">${rateStr}</div>
-    </div>
-    <div class="hdr-btns">
-      <button class="btn" id="btn-refresh">↻</button>
-      <button class="btn ${editMode ? "on" : ""}" id="btn-edit">${editMode ? "✓" : "✏"}</button>
-    </div>
-  </div>
-  <div class="tabs">
-    ${tabs.map(([k, l]) => {
-      const drag = editMode ? ` draggable="true" data-drag="${k}" style="cursor:grab"` : "";
-      const icon = editMode ? `<span style="font-size:9px;color:#64748b;margin-right:3px">⠿</span>` : "";
-      return `<button class="tab ${tab === k ? "on" : ""}" data-tab="${k}"${drag}>${icon}${l}</button>`;
-    }).join("")}
-  </div>
-  ${tab === "overview" ? buildOverview()                                           : ""}
-  ${tab === "us"       ? buildSection("미국 주식",   "us",  ST.us,  "#6366f1", true)  : ""}
-  ${tab === "krx"      ? buildSection("한국 주식",   "krx", ST.krx, "#f43f5e", false) : ""}
-  ${tab === "pen"      ? buildSection("연금저축펀드", "pen", ST.pen, "#f59e0b", false) : ""}
-  ${tab === "irp"      ? buildSection("IRP",        "irp", ST.irp, "#10b981", false) : ""}
-  ${tab === "coins"    ? buildSection("코인 (업비트/CoinGecko)", "coins", ST.coins, "#3b82f6", false) : ""}
-  ${tab === "cash"     ? buildCash()                                               : ""}
-  <div style="height:32px"></div>`;
+  const tabHtml = tabs.map(([k,l]) => {
+    const drag = editMode ? ' draggable="true" data-drag="'+k+'" style="cursor:grab"' : "";
+    const icon = editMode ? '<span style="font-size:9px;color:#64748b;margin-right:3px">⠿</span>' : "";
+    return '<button class="tab'+(tab===k?" on":"")+'" data-tab="'+k+'"'+drag+'>'+icon+l+'</button>';
+  }).join("");
+
+  return (loading?'<div class="loading-bar"><div class="loading-bar-inner"></div></div>':"")
+    +'<div class="hdr">'
+    +'<div>'
+    +'<div class="hdr-title">📊 자산 대시보드</div>'
+    +'<div class="hdr-sub">'+subStr+'</div>'
+    +'<div class="hdr-rate">'+rateStr+'</div>'
+    +'</div>'
+    +'<div class="hdr-btns">'
+    +'<button class="btn" id="btn-refresh">↻</button>'
+    +'<button class="btn'+(editMode?" on":"")+'" id="btn-edit">'+(editMode?"✓":"✏")+'</button>'
+    +'</div></div>'
+    +'<div class="tabs">'+tabHtml+'</div>'
+    +(tab==="overview" ? buildOverview()                                          : "")
+    +(tab==="us"       ? buildSection("미국 주식",  "us", ST.us, "#6366f1",true) : "")
+    +(tab==="krx"      ? buildSection("한국 주식",  "krx",ST.krx,"#f43f5e",false): "")
+    +(tab==="pen"      ? buildSection("연금저축펀드","pen",ST.pen,"#f59e0b",false): "")
+    +(tab==="irp"      ? buildSection("IRP",       "irp",ST.irp,"#10b981",false): "")
+    +(tab==="coins"    ? buildSection("코인",       "coins",ST.coins,"#3b82f6",false): "")
+    +(tab==="cash"     ? buildCash()                                              : "")
+    +'<div style="height:32px"></div>';
 }
 
 // ─── 렌더 ────────────────────────────────────────────────────
@@ -480,44 +446,38 @@ function render() {
     saveData();
   } catch(e) {
     document.getElementById("app").innerHTML =
-      `<div style="padding:20px;color:#ef4444;font-size:13px">오류: ${e.message}<br><pre style="font-size:10px;color:#94a3b8;white-space:pre-wrap">${e.stack}</pre></div>`;
+      '<div style="padding:20px;color:#ef4444;font-size:13px">오류: '+e.message+'<br><pre style="font-size:10px;color:#94a3b8;white-space:pre-wrap">'+e.stack+'</pre></div>';
   }
 }
 
-// ─── 이벤트 바인딩 ────────────────────────────────────────────
+// ─── 이벤트 ──────────────────────────────────────────────────
 function getList(key) {
-  return { us:ST.us, krx:ST.krx, pen:ST.pen, irp:ST.irp, coins:ST.coins, cash:ST.cash }[key] || null;
+  return {us:ST.us,krx:ST.krx,pen:ST.pen,irp:ST.irp,coins:ST.coins,cash:ST.cash}[key]||null;
 }
 
 function bindEvents() {
-  // 새로고침
-  document.getElementById("btn-refresh")?.addEventListener("click", async () => {
-    await fetchAll();
-    render();
-  });
-
-  // 편집 토글
-  document.getElementById("btn-edit")?.addEventListener("click", () => { editMode = !editMode; render(); });
+  document.getElementById("btn-refresh")?.addEventListener("click", async()=>{ await fetchAll(); render(); });
+  document.getElementById("btn-edit")?.addEventListener("click", ()=>{ editMode=!editMode; render(); });
 
   // 탭 전환
   document.querySelectorAll("[data-tab]").forEach(b =>
-    b.addEventListener("click", () => { tab = b.dataset.tab; render(); })
+    b.addEventListener("click", ()=>{ tab=b.dataset.tab; render(); })
   );
 
-  // 탭 드래그 순서 변경
+  // 탭 드래그
   if (editMode) {
     let dragKey = null;
     document.querySelectorAll("[data-drag]").forEach(b => {
-      b.addEventListener("dragstart", e => { dragKey = b.dataset.drag; e.dataTransfer.effectAllowed = "move"; b.style.opacity = "0.4"; });
-      b.addEventListener("dragend",   () => b.style.opacity = "1");
-      b.addEventListener("dragover",  e => { e.preventDefault(); b.style.background = "#334155"; });
-      b.addEventListener("dragleave", () => b.style.background = tab === b.dataset.drag ? "#6366f1" : "#1e293b");
-      b.addEventListener("drop", e => {
+      b.addEventListener("dragstart", e=>{ dragKey=b.dataset.drag; e.dataTransfer.effectAllowed="move"; b.style.opacity="0.4"; });
+      b.addEventListener("dragend",   ()=>b.style.opacity="1");
+      b.addEventListener("dragover",  e=>{ e.preventDefault(); b.style.background="#334155"; });
+      b.addEventListener("dragleave", ()=>b.style.background=tab===b.dataset.drag?"#6366f1":"#1e293b");
+      b.addEventListener("drop", e=>{
         e.preventDefault();
-        const toKey = b.dataset.drag;
-        if (dragKey && toKey && dragKey !== toKey) {
-          const o = ST.tabOrder, fi = o.indexOf(dragKey), ti = o.indexOf(toKey);
-          if (fi > -1 && ti > -1) { o.splice(fi, 1); o.splice(ti, 0, dragKey); }
+        const toKey=b.dataset.drag;
+        if (dragKey&&toKey&&dragKey!==toKey) {
+          const o=ST.tabOrder, fi=o.indexOf(dragKey), ti=o.indexOf(toKey);
+          if (fi>-1&&ti>-1){o.splice(fi,1);o.splice(ti,0,dragKey);}
           saveData(); render();
         }
       });
@@ -526,53 +486,51 @@ function bindEvents() {
 
   // 종목 추가
   document.querySelectorAll("[data-add]").forEach(b =>
-    b.addEventListener("click", () => {
-      const k = b.dataset.add, id = k + Date.now();
-      if (k === "cash") ST.cash.push({ id, n:"새 항목", a:0 });
-      else getList(k)?.push({ id, t:"", n:"", q:0, a:0 });
+    b.addEventListener("click", ()=>{
+      const k=b.dataset.add, id=k+Date.now();
+      if (k==="cash") ST.cash.push({id,n:"새 항목",a:0});
+      else getList(k)?.push({id,t:"",n:"",q:0,a:0});
       render();
     })
   );
 
   // 종목 삭제
   document.querySelectorAll("[data-del]").forEach(b =>
-    b.addEventListener("click", () => {
-      const list = getList(b.dataset.key);
-      if (list) { const i = list.findIndex(x => x.id === b.dataset.del); if (i > -1) list.splice(i, 1); }
+    b.addEventListener("click", ()=>{
+      const list=getList(b.dataset.key);
+      if (list){const i=list.findIndex(x=>x.id===b.dataset.del);if(i>-1)list.splice(i,1);}
       render();
     })
   );
 
-  // 인풋 — 리렌더 없이 상태+셀만 업데이트 (커서 유지)
+  // 인풋 — 리렌더 없이 상태+셀만 업데이트
   document.querySelectorAll(".inp[data-id]").forEach(inp => {
-    const id  = inp.dataset.id;
-    const f   = inp.dataset.f;
-    const tr  = inp.closest("tr");
-    const key = tr?.dataset.key;
-    const isUSD = tr?.dataset.usd === "true";
-    const list  = getList(key);
-    const item  = list?.find(x => x.id === id);
+    const id=inp.dataset.id, f=inp.dataset.f;
+    const tr=inp.closest("tr");
+    const key=tr?.dataset.key;
+    const isUSD=tr?.dataset.usd==="true";
+    const list=getList(key);
+    const item=list?.find(x=>x.id===id);
     if (!item) return;
-
-    inp.addEventListener("input", e => {
-      const v = e.target.value;
-      if (f === "t") {
-        const upper = v.toUpperCase();
-        item.t = upper; e.target.value = upper;
-        const db = key === "us" ? US_DB : key === "krx" ? KRX_STOCK_DB : key === "coins" ? null : KRX_ETF_DB;
-        const auto = db?.[upper];
-        if (auto) { item.n = auto; const ni = tr.querySelector('[data-f="n"]'); if (ni) ni.value = auto; }
-      } else if (f === "n") {
-        item.n = v;
+    inp.addEventListener("input", e=>{
+      const v=e.target.value;
+      if (f==="t") {
+        const upper=v.toUpperCase();
+        item.t=upper; e.target.value=upper;
+        const db=key==="us"?US_DB:key==="krx"?KRX_STOCK_DB:key==="coins"?null:KRX_ETF_DB;
+        const auto=db?.[upper];
+        if (auto){item.n=auto;const ni=tr.querySelector('[data-f="n"]');if(ni)ni.value=auto;}
+      } else if (f==="n") {
+        item.n=v;
       } else {
-        item[f] = Number(v) || 0;
-        if (key !== "cash") {
-          const valFn = isUSD ? usVal : krxVal;
-          const gpFn  = isUSD ? usGp  : krxGp;
-          const vc = tr.querySelector("[data-calc='val']");
-          const gc = tr.querySelector("[data-calc='gp']");
-          if (vc) vc.textContent = won(valFn(item)) || "₩0";
-          if (gc) { gc.textContent = fPct(gpFn(item)); gc.className = `r ${gCls(gpFn(item))}`; }
+        item[f]=Number(v)||0;
+        if (key!=="cash") {
+          const valFn=isUSD?usVal:krxVal;
+          const gpFn =isUSD?usGp :krxGp;
+          const vc=tr.querySelector("[data-calc='val']");
+          const gc=tr.querySelector("[data-calc='gp']");
+          if (vc) vc.textContent=won(valFn(item))||"₩0";
+          if (gc){gc.textContent=fPct(gpFn(item));gc.className="r "+gCls(gpFn(item));}
         }
       }
       saveData();
@@ -581,24 +539,23 @@ function bindEvents() {
 
   // 도넛 조각 클릭
   document.querySelectorAll(".donut-seg").forEach(seg => {
-    seg.addEventListener("click", () => {
-      document.querySelectorAll(".donut-seg").forEach(s => s.style.opacity = "0.3");
-      seg.style.opacity = "1";
-      const svg = seg.closest("svg");
-      const ct = svg?.querySelector(".donut-ct"); if (ct) ct.textContent = seg.dataset.label;
-      const cb = svg?.querySelector(".donut-cb"); if (cb) cb.textContent = seg.dataset.pct + "%";
-      const tip = document.getElementById("tip");
-      tip.innerHTML = `<div style="font-weight:700;font-size:15px">${seg.dataset.label}</div>
-        <div style="font-size:18px;font-weight:800;margin-top:6px">₩${Number(seg.dataset.val).toLocaleString("ko-KR")}</div>
-        <div style="color:#6366f1;font-weight:700;font-size:14px">${seg.dataset.pct}%</div>`;
-      tip.style.display = "block";
+    seg.addEventListener("click", ()=>{
+      document.querySelectorAll(".donut-seg").forEach(s=>s.style.opacity="0.3");
+      seg.style.opacity="1";
+      const svg=seg.closest("svg");
+      const ct=svg?.querySelector(".donut-ct"); if(ct) ct.textContent=seg.dataset.label;
+      const cb=svg?.querySelector(".donut-cb"); if(cb) cb.textContent=seg.dataset.pct+"%";
+      const tip=document.getElementById("tip");
+      tip.innerHTML='<div style="font-weight:700;font-size:15px">'+seg.dataset.label+'</div>'
+        +'<div style="font-size:18px;font-weight:800;margin-top:6px">₩'+Number(seg.dataset.val).toLocaleString("ko-KR")+'</div>'
+        +'<div style="color:#6366f1;font-weight:700;font-size:14px">'+seg.dataset.pct+'%</div>';
+      tip.style.display="block";
       clearTimeout(window._tipTimer);
-      window._tipTimer = setTimeout(() => {
-        tip.style.display = "none";
-        document.querySelectorAll(".donut-seg").forEach(s => s.style.opacity = "1");
-        if (ct) ct.textContent = "탭하여";
-        if (cb) cb.textContent = "확인";
-      }, 3000);
+      window._tipTimer=setTimeout(()=>{
+        tip.style.display="none";
+        document.querySelectorAll(".donut-seg").forEach(s=>s.style.opacity="1");
+        if(ct)ct.textContent="탭하여"; if(cb)cb.textContent="확인";
+      },3000);
     });
   });
 }
