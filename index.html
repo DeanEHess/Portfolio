@@ -253,7 +253,9 @@ function migrateOldData(old) {
 
 function loadData() {
   try {
-    const profileRaw = localStorage.getItem(profileKey(curProfile));
+    const _curProfile = localStorage.getItem("asset_cur_profile") || "기본";
+    const _profileKey = "asset_v7_" + _curProfile;
+    const profileRaw = localStorage.getItem(_profileKey);
     const raw = profileRaw || localStorage.getItem(SK);
     if (raw) {
       const d = JSON.parse(raw);
