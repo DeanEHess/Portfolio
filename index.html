@@ -228,40 +228,6 @@ function sortItems(items, type) {
   return [...items].sort((a,b) => itemVal(b,type) - itemVal(a,type));
 }
 
-// 계좌 전체 수익률 = (현재평가금액 - 총매입금액) / 총매입금액
-function accGp(acc) {
-  if (acc.type === "cash") return null;
-  let totalCost = 0, totalVal = 0;
-  for (const item of acc.items) {
-    if (!item.q || !item.a) continue;
-    const val = itemVal(item, acc.type);
-    const cost = acc.type === "us"
-      ? item.a * item.q * (usdKrw||0)
-      : item.a * item.q;
-    if (cost > 0) { totalCost += cost; totalVal += val; }
-  }
-  if (!totalCost) return null;
-  return ((totalVal - totalCost) / totalCost) * 100;
-}
-
-// 전체 수익률
-function totalGp() {
-  let totalCost = 0, totalVal = 0;
-  for (const acc of ST.accounts) {
-    if (acc.type === "cash") continue;
-    for (const item of acc.items) {
-      if (!item.q || !item.a) continue;
-      const val  = itemVal(item, acc.type);
-      const cost = acc.type === "us"
-        ? item.a * item.q * (usdKrw||0)
-        : item.a * item.q;
-      if (cost > 0) { totalCost += cost; totalVal += val; }
-    }
-  }
-  if (!totalCost) return null;
-  return ((totalVal - totalCost) / totalCost) * 100;
-}
-
 // ─── API fetch ───────────────────────────────────────────────
 async function fetchAll() {
   if (loading) return;
@@ -444,15 +410,10 @@ function buildAccountSection(acc) {
     .map(x => ({l: isCash?x.n:x.t, v: itemVal(x,type)}));
 
   return '<div class="card" style="border-top:3px solid '+acc.color+'">'
-    +(()=>{
-      const gp=accGp(acc);
-      return '<div class="card-hdr">'
-        +'<span class="card-title">'+acc.name+'</span>'
-        +'<div style="text-align:right">'
-        +'<div class="card-total" style="color:'+acc.color+'">'+(total?won(total):"₩0")+'</div>'
-        +(gp!=null?'<div style="font-size:12px;font-weight:700;'+(gp>=0?'color:#ef4444':'color:#3b82f6')+'">'+fPct(gp)+'</div>':"")
-        +'</div></div>';
-    })()
+    +'<div class="card-hdr">'
+    +'<span class="card-title">'+acc.name+'</span>'
+    +'<span class="card-total" style="color:'+acc.color+'">'+(total?won(total):"₩0")+'</span>'
+    +'</div>'
     +accEdit
     +'<div class="tbl-wrap"><table>'+thead+'<tbody>'+rows+'</tbody></table></div>'
     +(editMode?'<button class="add-btn" data-add-item="'+acc.id+'">+ 종목 추가</button>':"")
@@ -535,10 +496,7 @@ function buildOverview() {
   return buildGoals(tot)
     +'<div class="card-grad">'
     +'<div style="font-size:12px;color:#64748b;margin-bottom:6px">총 평가 자산</div>'
-    +'<div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap">'
     +'<div style="font-size:32px;font-weight:800;letter-spacing:-1px">'+(tot?won(tot):"₩0")+'</div>'
-    +(()=>{const gp=totalGp();return gp!=null?'<div style="font-size:16px;font-weight:700;'+( gp>=0?'color:#ef4444':'color:#3b82f6')+'">'+fPct(gp)+'</div>':''})()
-    +'</div>'
     +'<div style="margin-top:8px;display:flex;gap:14px;flex-wrap:wrap">'
     +segs.map(s=>'<span style="font-size:11px;color:#64748b">'+s.l+' <b style="color:#94a3b8">'+pp(s.v)+'%</b></span>').join("")
     +'</div></div>'
