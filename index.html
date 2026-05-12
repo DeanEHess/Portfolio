@@ -479,17 +479,15 @@ function buildDonutCard(items, title) {
     +'<span style="font-size:11px;font-weight:600">'+won(seg.v)+'</span>'
     +'</div></div>'
   ).join("");
-  // isSector: 섹터 도넛이면 data-sector-donut 속성 추가
-  const isSector = title.includes("섹터");
   return '<div class="card" style="margin-top:4px">'
     +'<div class="card-title" style="margin-bottom:12px">'+title+'</div>'
     +'<div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">'
-    +'<svg width="180" height="180" viewBox="0 0 180 180" style="flex-shrink:0"'+(isSector?' data-sector-donut="1"':'')+' data-donut-title="'+title+'">'
+    +'<svg width="180" height="180" viewBox="0 0 180 180" style="flex-shrink:0">'
     +paths
     +'<text x="90" y="85" text-anchor="middle" fill="#94a3b8" font-size="10" class="donut-ct">탭하여</text>'
     +'<text x="90" y="100" text-anchor="middle" fill="#94a3b8" font-size="10" class="donut-cb">확인</text>'
     +'</svg>'
-    +'<div style="flex:1;min-width:150px" class="donut-legend">'+legend+'</div>'
+    +'<div style="flex:1;min-width:150px">'+legend+'</div>'
     +'</div></div>';
 }
 
@@ -785,71 +783,6 @@ function showDonutPopup(seg, svg) {
   },3000);
 }
 
-
-// 섹터 도넛 조각 클릭 → 해당 섹터 종목 목록 팝업
-function showSectorPopup(seg, svg) {
-  clearOverlayLine(svg);
-
-  const sectorName = seg.dataset.label;
-  const total = Number(seg.dataset.val) / (Number(seg.dataset.pct)/100);
-
-  // 현재 어느 계좌 탭인지 파악 → 해당 계좌 or 전체 계좌에서 종목 수집
-  const accs = tab === "overview"
-    ? ST.accounts
-    : ST.accounts.filter(a => a.id === tab);
-
-  // 해당 섹터 종목 수집
-  const items = [];
-  for (const acc of accs) {
-    if (acc.type === "cash") continue;
-    for (const item of acc.items) {
-      if (!item.q) continue;
-      if (getSector(item.t, acc.type) !== sectorName) continue;
-      const v = itemValBest(item, acc.type);
-      if (v > 0) items.push({ t:item.t, v });
-    }
-  }
-  items.sort((a,b)=>b.v-a.v);
-
-  const sectorTotal = items.reduce((s,x)=>s+x.v, 0);
-
-  // 범례 숨기고 팝업 표시
-  const flex = svg?.parentElement;
-  const legend = flex?.querySelector(".donut-legend");
-  if (!flex || !legend) return;
-  legend.style.visibility = "hidden";
-  flex.style.position = "relative";
-
-  const popup = document.createElement("div");
-  popup.className = "donut-popup";
-  popup.style.cssText = "position:absolute;background:#0f172a;border:1px solid #6366f1;border-radius:10px;padding:10px 12px;box-shadow:0 0 12px rgba(99,102,241,0.3);pointer-events:none;overflow-y:auto;max-height:160px";
-
-  popup.innerHTML = '<div style="font-size:11px;font-weight:700;color:#6366f1;margin-bottom:8px">'+sectorName+'</div>'
-    + items.map(item=>{
-        const pct = sectorTotal ? (item.v/sectorTotal*100).toFixed(1) : "0.0";
-        return '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;gap:8px">'
-          +'<span style="font-size:12px;font-weight:600;flex-shrink:0">'+item.t+'</span>'
-          +'<span style="font-size:10px;color:#94a3b8;flex-shrink:0">'+pct+'%</span>'
-          +'<span style="font-size:11px;font-weight:600;color:#e2e8f0">'+won(item.v)+'</span>'
-          +'</div>';
-      }).join("")
-    + (items.length===0?'<div style="font-size:11px;color:#475569">종목 없음</div>':"");
-
-  const lr = legend.getBoundingClientRect(), fr = flex.getBoundingClientRect();
-  popup.style.top  = (lr.top-fr.top)+"px";
-  popup.style.left = (lr.left-fr.left)+"px";
-  popup.style.width = lr.width+"px";
-  flex.appendChild(popup);
-
-  clearTimeout(window._popTimer);
-  window._popTimer = setTimeout(()=>{
-    clearOverlayLine(svg);
-    svg?.querySelectorAll(".donut-seg").forEach(s=>{s.style.opacity="1";delete s.dataset.active;});
-    const ct=svg?.querySelector(".donut-ct"); if(ct) ct.textContent="탭하여";
-    const cb=svg?.querySelector(".donut-cb"); if(cb) cb.textContent="확인";
-  }, 4000);
-}
-
 // ─── 렌더 ────────────────────────────────────────────────────
 function render() {
   try {
@@ -1016,9 +949,6 @@ function bindEvents() {
         document.querySelectorAll(".legend-item").forEach(el=>{
           el.style.opacity=el.dataset.label===seg.dataset.label?"1":"0.2";
         });
-      } else if (svg?.dataset.sectorDonut==="1") {
-        // 섹터 도넛 → 해당 섹터 종목 목록 팝업
-        showSectorPopup(seg, svg);
       } else {
         document.querySelectorAll(".legend-item").forEach(el=>el.style.opacity="1");
         showDonutPopup(seg,svg);
