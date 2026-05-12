@@ -11,7 +11,6 @@
   <meta name="theme-color" content="#0f172a"/>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
-    html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
     body { background: #0f172a; color: #e2e8f0; font-family: 'Apple SD Gothic Neo', 'Pretendard', sans-serif; min-height: 100vh; }
     input, button, select { outline: none; font-family: inherit; }
     input[type=number]::-webkit-inner-spin-button,
@@ -163,8 +162,7 @@ function migrateOldData(old) {
 
 function loadData() {
   try {
-    const profileRaw = localStorage.getItem(profileKey(curProfile));
-    const raw = profileRaw || localStorage.getItem(SK);
+    const raw = localStorage.getItem(SK);
     if (raw) {
       const d = JSON.parse(raw);
       if (!d.goals) d.goals = DEFAULT_DATA.goals;
@@ -180,55 +178,9 @@ function loadData() {
     return JSON.parse(JSON.stringify(DEFAULT_DATA));
   } catch { return JSON.parse(JSON.stringify(DEFAULT_DATA)); }
 }
-function saveData() {
-  try {
-    localStorage.setItem(SK, JSON.stringify(ST)); // 하위호환
-    localStorage.setItem(profileKey(curProfile), JSON.stringify(ST));
-  } catch {}
-}
+function saveData() { try { localStorage.setItem(SK, JSON.stringify(ST)); } catch {} }
 
 // ─── 앱 상태 ─────────────────────────────────────────────────
-// ─── 프로필 ──────────────────────────────────────────────────
-const PROFILE_LIST_KEY = "asset_profiles";
-const PROFILE_CUR_KEY  = "asset_cur_profile";
-
-function profileKey(name) { return "asset_v7_" + name; }
-
-function getProfiles() {
-  try { return JSON.parse(localStorage.getItem(PROFILE_LIST_KEY)) || ["기본"]; }
-  catch { return ["기본"]; }
-}
-function saveProfiles(list) {
-  localStorage.setItem(PROFILE_LIST_KEY, JSON.stringify(list));
-}
-
-let curProfile = localStorage.getItem(PROFILE_CUR_KEY) || getProfiles()[0];
-
-function switchProfile(name) {
-  curProfile = name;
-  localStorage.setItem(PROFILE_CUR_KEY, name);
-  const raw = localStorage.getItem(profileKey(name));
-  try {
-    const d = raw ? JSON.parse(raw) : JSON.parse(JSON.stringify(DEFAULT_DATA));
-    if (!d.goals) d.goals = JSON.parse(JSON.stringify(DEFAULT_DATA.goals));
-    Object.assign(ST, d);
-  } catch {
-    Object.assign(ST, JSON.parse(JSON.stringify(DEFAULT_DATA)));
-  }
-  px = {};
-  tab = "overview";
-  render();
-  fetchAll();
-}
-
-function deleteProfile(name) {
-  const list = getProfiles().filter(p => p !== name);
-  if (!list.length) list.push("기본");
-  saveProfiles(list);
-  localStorage.removeItem(profileKey(name));
-  switchProfile(list[0]);
-}
-
 const ST     = loadData();
 let usdKrw   = null;
 let px       = {};
@@ -276,40 +228,6 @@ function sortItems(items, type) {
   return [...items].sort((a,b) => itemVal(b,type) - itemVal(a,type));
 }
 
-// 계좌 전체 수익률 = (현재평가금액 - 총매입금액) / 총매입금액
-function accGp(acc) {
-  if (acc.type === "cash") return null;
-  let totalCost = 0, totalVal = 0;
-  for (const item of acc.items) {
-    if (!item.q || !item.a) continue;
-    const val = itemVal(item, acc.type);
-    const cost = acc.type === "us"
-      ? item.a * item.q * (usdKrw||0)
-      : item.a * item.q;
-    if (cost > 0) { totalCost += cost; totalVal += val; }
-  }
-  if (!totalCost) return null;
-  return ((totalVal - totalCost) / totalCost) * 100;
-}
-
-// 전체 수익률
-function totalGp() {
-  let totalCost = 0, totalVal = 0;
-  for (const acc of ST.accounts) {
-    if (acc.type === "cash") continue;
-    for (const item of acc.items) {
-      if (!item.q || !item.a) continue;
-      const val  = itemVal(item, acc.type);
-      const cost = acc.type === "us"
-        ? item.a * item.q * (usdKrw||0)
-        : item.a * item.q;
-      if (cost > 0) { totalCost += cost; totalVal += val; }
-    }
-  }
-  if (!totalCost) return null;
-  return ((totalVal - totalCost) / totalCost) * 100;
-}
-
 // ─── API fetch ───────────────────────────────────────────────
 async function fetchAll() {
   if (loading) return;
@@ -347,7 +265,7 @@ function backupData() {
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement("a");
   a.href     = url;
-  a.download = "asset_backup_"+curProfile+"_"+new Date().toISOString().slice(0,10).replace(/-/g,"")+".json";
+  a.download = "asset_backup_"+new Date().toISOString().slice(0,10).replace(/-/g,"")+".json";
   a.click();
   URL.revokeObjectURL(url);
 }
@@ -492,15 +410,10 @@ function buildAccountSection(acc) {
     .map(x => ({l: isCash?x.n:x.t, v: itemVal(x,type)}));
 
   return '<div class="card" style="border-top:3px solid '+acc.color+'">'
-    +(()=>{
-      const gp=accGp(acc);
-      return '<div class="card-hdr">'
-        +'<span class="card-title">'+acc.name+'</span>'
-        +'<div style="text-align:right">'
-        +'<div class="card-total" style="color:'+acc.color+'">'+(total?won(total):"₩0")+'</div>'
-        +(gp!=null?'<div style="font-size:12px;font-weight:700;'+(gp>=0?'color:#ef4444':'color:#3b82f6')+'">'+fPct(gp)+'</div>':"")
-        +'</div></div>';
-    })()
+    +'<div class="card-hdr">'
+    +'<span class="card-title">'+acc.name+'</span>'
+    +'<span class="card-total" style="color:'+acc.color+'">'+(total?won(total):"₩0")+'</span>'
+    +'</div>'
     +accEdit
     +'<div class="tbl-wrap"><table>'+thead+'<tbody>'+rows+'</tbody></table></div>'
     +(editMode?'<button class="add-btn" data-add-item="'+acc.id+'">+ 종목 추가</button>':"")
@@ -583,10 +496,7 @@ function buildOverview() {
   return buildGoals(tot)
     +'<div class="card-grad">'
     +'<div style="font-size:12px;color:#64748b;margin-bottom:6px">총 평가 자산</div>'
-    +'<div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap">'
     +'<div style="font-size:32px;font-weight:800;letter-spacing:-1px">'+(tot?won(tot):"₩0")+'</div>'
-    +(()=>{const gp=totalGp();return gp!=null?'<div style="font-size:16px;font-weight:700;'+( gp>=0?'color:#ef4444':'color:#3b82f6')+'">'+fPct(gp)+'</div>':''})()
-    +'</div>'
     +'<div style="margin-top:8px;display:flex;gap:14px;flex-wrap:wrap">'
     +segs.map(s=>'<span style="font-size:11px;color:#64748b">'+s.l+' <b style="color:#94a3b8">'+pp(s.v)+'%</b></span>').join("")
     +'</div></div>'
@@ -658,14 +568,6 @@ function buildPage() {
     +'<button class="btn" id="btn-refresh">↻</button>'
     +'<button class="btn'+(editMode?" on":"")+'" id="btn-edit">'+(editMode?"✓":"✏")+'</button>'
     +'</div></div>'
-    +(true  // 항상 프로필 탭 표시
-      ? '<div style="display:flex;gap:4px;margin-bottom:10px;overflow-x:auto;padding-bottom:2px">'
-        +getProfiles().map(p=>
-          '<button style="background:'+(curProfile===p?'#6366f1':'#0f172a')+';border:1px solid '+(curProfile===p?'#6366f1':'#334155')+';color:'+(curProfile===p?'#fff':'#94a3b8')+';padding:5px 12px;border-radius:20px;font-size:12px;font-weight:'+(curProfile===p?'700':'400')+';white-space:nowrap;cursor:pointer;flex-shrink:0" data-profile="'+p+'">👤 '+p+'</button>'
-        ).join("")
-        +'<button style="background:transparent;border:1px dashed #334155;color:#6366f1;padding:5px 10px;border-radius:20px;font-size:12px;cursor:pointer;flex-shrink:0" id="btn-add-profile">+</button>'
-        +'</div>'
-      : "")
     +'<div class="btn-row">'
     +'<button class="btn-sm" id="btn-backup">💾 백업</button>'
     +'<label class="btn-sm">📂 복원<input type="file" accept=".json" id="inp-restore" style="display:none"/></label>'
@@ -728,34 +630,6 @@ function render() {
 // ─── 이벤트 ──────────────────────────────────────────────────
 function bindEvents() {
   document.getElementById("btn-refresh")?.addEventListener("click", fetchAll);
-
-  // 프로필 전환
-  document.querySelectorAll("[data-profile]").forEach(b=>
-    b.addEventListener("click", e=>{
-      if (e.detail===2 && editMode) {
-        // 더블탭: 프로필 삭제/이름변경 메뉴
-        const list = getProfiles();
-        if (list.length <= 1) { alert("마지막 프로필은 삭제할 수 없어요"); return; }
-        if (confirm("'"+b.dataset.profile+"' 프로필을 삭제할까요?
-(저장된 데이터도 삭제됩니다)")) {
-          deleteProfile(b.dataset.profile);
-        }
-        return;
-      }
-      switchProfile(b.dataset.profile);
-    })
-  );
-
-  // 프로필 추가
-  document.getElementById("btn-add-profile")?.addEventListener("click", ()=>{
-    const name = prompt("새 프로필 이름:");
-    if (!name?.trim()) return;
-    const list = getProfiles();
-    if (list.includes(name.trim())) { alert("이미 있는 이름이에요"); return; }
-    list.push(name.trim());
-    saveProfiles(list);
-    switchProfile(name.trim());
-  });
   document.getElementById("btn-edit")?.addEventListener("click", ()=>{editMode=!editMode;render();});
   document.getElementById("btn-backup")?.addEventListener("click", backupData);
   document.getElementById("inp-restore")?.addEventListener("change", e=>restoreData(e.target.files[0]));
