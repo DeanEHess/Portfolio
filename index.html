@@ -941,8 +941,7 @@ function bindEvents() {
         // 더블탭: 프로필 삭제/이름변경 메뉴
         const list = getProfiles();
         if (list.length <= 1) { alert("마지막 프로필은 삭제할 수 없어요"); return; }
-        if (confirm("'"+b.dataset.profile+"' 프로필을 삭제할까요?
-(저장된 데이터도 삭제됩니다)")) {
+        if (confirm("'" + b.dataset.profile + "' 프로필을 삭제할까요? (저장된 데이터도 삭제됩니다)")) {
           deleteProfile(b.dataset.profile);
         }
         return;
