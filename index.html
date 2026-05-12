@@ -904,6 +904,7 @@ function bindEvents() {
   const $ = id => document.getElementById(id);
 
   $("btn-refresh")?.addEventListener("click", fetchAll);
+  document.getElementById("btn-toggle-usd")?.addEventListener("click", ()=>{showUSD=!showUSD;render();});
   $("btn-edit")?.addEventListener("click", ()=>{editMode=!editMode;render();});
   $("btn-backup")?.addEventListener("click", backupData);
   $("inp-restore")?.addEventListener("change", e=>restoreData(e.target.files[0]));
