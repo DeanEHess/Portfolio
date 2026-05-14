@@ -177,7 +177,7 @@ let tab        = "overview";
 let showModal  = false;
 let modalType  = "us";
 let modalColor = COLORS[0];
-let showUSD    = false;
+let showUSD    = true; // 미국주식 현재가 기본값: 달러
 
 // ─── 포맷 ────────────────────────────────────────────────────
 const won   = n => n!=null ? "₩"+Math.round(n).toLocaleString("ko-KR") : "—";
