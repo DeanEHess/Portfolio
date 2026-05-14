@@ -177,7 +177,7 @@ let tab        = "overview";
 let showModal  = false;
 let modalType  = "us";
 let modalColor = COLORS[0];
-let showUSD    = true; // 미국주식 현재가 기본값: 달러
+let showUSD    = false;
 
 // ─── 포맷 ────────────────────────────────────────────────────
 const won   = n => n!=null ? "₩"+Math.round(n).toLocaleString("ko-KR") : "—";
@@ -212,7 +212,7 @@ function itemPriceKrw(item, type) {
 }
 function accTotal(acc) { return acc.items.reduce((s,x)=>s+itemVal(x,acc.type),0); }
 // [핵심] 계좌 수익금 — cost 있는 종목만 합산
-function accTotalProfit(acc) {
+function accProfit(acc) {
   if (acc.type==="cash") return null;
   let cost=0, val=0;
   for (const item of acc.items) {
@@ -382,14 +382,14 @@ function buildDonutCard(items, title) {
 function buildAccountSection(acc) {
   const {type}=acc, isUS=type==="us", isCash=type==="cash";
   const total  = accTotal(acc);
-  const accProfitVal = accTotalProfit(acc);   // 계좌 수익금
+  const profit = accProfit(acc);   // 계좌 수익금
   const gp     = accGp(acc);       // 계좌 수익률
   const sorted = isCash ? [...acc.items].sort((a,b)=>(Number(b.a)||0)-(Number(a.a)||0)) : sortItems(acc.items,type);
 
   // 계좌 헤더 우측: 평가금액 / 수익금 / 수익률
   const hdrRight = '<div style="text-align:right">'
     +'<div style="font-weight:800;font-size:17px;color:'+acc.color+'">'+(total?won(total):"₩0")+'</div>'
-    +(accProfitVal!=null?'<div style="font-size:12px;font-weight:600;color:'+(accProfitVal>=0?'#ef4444':'#3b82f6')+'">'+fProfit(accProfitVal)+'</div>':"")
+    +(profit!=null?'<div style="font-size:12px;font-weight:600;color:'+(profit>=0?'#ef4444':'#3b82f6')+'">'+fProfit(profit)+'</div>':"")
     +(gp!=null?'<div style="font-size:12px;font-weight:700;color:'+(gp>=0?'#ef4444':'#3b82f6')+'">'+fPct(gp)+'</div>':"")
     +'</div>';
 
@@ -500,7 +500,7 @@ function buildOverview() {
     +'<div style="font-size:32px;font-weight:800;letter-spacing:-1px">'+(tot?won(tot):"₩0")+'</div>'
     +(gp!=null?'<div style="font-size:16px;font-weight:700;color:'+(gp>=0?'#ef4444':'#3b82f6')+'">'+fPct(gp)+'</div>':"")
     +'</div>'
-    +(profit!=null?'<div style="font-size:13px;font-weight:600;color:'+(profit>=0?'#ef4444':'#3b82f6')+';margin-top:4px">'+fProfit(accProfitVal)+'</div>':"")
+    +(profit!=null?'<div style="font-size:13px;font-weight:600;color:'+(profit>=0?'#ef4444':'#3b82f6')+';margin-top:4px">'+fProfit(profit)+'</div>':"")
     +'<div style="margin-top:8px;display:flex;gap:14px;flex-wrap:wrap">'+segs.map(s=>'<span style="font-size:11px;color:#64748b">'+s.l+' <b style="color:#94a3b8">'+pp(s.v)+'%</b></span>').join("")+'</div></div>'
     +buildDonutCard(secItems,"섹터 비중")
     +'<div class="card"><div class="card-title" style="margin-bottom:12px">계좌별 비중</div>'
