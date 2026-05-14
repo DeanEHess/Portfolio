@@ -591,8 +591,8 @@ function buildAccountSection(acc) {
         +'<td class="r"><input class="inp inp-r" type="number" data-f="a" data-id="'+item.id+'" data-acc="'+acc.id+'" value="'+(item.a||"")+'" placeholder="'+(isUS?"USD":"KRW")+'"/></td>'
         +'<td class="r">'+priceStr+'</td>'
         +'<td class="r" style="font-weight:600" data-calc="val">'+(val?won(val):"₩0")+'</td>'
-        +'<td class="r '+gCl+'<td class="r '+gCls(profit)+'" data-calc="profit">'+(profit!=null?(profit>=0?'+':'')+won(Math.abs(profit)):'—')+'</td>'
-        s(gp)+'" data-calc="gp">'+fPct(gp)+'</td>'
+        +'<td class="r '+gCls(profit)+'" data-calc="profit">'+(profit!=null?(profit>=0?'+':'')+won(Math.abs(profit)):'—')+'</td>'
+        +'<td class="r '+gCls(gp)+'" data-calc="gp">'+fPct(gp)+'</td>'
         +'<td><button class="del-btn" data-del="'+item.id+'" data-acc="'+acc.id+'">✕</button></td></tr>';
       // 수익금 계산
       const cost = isUS ? item.a*item.q*(usdKrw||0) : item.a*item.q;
