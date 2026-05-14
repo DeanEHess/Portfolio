@@ -591,12 +591,15 @@ function buildAccountSection(acc) {
         +'<td class="r"><input class="inp inp-r" type="number" data-f="a" data-id="'+item.id+'" data-acc="'+acc.id+'" value="'+(item.a||"")+'" placeholder="'+(isUS?"USD":"KRW")+'"/></td>'
         +'<td class="r">'+priceStr+'</td>'
         +'<td class="r" style="font-weight:600" data-calc="val">'+(val?won(val):"₩0")+'</td>'
-        +'<td class="r '+gCls(profit)+'" data-calc="profit">'+(profit!=null?(profit>=0?'+':'')+won(Math.abs(profit)):'—')+'</td>'
+        +'<td class="r '+gCls(profit)+'" data-calc="profit">'+profitStr+'</td>'
         +'<td class="r '+gCls(gp)+'" data-calc="gp">'+fPct(gp)+'</td>'
         +'<td><button class="del-btn" data-del="'+item.id+'" data-acc="'+acc.id+'">✕</button></td></tr>';
       // 수익금 계산
       const cost = isUS ? item.a*item.q*(usdKrw||0) : item.a*item.q;
-      const profit = (val && cost) ? val - cost : null;
+      const profit = (val != null && cost) ? val - cost : null;
+      const profitStr = profit != null
+        ? (profit >= 0 ? "+" : "-") + "₩" + Math.round(Math.abs(profit)).toLocaleString("ko-KR")
+        : "—";
       return '<tr>'
         +'<td style="min-width:110px"><div class="ticker">'+item.t+'</div><div class="subname">'+(item.n||"")+'</div></td>'
         +'<td class="r">'+item.q+'</td>'
@@ -624,7 +627,7 @@ function buildAccountSection(acc) {
     +'<span class="card-title">'+acc.name+'</span>'
     +'<div style="text-align:right">'
     +'<div class="card-total" style="color:'+acc.color+'">'+(total?won(total):"₩0")+'</div>'
-    +(accProfit!=null?'<div style="font-size:12px;font-weight:600;color:'+(accProfit>=0?'#ef4444':'#3b82f6')+"'>"+(accProfit>=0?'+':'')+won(Math.abs(accProfit))+'</div>':"")
+    +(accProfit!=null?'<div style="font-size:12px;font-weight:600;color:'+(accProfit>=0?'#ef4444':'#3b82f6')+'">'+(accProfit>=0?'+':'-')+'₩'+Math.round(Math.abs(accProfit)).toLocaleString('ko-KR')+'</div>':"")
     +(gp!=null?'<div style="font-size:12px;font-weight:700;color:'+(gp>=0?'#ef4444':'#3b82f6')+'">'+(gp>=0?'+':'')+gp.toFixed(2)+'%</div>':"")
     +'</div></div>'
     +accEdit
