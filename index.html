@@ -141,6 +141,7 @@ function makeDefaultAccounts() {
 const DEFAULT_DATA = {
   accounts: makeDefaultAccounts(),
   goals: [{id:"g1",year:2027,target:50000000,snapshot:null},{id:"g2",year:2028,target:100000000,snapshot:null},{id:"g3",year:2030,target:300000000,snapshot:null},{id:"g4",year:2033,target:500000000,snapshot:null}],
+  deposits: [],
 };
 function migrateOldData(old) {
   const accs = makeDefaultAccounts();
@@ -157,7 +158,7 @@ function migrateOldData(old) {
 function loadData() {
   try {
     const raw = localStorage.getItem(profileKey(curProfile)) || localStorage.getItem(SK);
-    if (raw) { const d=JSON.parse(raw); if(!d.goals) d.goals=JSON.parse(JSON.stringify(DEFAULT_DATA.goals)); return d; }
+    if (raw) { const d=JSON.parse(raw); if(!d.goals) d.goals=JSON.parse(JSON.stringify(DEFAULT_DATA.goals)); if(!d.deposits) d.deposits=[]; d.accounts.forEach(a=>{if(!a.deposits)a.deposits=[];}); return d; }
     const oldRaw = localStorage.getItem("asset_v6") || localStorage.getItem("asset_v5");
     if (oldRaw) { const m=migrateOldData(JSON.parse(oldRaw)); localStorage.setItem(profileKey(curProfile),JSON.stringify(m)); return m; }
     return JSON.parse(JSON.stringify(DEFAULT_DATA));
@@ -378,6 +379,58 @@ function buildDonutCard(items, title) {
     +'</div></div>';
 }
 
+// ─── 순입금 섹션 ─────────────────────────────────────────────
+function buildDepositSection(deposits, scopeId) {
+  // deposits: [{id, year, amount}], scopeId: accId or "overview"
+  const sorted = [...deposits].sort((a,b)=>a.year-b.year);
+  const total  = sorted.reduce((s,x)=>s+(Number(x.amount)||0), 0);
+
+  // 편집 모드 행
+  const editRows = sorted.map(d=>
+    '<div style="display:flex;gap:6px;margin-bottom:6px;align-items:center">'
+    +'<input class="inp inp-r" type="number" style="width:68px" data-df="year" data-did="'+d.id+'" data-dscope="'+scopeId+'" value="'+d.year+'" placeholder="연도"/>'
+    +'<input class="inp inp-r" type="number" style="flex:1" data-df="amount" data-did="'+d.id+'" data-dscope="'+scopeId+'" value="'+(d.amount||'')+'" placeholder="금액(원)"/>'
+    +'<button class="del-btn" data-ddel="'+d.id+'" data-dscope="'+scopeId+'">✕</button></div>'
+  ).join("");
+
+  // 뷰 모드 행
+  const viewRows = sorted.map(d=>
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">'
+    +'<span style="font-size:12px;color:#94a3b8;width:48px">'+d.year+'년</span>'
+    +'<span style="font-size:13px;font-weight:600">'+won(Number(d.amount)||0)+'</span>'
+    +'</div>'
+  ).join("");
+
+  // 토탈 + 수익/손실 비교 (overview에서만 grandTotal 사용, 계좌는 accTotal)
+  let evalTotal = null;
+  if (scopeId === "overview") {
+    evalTotal = grandTotal();
+  } else {
+    const acc = ST.accounts.find(a=>a.id===scopeId);
+    if (acc) evalTotal = accTotal(acc);
+  }
+  const diff    = (evalTotal != null && total > 0) ? evalTotal - total : null;
+  const diffPct = (diff != null && total > 0) ? (diff / total) * 100 : null;
+
+  const summaryHtml = total > 0
+    ? '<div style="display:flex;justify-content:space-between;align-items:center;padding-top:10px;border-top:1px solid #334155;margin-top:6px">'
+      +'<span style="font-size:12px;color:#64748b">총 순입금</span>'
+      +'<div style="text-align:right">'
+      +'<span style="font-size:14px;font-weight:800">'+won(total)+'</span>'
+      +(diff!=null?'<span style="font-size:12px;font-weight:700;color:'+(diff>=0?'#ef4444':'#3b82f6')+';margin-left:8px">'+(diff>=0?'+':'')+won(diff)+'</span>':"")
+      +(diffPct!=null?'<span style="font-size:11px;font-weight:700;color:'+(diffPct>=0?'#ef4444':'#3b82f6')+';margin-left:4px">('+fPct(diffPct)+')</span>':"")
+      +'</div></div>'
+    : "";
+
+  return '<div class="card" style="margin-bottom:12px">'
+    +'<div class="card-hdr"><span class="card-title">💸 순입금 내역</span></div>'
+    +(editMode ? editRows : (viewRows || '<div style="font-size:12px;color:#475569;text-align:center;padding:8px 0">입력된 내역이 없습니다</div>'))
+    +(editMode
+      ? '<button class="add-btn" data-dadd="'+scopeId+'">+ 연도 추가</button>'
+      : summaryHtml)
+    +'</div>';
+}
+
 // ─── 계좌 섹션 ───────────────────────────────────────────────
 function buildAccountSection(acc) {
   const {type}=acc, isUS=type==="us", isCash=type==="cash";
@@ -444,6 +497,7 @@ function buildAccountSection(acc) {
       +(isUS?'<th class="r"><span style="cursor:pointer;border-bottom:1px dashed #475569" id="btn-toggle-usd">'+(showUSD?"현재가(USD)▾":"현재가(원)▾")+'</span></th>':'<th class="r">현재가(원)</th>')
       +'<th class="r">평가금액</th><th class="r">수익금</th><th class="r">수익률</th>'+(editMode?'<th></th>':'')+'</tr></thead>';
 
+  if (!acc.deposits) acc.deposits=[];
   const valItems=sorted.filter(x=>isCash?Number(x.a)>0:x.q>0&&itemValBest(x,type)>0).map(x=>({l:isCash?x.n:x.t,v:itemValBest(x,type)}));
   const secItems=sectorMapToItems(calcSectorMap([acc]));
 
@@ -452,6 +506,7 @@ function buildAccountSection(acc) {
     +accEdit
     +'<div class="tbl-wrap"><table>'+thead+'<tbody>'+rows+'</tbody></table></div>'
     +(editMode?'<button class="add-btn" data-add-item="'+acc.id+'">+ 종목 추가</button>':"")
+    +buildDepositSection(acc.deposits, acc.id)
     +buildDonutCard(valItems,acc.name+" 비중")
     +buildDonutCard(secItems,acc.name+" 섹터")
     +'</div>';
@@ -525,6 +580,7 @@ function buildOverview() {
     +'</div>'
     +(profit!=null?'<div style="font-size:13px;font-weight:600;color:'+(profit>=0?'#ef4444':'#3b82f6')+';margin-top:4px">'+fProfit(profit)+'</div>':"")
     +'<div style="margin-top:8px;display:flex;gap:14px;flex-wrap:wrap">'+segs.map(s=>'<span style="font-size:11px;color:#64748b">'+s.l+' <b style="color:#94a3b8">'+pp(s.v)+'%</b></span>').join("")+'</div></div>'
+    +buildDepositSection(ST.deposits||[], "overview")
     +buildDonutCard(secItems,"섹터 비중")
     +'<div class="card"><div class="card-title" style="margin-bottom:12px">계좌별 비중</div>'
     +(segs.length
@@ -669,6 +725,28 @@ function bindEvents() {
 
   // 종목 인풋
   document.querySelectorAll(".inp[data-id][data-acc]").forEach(inp=>{ const id=inp.dataset.id, f=inp.dataset.f, accId=inp.dataset.acc; const acc=ST.accounts.find(a=>a.id===accId); const item=acc?.items.find(x=>x.id===id); if(!item||!acc) return; const tr=inp.closest("tr"), isUS=tr?.dataset.usd==="true"; inp.addEventListener("input",e=>{ const v=e.target.value; if(f==="t"){const upper=v.toUpperCase();item.t=upper;e.target.value=upper;const db=isUS?US_DB:acc.type==="coin"?null:KRX_DB;const auto=db?.[upper];if(auto){item.n=auto;const ni=tr?.querySelector('[data-f="n"]');if(ni)ni.value=auto;}}else if(f==="n"){item.n=v;}else{item[f]=Number(v)||0;if(acc.type!=="cash"){const vc=tr?.querySelector("[data-calc='val']"),gc=tr?.querySelector("[data-calc='gp']"),pc=tr?.querySelector("[data-calc='profit']");if(vc)vc.textContent=won(itemVal(item,acc.type))||"₩0";const gp=itemGp(item,acc.type);if(gc){gc.textContent=fPct(gp);gc.className="r "+gCls(gp);}const profit=(itemVal(item,acc.type)&&itemCost(item,acc.type))?itemVal(item,acc.type)-itemCost(item,acc.type):null;if(pc){pc.textContent=fProfit(profit);pc.className="r "+gCls(profit);}}} saveData(); }); });
+
+  // 순입금 CRUD
+  document.querySelectorAll("[data-dadd]").forEach(b=>b.addEventListener("click",()=>{
+    const scopeId=b.dataset.dadd;
+    const dep={id:"d"+Date.now(), year:new Date().getFullYear(), amount:0};
+    if(scopeId==="overview"){if(!ST.deposits)ST.deposits=[];ST.deposits.push(dep);}
+    else{const acc=ST.accounts.find(a=>a.id===scopeId);if(!acc)return;if(!acc.deposits)acc.deposits=[];acc.deposits.push(dep);}
+    saveData();render();
+  }));
+  document.querySelectorAll("[data-ddel]").forEach(b=>b.addEventListener("click",()=>{
+    const scopeId=b.dataset.dscope, did=b.dataset.ddel;
+    if(scopeId==="overview"){ST.deposits=(ST.deposits||[]).filter(d=>d.id!==did);}
+    else{const acc=ST.accounts.find(a=>a.id===scopeId);if(acc)acc.deposits=(acc.deposits||[]).filter(d=>d.id!==did);}
+    saveData();render();
+  }));
+  document.querySelectorAll(".inp[data-did][data-dscope]").forEach(inp=>inp.addEventListener("input",e=>{
+    const scopeId=inp.dataset.dscope, did=inp.dataset.did, field=inp.dataset.df;
+    let deps=scopeId==="overview"?(ST.deposits||[]):(ST.accounts.find(a=>a.id===scopeId)?.deposits||[]);
+    const dep=deps.find(d=>d.id===did); if(!dep)return;
+    dep[field]=field==="year"?parseInt(e.target.value)||new Date().getFullYear():Number(e.target.value)||0;
+    saveData();
+  }));
 
   // 목표
   $("btn-add-goal")?.addEventListener("click",()=>{ST.goals.push({id:"g"+Date.now(),year:new Date().getFullYear()+1,target:100000000,snapshot:null});render();});
