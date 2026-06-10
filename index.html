@@ -511,8 +511,8 @@ function buildOverview() {
       .map(([l,v],i)=>({l,v,c:colorFn?colorFn(l,i):COLORS[i%COLORS.length]}));
   }
 
-  const usItems  = buildTickerItems(a=>a.type==="us",  (l)=>SECTOR_COLORS[getSector(l,"us")]  ||COLORS[0]);
-  const krxItems = buildTickerItems(a=>a.type==="krx", (l)=>SECTOR_COLORS[getSector(l,"krx")] ||COLORS[1]);
+  const usItems  = buildTickerItems(a=>a.type==="us",  (l,i)=>SECTOR_COLORS[getSector(l,"us")]  ||COLORS[i%COLORS.length]);
+  const krxItems = buildTickerItems(a=>a.type==="krx", (l,i)=>SECTOR_COLORS[getSector(l,"krx")] ||COLORS[i%COLORS.length]);
   const allItems = buildTickerItems(a=>a.type!=="cash", (l,i)=>COLORS[i%COLORS.length]);
 
   return buildGoals(tot)
