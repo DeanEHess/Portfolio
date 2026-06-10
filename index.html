@@ -502,13 +502,14 @@ function buildOverview() {
         if (!item.q) continue;
         const v=itemValBest(item,acc.type); if(!v) continue;
         const key=item.t||"?";
-        map[key]=(map[key]||0)+v;
+        if (!map[key]) map[key]={v:0, label:item.n||item.t||key};
+        map[key].v+=v;
       }
     }
     return Object.entries(map)
-      .sort((a,b)=>b[1]-a[1])
-      .filter(([,v])=>v>0)
-      .map(([l,v],i)=>({l,v,c:colorFn?colorFn(l,i):COLORS[i%COLORS.length]}));
+      .sort((a,b)=>b[1].v-a[1].v)
+      .filter(([,x])=>x.v>0)
+      .map(([t,x],i)=>({l:x.label, t, v:x.v, c:colorFn?colorFn(t,i):COLORS[i%COLORS.length]}));
   }
 
   const usItems  = buildTickerItems(a=>a.type==="us",  (l,i)=>SECTOR_COLORS[getSector(l,"us")]  ||COLORS[i%COLORS.length]);
