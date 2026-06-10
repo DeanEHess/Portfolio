@@ -493,6 +493,28 @@ function buildOverview() {
   const legend=segs.map(s=>'<div class="legend-item" data-label="'+s.l+'" style="display:flex;justify-content:space-between;margin-bottom:7px;align-items:center;transition:opacity 0.2s"><div style="display:flex;align-items:center;gap:6px"><div style="width:8px;height:8px;border-radius:2px;background:'+s.c+'"></div><span style="font-size:12px">'+s.l+'</span></div><div><span style="font-size:11px;font-weight:700;color:#94a3b8;margin-right:4px">'+pp(s.v)+'%</span><span style="font-size:12px;font-weight:600">'+won(s.v)+'</span></div></div>').join("");
   const secItems=sectorMapToItems(calcSectorMap(ST.accounts));
 
+  // ── 종목별 비중 헬퍼 ──────────────────────────────────────
+  function buildTickerItems(filterFn, colorFn) {
+    const map={};
+    for (const acc of ST.accounts) {
+      if (!filterFn(acc)) continue;
+      for (const item of acc.items) {
+        if (!item.q) continue;
+        const v=itemValBest(item,acc.type); if(!v) continue;
+        const key=item.t||"?";
+        map[key]=(map[key]||0)+v;
+      }
+    }
+    return Object.entries(map)
+      .sort((a,b)=>b[1]-a[1])
+      .filter(([,v])=>v>0)
+      .map(([l,v],i)=>({l,v,c:colorFn?colorFn(l,i):COLORS[i%COLORS.length]}));
+  }
+
+  const usItems  = buildTickerItems(a=>a.type==="us",  (l)=>SECTOR_COLORS[getSector(l,"us")]  ||COLORS[0]);
+  const krxItems = buildTickerItems(a=>a.type==="krx", (l)=>SECTOR_COLORS[getSector(l,"krx")] ||COLORS[1]);
+  const allItems = buildTickerItems(a=>a.type!=="cash", (l,i)=>COLORS[i%COLORS.length]);
+
   return buildGoals(tot)
     +'<div class="card-grad">'
     +'<div style="font-size:12px;color:#64748b;margin-bottom:6px">총 평가 자산</div>'
@@ -507,7 +529,10 @@ function buildOverview() {
     +(segs.length
       ?'<div style="display:flex;align-items:center;gap:20px;flex-wrap:wrap"><svg id="overview-donut" width="160" height="160" viewBox="0 0 160 160" style="flex-shrink:0">'+paths+'<text x="80" y="75" text-anchor="middle" fill="#94a3b8" font-size="9" class="donut-ct">탭하여</text><text x="80" y="88" text-anchor="middle" fill="#94a3b8" font-size="9" class="donut-cb">확인</text></svg><div style="flex:1;min-width:140px">'+legend+'</div></div>'
       :'<div style="color:#475569;text-align:center;padding:16px;font-size:12px">자산을 입력해주세요</div>')
-    +'</div>';
+    +'</div>'
+    +(usItems.length  ? buildDonutCard(usItems,  "🌎 해외주식 종목별 비중") : "")
+    +(krxItems.length ? buildDonutCard(krxItems, "🇰🇷 국내주식 종목별 비중") : "")
+    +(allItems.length >= 2 ? buildDonutCard(allItems, "📦 전체 종목별 비중") : "");
 }
 
 // ─── 모달 ────────────────────────────────────────────────────
