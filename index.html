@@ -379,6 +379,62 @@ function buildDonutCard(items, title) {
     +'</div></div>';
 }
 
+// ─── 전체 순입금 섹션 (계좌별 비교) ────────────────────────
+function buildOverviewDepositSection() {
+  // 계좌별 순입금 합계 계산
+  const rows = [];
+  let grandDep = 0, grandEval = 0;
+
+  for (const acc of ST.accounts) {
+    let dep = 0;
+    if (acc.type === "cash") {
+      dep = acc.items.reduce((s,x)=>s+(Number(x.a)||0), 0);
+    } else {
+      dep = (acc.deposits||[]).reduce((s,d)=>s+(Number(d.amount)||0), 0);
+    }
+    const ev = accTotal(acc);
+    if (dep === 0 && ev === 0) continue;
+    rows.push({name: acc.name, color: acc.color, dep, ev});
+    grandDep  += dep;
+    grandEval += ev;
+  }
+
+  if (!rows.length) return "";
+
+  const grandDiff    = grandDep > 0 ? grandEval - grandDep : null;
+  const grandDiffPct = grandDep > 0 ? ((grandEval - grandDep) / grandDep) * 100 : null;
+
+  const rowHtml = rows.map(r => {
+    const diff    = r.dep > 0 ? r.ev - r.dep : null;
+    const diffPct = r.dep > 0 ? ((r.ev - r.dep) / r.dep) * 100 : null;
+    return '<tr>'
+      +'<td><div style="display:flex;align-items:center;gap:6px"><div style="width:8px;height:8px;border-radius:2px;background:'+r.color+';flex-shrink:0"></div><span style="font-size:12px;font-weight:600">'+r.name+'</span></div></td>'
+      +'<td class="r" style="font-size:12px">'+(r.dep>0?won(r.dep):'<span style="color:#475569">미입력</span>')+'</td>'
+      +'<td class="r" style="font-size:12px;font-weight:600">'+won(r.ev)+'</td>'
+      +'<td class="r"><span style="font-size:11px;font-weight:700;color:'+(diff==null?'#475569':diff>=0?'#ef4444':'#3b82f6')+'">'
+      +(diff==null?'—':(diffPct>=0?'+':'')+diffPct.toFixed(1)+'%')+'</span></td>'
+      +'</tr>';
+  }).join("");
+
+  return '<div class="card" style="margin-bottom:12px">'
+    +'<div class="card-hdr" style="margin-bottom:10px"><span class="card-title">💸 순입금 vs 평가금액</span></div>'
+    +'<div class="tbl-wrap"><table>'
+    +'<thead><tr><th style="text-align:left">계좌</th><th class="r">순입금</th><th class="r">평가금액</th><th class="r">수익률</th></tr></thead>'
+    +'<tbody>'+rowHtml+'</tbody>'
+    +'</table></div>'
+    +(grandDep>0
+      ? '<div style="display:flex;justify-content:space-between;align-items:center;padding-top:10px;border-top:1px solid #334155;margin-top:6px">'
+        +'<span style="font-size:12px;color:#64748b">전체 합계</span>'
+        +'<div style="text-align:right">'
+        +'<span style="font-size:12px;color:#94a3b8">입금 '+won(grandDep)+'</span>'
+        +'<span style="font-size:14px;font-weight:800;margin-left:8px">'+won(grandEval)+'</span>'
+        +(grandDiff!=null?'<span style="font-size:12px;font-weight:700;color:'+(grandDiff>=0?'#ef4444':'#3b82f6')+';margin-left:6px">'+(grandDiff>=0?'+':'')+won(grandDiff)+'</span>':"")
+        +(grandDiffPct!=null?'<span style="font-size:11px;font-weight:700;color:'+(grandDiffPct>=0?'#ef4444':'#3b82f6')+';margin-left:4px">('+fPct(grandDiffPct)+')</span>':"")
+        +'</div></div>'
+      : "")
+    +'</div>';
+}
+
 // ─── 순입금 섹션 ─────────────────────────────────────────────
 function buildDepositSection(deposits, scopeId) {
   // deposits: [{id, year, amount}], scopeId: accId or "overview"
@@ -580,24 +636,7 @@ function buildOverview() {
     +'</div>'
     +(profit!=null?'<div style="font-size:13px;font-weight:600;color:'+(profit>=0?'#ef4444':'#3b82f6')+';margin-top:4px">'+fProfit(profit)+'</div>':"")
     +'<div style="margin-top:8px;display:flex;gap:14px;flex-wrap:wrap">'+segs.map(s=>'<span style="font-size:11px;color:#64748b">'+s.l+' <b style="color:#94a3b8">'+pp(s.v)+'%</b></span>').join("")+'</div></div>'
-    +buildDepositSection((()=>{
-      // 투자계좌: deposits 배열 합산 / 현금계좌: items 금액 합산
-      const map={};
-      const curYear=new Date().getFullYear();
-      for(const acc of ST.accounts){
-        if(acc.type==="cash"){
-          // 현금은 연도 구분 없이 현재연도로 합산
-          const total=acc.items.reduce((s,x)=>s+(Number(x.a)||0),0);
-          if(total>0) map[String(curYear)]=(map[String(curYear)]||0)+total;
-        } else {
-          for(const d of (acc.deposits||[])){
-            const y=String(d.year);
-            map[y]=(map[y]||0)+(Number(d.amount)||0);
-          }
-        }
-      }
-      return Object.entries(map).map(([year,amount])=>({id:"ov_"+year,year:Number(year),amount}));
-    })(), "overview")
+    +buildOverviewDepositSection()
     +buildDonutCard(secItems,"섹터 비중")
     +'<div class="card"><div class="card-title" style="margin-bottom:12px">계좌별 비중</div>'
     +(segs.length
