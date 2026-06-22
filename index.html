@@ -538,7 +538,7 @@ function buildAccountSection(acc) {
       +'<th class="r">평가금액</th><th class="r">수익금</th><th class="r">수익률</th>'+(editMode?'<th></th>':'')+'</tr></thead>';
 
   if (!acc.deposits) acc.deposits=[];
-  const valItems=sorted.filter(x=>isCash?Number(x.a)>0:x.q>0&&itemValBest(x,type)>0).map(x=>({l:isCash?x.n:x.t,v:itemValBest(x,type)}));
+  const valItems=sorted.filter(x=>isCash?Number(x.a)>0:x.q>0&&itemValBest(x,type)>0).map(x=>({l:isCash?x.n:(x.n||x.t),v:itemValBest(x,type)}));
   const secItems=sectorMapToItems(calcSectorMap([acc]));
 
   return '<div class="card" style="border-top:3px solid '+acc.color+'">'
