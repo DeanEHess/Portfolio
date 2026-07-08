@@ -1193,9 +1193,9 @@ function deleteTrade(accId, itemId, tradeId) {
   if (tr.type === "buy") {
     acc.cash = (acc.cash||0) + tr.qty*tr.price;
   } else if (tr.type === "sell") {
-    acc.cash = Math.max(0, (acc.cash||0) - tr.qty*tr.price);
+    acc.cash = (acc.cash||0) - tr.qty*tr.price;
   } else if (tr.type === "dividend") {
-    acc.cash = Math.max(0, (acc.cash||0) - tr.amount);
+    acc.cash = (acc.cash||0) - tr.amount;
   }
 
   item.trades = item.trades.filter(t=>t.id!==tradeId);
@@ -1464,6 +1464,11 @@ function bindTradeModalEvents() {
     if (isNew) {
       const ticker = $("tm-ticker")?.value.toUpperCase().trim();
       if (!ticker) { alert("티커를 입력해주세요"); return; }
+      const cost = qty*price;
+      if (cost > (acc.cash||0)) {
+        alert("예수금이 부족해요.\n필요 금액: "+(isUS?usd(cost):won(cost))+"\n현재 예수금: "+(isUS?usd(acc.cash||0):won(acc.cash||0)));
+        return;
+      }
       // 이미 있는 종목인지 확인
       let item = acc.items.find(x=>x.t===ticker);
       if (!item) {
@@ -1479,13 +1484,18 @@ function bindTradeModalEvents() {
       item.q = totalQty;
       item.a = totalQty > 0 ? totalCost / buyTrades.reduce((s,t)=>s+t.qty,0) : 0;
       // 예수금 차감
-      acc.cash = Math.max(0, (acc.cash||0) - qty*price);
+      acc.cash = (acc.cash||0) - cost;
     } else {
       const item = acc.items.find(x=>x.id===itemId);
       if (!item) return;
       if (!item.trades) item.trades=[];
 
       if (isBuy) {
+        const cost = qty*price;
+        if (cost > (acc.cash||0)) {
+          alert("예수금이 부족해요.\n필요 금액: "+(isUS?usd(cost):won(cost))+"\n현재 예수금: "+(isUS?usd(acc.cash||0):won(acc.cash||0)));
+          return;
+        }
         item.trades.push({id:"tr"+Date.now(), type:"buy", date, qty, price, memo, thesis});
         // 가중평균 재계산
         const buyTrades = item.trades.filter(t=>t.type==="buy");
@@ -1495,7 +1505,7 @@ function bindTradeModalEvents() {
         item.q = totalBuyQty - soldQty;
         item.a = totalCost / totalBuyQty;
         // 예수금 차감
-        acc.cash = Math.max(0, (acc.cash||0) - qty*price);
+        acc.cash = (acc.cash||0) - cost;
       } else {
         if (qty > item.q) { alert("보유 수량보다 많이 매도할 수 없어요"); return; }
         const pnl = (price - item.a) * qty;
