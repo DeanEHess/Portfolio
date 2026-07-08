@@ -1178,7 +1178,7 @@ function bindTradeModalEvents() {
 
 // ─── 렌더 ────────────────────────────────────────────────────
 function render() {
-  try { document.getElementById("app").innerHTML=buildPage(); bindEvents(); saveData(); }
+  try { document.getElementById("app").innerHTML=buildPage(); bindEvents(); }
   catch(e) { document.getElementById("app").innerHTML='<div style="padding:20px;color:#ef4444;font-size:13px">오류: '+e.message+'<br><pre style="font-size:10px;color:#94a3b8;white-space:pre-wrap">'+e.stack+'</pre></div>'; }
 }
 
