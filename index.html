@@ -528,8 +528,8 @@ function buildAccountSection(acc) {
         +'<td class="r"><input class="inp inp-r" type="number" '+(type==="coin"?'step="0.0001" ':'')+' data-f="q" data-id="'+item.id+'" data-acc="'+acc.id+'" value="'+(item.q||"")+'"/></td>'
         +'<td class="r"><input class="inp inp-r" type="number" data-f="a" data-id="'+item.id+'" data-acc="'+acc.id+'" value="'+(item.a||"")+'" placeholder="'+(isUS?"USD":"KRW")+'"/></td>'
         +'<td class="r">'+priceStr+'</td>'
-        +'<td class="r" style="font-weight:600" data-calc="val">'+(val?won(val):"₩0")+'</td>'
-        +'<td class="r '+gCls(profit)+'" data-calc="profit">'+fProfit(profit)+'</td>'
+        +'<td class="r" style="font-weight:600" data-calc="val">'+(isUS?(val&&usdKrw?usd(val/usdKrw):"—"):(val?won(val):"₩0"))+'</td>'
+        +'<td class="r '+gCls(profit)+'" data-calc="profit">'+(isUS?(profit&&usdKrw?((profit>=0?"+":"")+"$"+Math.abs(profit/usdKrw).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})):"—"):fProfit(profit))+'</td>'
         +'<td class="r '+gCls(gp)+'" data-calc="gp">'+fPct(gp)+'</td>'
         +'<td><button class="del-btn" data-del="'+item.id+'" data-acc="'+acc.id+'">✕</button></td></tr>';
       return '<tr>'
@@ -537,8 +537,8 @@ function buildAccountSection(acc) {
         +'<td class="r">'+item.q+'</td>'
         +'<td class="r" style="color:#94a3b8">'+(isUS?usd(item.a):won(item.a))+'</td>'
         +'<td class="r">'+priceStr+'</td>'
-        +'<td class="r" style="font-weight:600">'+(val?won(val):"₩0")+'</td>'
-        +'<td class="r '+gCls(profit)+'" style="font-weight:600">'+fProfit(profit)+'</td>'
+        +'<td class="r" style="font-weight:600">'+(isUS?(val&&usdKrw?usd(val/usdKrw):"—"):(val?won(val):"₩0"))+'</td>'
+        +'<td class="r '+gCls(profit)+'" style="font-weight:600">'+(isUS?(profit&&usdKrw?((profit>=0?"+":"")+"$"+Math.abs(profit/usdKrw).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})):"—"):fProfit(profit))+'</td>'
         +'<td class="r '+gCls(gp)+'" style="font-weight:700">'+fPct(gp)+'</td></tr>';
     }).join("");
   }
@@ -636,8 +636,6 @@ function buildOverview() {
     +(segs.length
       ?'<div style="display:flex;align-items:center;gap:20px;flex-wrap:wrap"><svg id="overview-donut" width="160" height="160" viewBox="0 0 160 160" style="flex-shrink:0">'+paths+'<text x="80" y="75" text-anchor="middle" fill="#94a3b8" font-size="9" class="donut-ct">탭하여</text><text x="80" y="88" text-anchor="middle" fill="#94a3b8" font-size="9" class="donut-cb">확인</text></svg><div style="flex:1;min-width:140px">'+legend+'</div></div>'
       :'<div style="color:#475569;text-align:center;padding:16px;font-size:12px">자산을 입력해주세요</div>')
-    +(usItems.length  ? buildDonutCard(usItems,  '🌎 해외주식 종목별 비중') : '')
-    +(krxItems.length ? buildDonutCard(krxItems, '🇰🇷 국내주식 종목별 비중') : '')
     +(allItems.length >= 2 ? buildDonutCard(allItems, '📦 전체 종목별 비중') : '');
 }
 
