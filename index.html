@@ -612,6 +612,9 @@ function buildAccountSection(acc) {
     }).join("");
   }
 
+  const tradeHint = (!isCash && acc.items.length > 0 && !editMode)
+    ? '<div style="font-size:11px;color:#475569;margin-bottom:6px;text-align:right">💡 종목 탭하면 매수/매도</div>'
+    : '';
   const thead=isCash
     ?'<thead><tr><th style="text-align:left">항목</th><th class="r">금액</th>'+(editMode?'<th></th>':'')+'</tr></thead>'
     :'<thead><tr><th style="text-align:left">종목</th><th class="r">수량</th><th class="r">'+(isUS?"평단(USD)":"평단(원)")+'</th>'
@@ -625,6 +628,7 @@ function buildAccountSection(acc) {
   return '<div class="card" style="border-top:3px solid '+acc.color+'">'
     +'<div class="card-hdr"><span class="card-title">'+acc.name+'</span><div style="display:flex;align-items:center;gap:8px">'+buyBtn+hdrRight+'</div></div>'
     +accEdit
+    +tradeHint
     +'<div class="tbl-wrap"><table>'+thead+'<tbody>'+rows+'</tbody></table></div>'
     +(editMode?'<button class="add-btn" data-add-item="'+acc.id+'">+ 종목 추가</button>':"")
     +(acc.type!=="cash" ? buildDepositSection(acc.deposits, acc.id) : "")
@@ -813,7 +817,12 @@ function buildPage() {
     +'<div class="hdr"><div><div class="hdr-title">📊 자산 대시보드</div><div class="hdr-sub">'+subStr+'</div><div class="hdr-rate">'+rateStr+'</div><div style="font-size:10px;color:#334155;margin-top:2px;user-select:all">🔑 '+CLOUD_UID+'</div></div>'
     +'<div class="hdr-btns"><button class="btn" id="btn-refresh">↻</button><button class="btn'+(editMode?" on":"")+'" id="btn-edit">'+(editMode?"✓":"✏")+'</button></div></div>'
     +profileUI
-    +'<div class="btn-row"><button class="btn-sm" id="btn-backup">💾 백업</button><label class="btn-sm">📂 복원<input type="file" accept=".json" id="inp-restore" style="display:none"/></label>'+(editMode?'<button class="btn-sm" id="btn-add-acc" style="color:#6366f1;border-color:#6366f1">➕ 계좌 추가</button>':"")+'</div>'
+    +'<div class="btn-row">'
+    +'<button class="btn-sm" id="btn-backup">💾 백업</button>'
+    +'<label class="btn-sm">📂 복원<input type="file" accept=".json" id="inp-restore" style="display:none"/></label>'
+    +'<button class="btn-sm" id="btn-cloud-save" style="color:#10b981;border-color:#10b981">'+(cloudStatus==="saving"?"⟳ 저장 중...": cloudStatus==="saved"?"✅ 저장됨":cloudStatus==="error"?"❌ 실패":"☁️ 클라우드 저장")+'</button>'
+    +'<button class="btn-sm" id="btn-cloud-load" style="color:#6366f1;border-color:#6366f1">☁️ 복원</button>'
+    +(editMode?'<button class="btn-sm" id="btn-add-acc" style="color:#6366f1;border-color:#6366f1">➕ 계좌 추가</button>':"")+'</div>'
     +'<div class="tabs">'+tabHtml+'</div>'
     +(tab==="overview"?buildOverview():"")
     +(activeAcc?buildAccountSection(activeAcc):"")
