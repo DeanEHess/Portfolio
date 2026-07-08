@@ -199,12 +199,12 @@ function deleteProfile(name) {
 // ─── 저장소 ──────────────────────────────────────────────────
 function makeDefaultAccounts() {
   return [
-    {id:"a_us",  name:"미국 주식", type:"us",   color:"#6366f1", items:[]},
-    {id:"a_krx", name:"한국 주식", type:"krx",  color:"#f43f5e", items:[]},
-    {id:"a_pen", name:"연금저축",  type:"krx",  color:"#f59e0b", items:[]},
-    {id:"a_irp", name:"IRP",      type:"krx",  color:"#10b981", items:[]},
-    {id:"a_isa", name:"ISA",      type:"krx",  color:"#a855f7", items:[]},
-    {id:"a_coin",name:"코인",      type:"coin", color:"#3b82f6", items:[]},
+    {id:"a_us",  name:"미국 주식", type:"us",   color:"#6366f1", items:[], cash:0, deposits:[]},
+    {id:"a_krx", name:"한국 주식", type:"krx",  color:"#f43f5e", items:[], cash:0, deposits:[]},
+    {id:"a_pen", name:"연금저축",  type:"krx",  color:"#f59e0b", items:[], cash:0, deposits:[]},
+    {id:"a_irp", name:"IRP",      type:"krx",  color:"#10b981", items:[], cash:0, deposits:[]},
+    {id:"a_isa", name:"ISA",      type:"krx",  color:"#a855f7", items:[], cash:0, deposits:[]},
+    {id:"a_coin",name:"코인",      type:"coin", color:"#3b82f6", items:[], cash:0, deposits:[]},
     {id:"a_cash",name:"현금/예금", type:"cash", color:"#475569", items:[{id:"ca1",n:"현금",a:0}]},
   ];
 }
@@ -228,7 +228,7 @@ function migrateOldData(old) {
 function loadData() {
   try {
     const raw = localStorage.getItem(profileKey(curProfile)) || localStorage.getItem(SK);
-    if (raw) { const d=JSON.parse(raw); if(!d.goals) d.goals=JSON.parse(JSON.stringify(DEFAULT_DATA.goals)); if(!d.deposits) d.deposits=[]; d.accounts.forEach(a=>{if(!a.deposits)a.deposits=[];}); return d; }
+    if (raw) { const d=JSON.parse(raw); if(!d.goals) d.goals=JSON.parse(JSON.stringify(DEFAULT_DATA.goals)); if(!d.deposits) d.deposits=[]; d.accounts.forEach(a=>{if(!a.deposits)a.deposits=[];if(a.cash==null)a.cash=0;}); return d; }
     const oldRaw = localStorage.getItem("asset_v6") || localStorage.getItem("asset_v5");
     if (oldRaw) { const m=migrateOldData(JSON.parse(oldRaw)); localStorage.setItem(profileKey(curProfile),JSON.stringify(m)); return m; }
     return JSON.parse(JSON.stringify(DEFAULT_DATA));
@@ -288,7 +288,13 @@ function itemPriceKrw(item, type) {
   const p=px[item.t]; if(!p) return null;
   return type==="us" ? (usdKrw?p*usdKrw:null) : p;
 }
-function accTotal(acc) { return acc.items.reduce((s,x)=>s+itemVal(x,acc.type),0); }
+function accTotal(acc) {
+  const itemsVal = acc.items.reduce((s,x)=>s+itemVal(x,acc.type),0);
+  if (acc.type==="cash") return itemsVal;
+  // 예수금 포함 (us는 usdKrw 곱해서 KRW로)
+  const cashKrw = acc.type==="us" ? (acc.cash||0)*(usdKrw||0) : (acc.cash||0);
+  return itemsVal + cashKrw;
+}
 // [핵심] 계좌 수익금 — cost 있는 종목만 합산
 function accProfit(acc) {
   if (acc.type==="cash") return null;
@@ -361,9 +367,10 @@ function sectorMapToItems(map) {
 async function fetchAll() {
   if (loading) return;
   loading=true; render();
-  const usTickers   = [...new Set(ST.accounts.filter(a=>a.type==="us").flatMap(a=>a.items.map(x=>x.t).filter(Boolean)))];
-  const krxCodes    = [...new Set(ST.accounts.filter(a=>a.type==="krx").flatMap(a=>a.items.map(x=>x.t).filter(Boolean)))];
-  const coinTickers = [...new Set(ST.accounts.filter(a=>a.type==="coin").flatMap(a=>a.items.map(x=>x.t).filter(Boolean)))];
+  const isValidTicker = t => t && /^[A-Za-z0-9\-\.]+$/.test(t);
+  const usTickers   = [...new Set(ST.accounts.filter(a=>a.type==="us").flatMap(a=>a.items.map(x=>x.t).filter(isValidTicker)))];
+  const krxCodes    = [...new Set(ST.accounts.filter(a=>a.type==="krx").flatMap(a=>a.items.map(x=>x.t).filter(isValidTicker)))];
+  const coinTickers = [...new Set(ST.accounts.filter(a=>a.type==="coin").flatMap(a=>a.items.map(x=>x.t).filter(isValidTicker)))];
   const coinIds     = coinTickers.map(t=>GECKO_ID[t.toUpperCase()]).filter(Boolean);
   try {
     const params=new URLSearchParams({type:"all",us:usTickers.join(","),krx:krxCodes.join(","),coins:coinIds.join(",")});
@@ -570,7 +577,8 @@ function buildAccountSection(acc) {
 
   // 계좌 헤더 우측: 평가금액 / 수익금 / 수익률
   const buyBtn = isCash ? "" :
-    '<button class="btn-sm" style="color:#ef4444;border-color:#ef4444;padding:6px 10px;font-size:12px;font-weight:700" data-new-trade="'+acc.id+'">＋ 매수</button>';
+    '<button class="btn-sm" style="color:#10b981;border-color:#10b981;padding:6px 10px;font-size:12px;font-weight:700" data-deposit-acc="'+acc.id+'">💰 입금</button>'
+    +'<button class="btn-sm" style="color:#ef4444;border-color:#ef4444;padding:6px 10px;font-size:12px;font-weight:700" data-new-trade="'+acc.id+'">＋ 신규매수</button>';
   const hdrRight = '<div style="text-align:right">'
     +'<div style="font-weight:800;font-size:17px;color:'+acc.color+'">'+(total?won(total):"₩0")+'</div>'
     +(profit!=null?'<div style="font-size:12px;font-weight:600;color:'+(profit>=0?'#ef4444':'#3b82f6')+'">'+fProfit(profit)+'</div>':"")
@@ -722,6 +730,65 @@ function buildOverview() {
     +(allItems.length >= 2 ? buildDonutCard(allItems, '📦 전체 종목별 비중') : '');
 }
 
+
+// ─── 입금/출금 모달 ───────────────────────────────────────────
+let depositModal = null; // {accId, mode:"in"|"out"}
+
+function buildDepositModal() {
+  if (!depositModal) return "";
+  const {accId, mode} = depositModal;
+  const acc  = ST.accounts.find(a=>a.id===accId);
+  if (!acc) return "";
+  const isUS = acc.type === "us";
+  const isIn = mode === "in";
+  const curCash = acc.cash || 0;
+
+  return `<div class="trade-modal-bg" id="deposit-modal-bg">
+    <div class="trade-modal">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+        <div class="modal-title" style="margin:0">${acc.name} 예수금 관리</div>
+        <button id="dm-close" style="background:transparent;border:none;color:#64748b;font-size:20px;cursor:pointer">✕</button>
+      </div>
+      <div style="background:#0f172a;border-radius:10px;padding:10px 12px;margin-bottom:14px;display:flex;justify-content:space-between">
+        <span style="font-size:12px;color:#64748b">현재 예수금</span>
+        <span style="font-size:14px;font-weight:800">${isUS?usd(curCash):won(curCash)}</span>
+      </div>
+      <div class="trade-tabs">
+        <button class="trade-tab buy${isIn?" on":""}" id="dm-in-tab">💰 입금${isUS?" (환전)":""}</button>
+        <button class="trade-tab sell${!isIn?" on":""}" id="dm-out-tab">💸 출금${isUS?" (환전)":""}</button>
+      </div>
+      ${isUS ? `
+      <div class="trade-inp-group">
+        <div class="trade-inp-label">원화 금액 (KRW)</div>
+        <input class="trade-inp" id="dm-krw" type="number" placeholder="예) 1000000"/>
+      </div>
+      <div class="trade-inp-group">
+        <div class="trade-inp-label">환율 (USD/KRW)</div>
+        <input class="trade-inp" id="dm-rate" type="number" step="0.1" value="${usdKrw?Math.round(usdKrw):""}"/>
+      </div>
+      <div id="dm-result" style="background:#0f172a;border-radius:10px;padding:10px 12px;margin-bottom:14px;display:none">
+        <div style="display:flex;justify-content:space-between">
+          <span style="font-size:12px;color:#64748b">${isIn?"입금":"출금"} USD</span>
+          <span id="dm-usd-result" style="font-size:14px;font-weight:800;color:${isIn?"#10b981":"#ef4444"}"></span>
+        </div>
+      </div>` : `
+      <div class="trade-inp-group">
+        <div class="trade-inp-label">금액 (KRW)</div>
+        <input class="trade-inp" id="dm-krw" type="number" placeholder="예) 500000"/>
+      </div>`}
+      <div class="trade-inp-group">
+        <div class="trade-inp-label">날짜</div>
+        <input class="trade-inp" id="dm-date" type="date" value="${new Date().toISOString().slice(0,10)}"/>
+      </div>
+      <div class="trade-inp-group">
+        <div class="trade-inp-label">메모 (선택)</div>
+        <input class="trade-inp" id="dm-memo" placeholder="예) 월급날 입금, 생활비 출금"/>
+      </div>
+      <button class="trade-btn ${isIn?"buy":"sell"}" id="dm-confirm">${isIn?"입금 확정":"출금 확정"}</button>
+    </div>
+  </div>`;
+}
+
 // ─── 매수/매도 모달 ──────────────────────────────────────────
 function buildTradeModal() {
   if (!tradeModal) return "";
@@ -838,7 +905,8 @@ function buildPage() {
     +(activeAcc?buildAccountSection(activeAcc):"")
     +'<div style="height:32px"></div>'
     +buildModal()
-    +buildTradeModal();
+    +buildTradeModal()
+    +buildDepositModal();
 }
 
 // ─── 팝업 ────────────────────────────────────────────────────
@@ -892,6 +960,70 @@ function showSectorPopup(seg, svg) {
   flex.appendChild(popup);
   clearTimeout(window._popTimer);
   window._popTimer=setTimeout(()=>{ clearOverlayLine(svg); svg?.querySelectorAll(".donut-seg").forEach(s=>{s.style.opacity="1";delete s.dataset.active;}); const ct=svg?.querySelector(".donut-ct");if(ct)ct.textContent="탭하여"; const cb=svg?.querySelector(".donut-cb");if(cb)cb.textContent="확인"; },4000);
+}
+
+
+// ─── 입금/출금 모달 이벤트 ───────────────────────────────────
+function bindDepositModalEvents() {
+  if (!depositModal) return;
+  const {accId, mode} = depositModal;
+  const acc  = ST.accounts.find(a=>a.id===accId);
+  if (!acc) return;
+  const isUS = acc.type === "us";
+  const $ = id => document.getElementById(id);
+
+  // 닫기
+  $("dm-close")?.addEventListener("click",()=>{ depositModal=null; render(); });
+  $("deposit-modal-bg")?.addEventListener("click",e=>{ if(e.target.id==="deposit-modal-bg"){depositModal=null;render();} });
+
+  // 탭 전환
+  $("dm-in-tab")?.addEventListener("click",()=>{ depositModal.mode="in"; render(); setTimeout(()=>bindDepositModalEvents(),50); });
+  $("dm-out-tab")?.addEventListener("click",()=>{ depositModal.mode="out"; render(); setTimeout(()=>bindDepositModalEvents(),50); });
+
+  // USD 환전 계산 미리보기
+  if (isUS) {
+    const updateUsdPreview = () => {
+      const krw  = parseFloat($("dm-krw")?.value) || 0;
+      const rate = parseFloat($("dm-rate")?.value) || 0;
+      const res  = $("dm-result"), usdEl = $("dm-usd-result");
+      if (krw > 0 && rate > 0 && res && usdEl) {
+        res.style.display = "block";
+        usdEl.textContent = usd(krw / rate);
+      } else if (res) { res.style.display = "none"; }
+    };
+    $("dm-krw")?.addEventListener("input", updateUsdPreview);
+    $("dm-rate")?.addEventListener("input", updateUsdPreview);
+  }
+
+  // 확정
+  $("dm-confirm")?.addEventListener("click", ()=>{
+    const isIn  = depositModal.mode === "in";
+    const krw   = parseFloat($("dm-krw")?.value) || 0;
+    const rate  = isUS ? (parseFloat($("dm-rate")?.value) || usdKrw || 1350) : 1;
+    const date  = $("dm-date")?.value || new Date().toISOString().slice(0,10);
+    const memo  = $("dm-memo")?.value || "";
+
+    if (!krw || krw <= 0) { alert("금액을 입력해주세요"); return; }
+
+    const amount = isUS ? krw / rate : krw; // USD 또는 KRW
+
+    if (!acc.deposits) acc.deposits = [];
+
+    if (isIn) {
+      acc.cash = (acc.cash || 0) + amount;
+      // 순입금에 KRW 기준으로 추가
+      acc.deposits.push({ id:"d"+Date.now(), year:new Date(date).getFullYear(), amount: krw, memo, type:"cash-in", date });
+    } else {
+      if (amount > (acc.cash||0)) { alert("예수금보다 많이 출금할 수 없어요"); return; }
+      acc.cash = (acc.cash || 0) - amount;
+      // 출금은 순입금에서 차감
+      acc.deposits.push({ id:"d"+Date.now(), year:new Date(date).getFullYear(), amount: -krw, memo, type:"cash-out", date });
+    }
+
+    saveData();
+    depositModal = null;
+    render();
+  });
 }
 
 // ─── 트레이드 모달 이벤트 ───────────────────────────────────
@@ -1003,6 +1135,8 @@ function bindTradeModalEvents() {
       const totalCost = buyTrades.reduce((s,t)=>s+t.qty*t.price,0);
       item.q = totalQty;
       item.a = totalQty > 0 ? totalCost / buyTrades.reduce((s,t)=>s+t.qty,0) : 0;
+      // 예수금 차감
+      acc.cash = Math.max(0, (acc.cash||0) - qty*price);
     } else {
       const item = acc.items.find(x=>x.id===itemId);
       if (!item) return;
@@ -1017,11 +1151,15 @@ function bindTradeModalEvents() {
         const soldQty     = item.trades.filter(t=>t.type==="sell").reduce((s,t)=>s+t.qty,0);
         item.q = totalBuyQty - soldQty;
         item.a = totalCost / totalBuyQty;
+        // 예수금 차감
+        acc.cash = Math.max(0, (acc.cash||0) - qty*price);
       } else {
         if (qty > item.q) { alert("보유 수량보다 많이 매도할 수 없어요"); return; }
         const pnl = (price - item.a) * qty;
         item.trades.push({id:"tr"+Date.now(), type:"sell", date, qty, price, memo, pnl});
         item.q -= qty;
+        // 예수금 증가
+        acc.cash = (acc.cash||0) + qty*price;
         if (item.q <= 0.00001) {
           if (confirm("보유 수량이 0이 됐어요. 종목을 삭제할까요?")) {
             const idx = acc.items.findIndex(x=>x.id===itemId);
@@ -1089,6 +1227,14 @@ function bindEvents() {
 
   // 종목 인풋
   document.querySelectorAll(".inp[data-id][data-acc]").forEach(inp=>{ const id=inp.dataset.id, f=inp.dataset.f, accId=inp.dataset.acc; const acc=ST.accounts.find(a=>a.id===accId); const item=acc?.items.find(x=>x.id===id); if(!item||!acc) return; const tr=inp.closest("tr"), isUS=tr?.dataset.usd==="true"; inp.addEventListener("input",e=>{ const v=e.target.value; if(f==="t"){const upper=v.toUpperCase();item.t=upper;e.target.value=upper;const db=isUS?US_DB:acc.type==="coin"?null:KRX_DB;const auto=db?.[upper];if(auto){item.n=auto;const ni=tr?.querySelector('[data-f="n"]');if(ni)ni.value=auto;}}else if(f==="n"){item.n=v;}else{item[f]=Number(v)||0;if(acc.type!=="cash"){const vc=tr?.querySelector("[data-calc='val']"),gc=tr?.querySelector("[data-calc='gp']"),pc=tr?.querySelector("[data-calc='profit']");if(vc)vc.textContent=won(itemVal(item,acc.type))||"₩0";const gp=itemGp(item,acc.type);if(gc){gc.textContent=fPct(gp);gc.className="r "+gCls(gp);}const profit=(itemVal(item,acc.type)&&itemCost(item,acc.type))?itemVal(item,acc.type)-itemCost(item,acc.type):null;if(pc){pc.textContent=fProfit(profit);pc.className="r "+gCls(profit);}}} saveData(); }); });
+
+  // ─ 입금/출금 버튼
+  document.querySelectorAll("[data-deposit-acc]").forEach(b=>b.addEventListener("click",e=>{
+    e.stopPropagation();
+    depositModal={accId:b.dataset.depositAcc, mode:"in"};
+    render();
+    setTimeout(()=>bindDepositModalEvents(),50);
+  }));
 
   // ─ 신규 매수 버튼
   document.querySelectorAll("[data-new-trade]").forEach(b=>b.addEventListener("click",e=>{
