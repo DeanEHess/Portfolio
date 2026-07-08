@@ -611,11 +611,15 @@ function buildAccountSection(acc) {
         ?(showUSD?(px[item.t]?usd(px[item.t]):(loading?'<span class="cell-loading">···</span>':'<span class="price-na">—</span>'))
                 :(priceKrw?won(priceKrw):(loading?'<span class="cell-loading">···</span>':'<span class="price-na">—</span>')))
         :(priceKrw?won(priceKrw):(loading?'<span class="cell-loading">···</span>':'<span class="price-na">—</span>'));
+      const hasTrades = item.trades && item.trades.length > 0;
       if (editMode) return '<tr data-id="'+item.id+'" data-acc="'+acc.id+'" data-usd="'+isUS+'">'
-        +'<td style="min-width:110px"><input class="inp inp-l" style="font-weight:600;font-size:12px;margin-bottom:3px" data-f="t" data-id="'+item.id+'" data-acc="'+acc.id+'" value="'+item.t+'"/>'
+        +'<td style="min-width:110px"><input class="inp inp-l" style="font-weight:600;font-size:12px;margin-bottom:3px" data-f="t" data-id="'+item.id+'" data-acc="'+acc.id+'" value="'+item.t+'"'+(hasTrades?' disabled':'')+'/>'
         +'<input class="inp inp-l" style="font-size:10px;color:#94a3b8" data-f="n" data-id="'+item.id+'" data-acc="'+acc.id+'" value="'+(item.n||"")+'"/></td>'
-        +'<td class="r"><input class="inp inp-r" type="number" '+(type==="coin"?'step="0.0001" ':'')+' data-f="q" data-id="'+item.id+'" data-acc="'+acc.id+'" value="'+(item.q||"")+'"/></td>'
-        +'<td class="r"><input class="inp inp-r" type="number" data-f="a" data-id="'+item.id+'" data-acc="'+acc.id+'" value="'+(item.a||"")+'" placeholder="'+(isUS?"USD":"KRW")+'"/></td>'
+        +(hasTrades
+          ? '<td class="r" style="font-size:11px;color:#64748b">🔒 '+item.q+'</td>'
+            +'<td class="r" style="font-size:11px;color:#64748b">🔒 '+(isUS?usd(item.a):won(item.a))+'</td>'
+          : '<td class="r"><input class="inp inp-r" type="number" '+(type==="coin"?'step="0.0001" ':'')+' data-f="q" data-id="'+item.id+'" data-acc="'+acc.id+'" value="'+(item.q||"")+'"/></td>'
+            +'<td class="r"><input class="inp inp-r" type="number" data-f="a" data-id="'+item.id+'" data-acc="'+acc.id+'" value="'+(item.a||"")+'" placeholder="'+(isUS?"USD":"KRW")+'"/></td>')
         +'<td class="r">'+priceStr+'</td>'
         +'<td class="r" style="font-weight:600" data-calc="val">'+(isUS?(val&&usdKrw?usd(val/usdKrw):"—"):(val?won(val):"₩0"))+'</td>'
         +'<td class="r '+gCls(profit)+'" data-calc="profit">'+(isUS?(profit&&usdKrw?((profit>=0?"+":"")+"$"+Math.abs(profit/usdKrw).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})):"—"):fProfit(profit))+'</td>'
@@ -863,9 +867,12 @@ function buildTradeModal() {
               <span style="color:#64748b">${tr.date}</span>
               ${tr.memo?`<span style="color:#475569;font-size:10px">${tr.memo}</span>`:""}
             </div>
-            <div style="text-align:right">
-              <div>${tr.qty}${isCoin?"":"주"} · ${isUS?usd(tr.price):won(tr.price)}</div>
-              ${tr.type==="sell"&&tr.pnl!=null?`<div style="font-size:10px;color:${tr.pnl>=0?"#ef4444":"#3b82f6"}">${tr.pnl>=0?"+":""}${isUS?usd(tr.pnl):won(tr.pnl)}</div>`:""}
+            <div style="display:flex;align-items:center;gap:8px">
+              <div style="text-align:right">
+                <div>${tr.qty}${isCoin?"":"주"} · ${isUS?usd(tr.price):won(tr.price)}</div>
+                ${tr.type==="sell"&&tr.pnl!=null?`<div style="font-size:10px;color:${tr.pnl>=0?"#ef4444":"#3b82f6"}">${tr.pnl>=0?"+":""}${isUS?usd(tr.pnl):won(tr.pnl)}</div>`:""}
+              </div>
+              <button class="del-btn" data-trade-del="${tr.id}" style="padding:3px 7px;font-size:10px">✕</button>
             </div>
           </div>`).join("")}
       </div>` : ""}
@@ -965,6 +972,52 @@ function showSectorPopup(seg, svg) {
 }
 
 
+
+// ─── 거래 히스토리 기반 재계산 ───────────────────────────────
+function recalcItemFromTrades(acc, item) {
+  if (!item.trades || !item.trades.length) return;
+  const buyTrades  = item.trades.filter(t=>t.type==="buy");
+  const sellTrades = item.trades.filter(t=>t.type==="sell");
+  const totalBuyQty = buyTrades.reduce((s,t)=>s+t.qty,0);
+  const totalCost   = buyTrades.reduce((s,t)=>s+t.qty*t.price,0);
+  const soldQty     = sellTrades.reduce((s,t)=>s+t.qty,0);
+  item.q = totalBuyQty - soldQty;
+  item.a = totalBuyQty > 0 ? totalCost / totalBuyQty : 0;
+}
+
+function deleteTrade(accId, itemId, tradeId) {
+  const acc  = ST.accounts.find(a=>a.id===accId);
+  const item = acc?.items.find(x=>x.id===itemId);
+  if (!acc || !item || !item.trades) return;
+  const tr = item.trades.find(t=>t.id===tradeId);
+  if (!tr) return;
+
+  // 예수금 역산: 매수 삭제 → 예수금 복구(+), 매도 삭제 → 예수금 차감(-)
+  if (tr.type === "buy") {
+    acc.cash = (acc.cash||0) + tr.qty*tr.price;
+  } else {
+    acc.cash = Math.max(0, (acc.cash||0) - tr.qty*tr.price);
+  }
+
+  item.trades = item.trades.filter(t=>t.id!==tradeId);
+  recalcItemFromTrades(acc, item);
+
+  // trades가 비고 수량도 0이면 종목 삭제 여부 확인
+  if (!item.trades.length && item.q === 0) {
+    if (confirm("거래 내역이 없어졌어요. 종목을 삭제할까요?")) {
+      const idx = acc.items.findIndex(x=>x.id===itemId);
+      if (idx>-1) acc.items.splice(idx,1);
+      saveData();
+      tradeModal = null;
+      render();
+      return;
+    }
+  }
+  saveData();
+  render();
+  setTimeout(()=>bindTradeModalEvents(),50);
+}
+
 // ─── 입금/출금 모달 이벤트 ───────────────────────────────────
 function bindDepositModalEvents() {
   if (!depositModal) return;
@@ -1042,6 +1095,13 @@ function bindTradeModalEvents() {
 
   // 닫기
   $("tm-close")?.addEventListener("click",()=>{ tradeModal=null; render(); });
+
+  // 거래 삭제
+  document.querySelectorAll("[data-trade-del]").forEach(b=>b.addEventListener("click",e=>{
+    e.stopPropagation();
+    if(!confirm("이 거래를 삭제할까요?\n평단·수량·예수금이 자동으로 되돌려져요.")) return;
+    deleteTrade(accId, itemId, b.dataset.tradeDel);
+  }));
   $("trade-modal-bg")?.addEventListener("click",e=>{ if(e.target.id==="trade-modal-bg"){tradeModal=null;render();} });
 
   // 매수/매도 탭 전환
