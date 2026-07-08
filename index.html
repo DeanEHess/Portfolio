@@ -477,35 +477,9 @@ function buildDonutCard(items, title) {
 
 
 // ─── 계좌 전체 거래 히스토리 ─────────────────────────────────
-function buildAccountHistorySection(acc) {
-  const isUS = acc.type === "us";
-  const isCoin = acc.type === "coin";
-
-  // 종목 거래(trades) + 예수금 입출금(deposits의 cash-in/out) 통합
-  const events = [];
-
-  for (const item of acc.items) {
-    for (const tr of (item.trades||[])) {
-      events.push({
-        date: tr.date, kind: tr.type, ticker: item.t, qty: tr.qty, price: tr.price,
-        pnl: tr.pnl, amount: tr.amount, memo: tr.memo, sortKey: tr.date + "_" + (tr.id||"")
-      });
-    }
-  }
-  for (const d of (acc.deposits||[])) {
-    if (d.type === "cash-in" || d.type === "cash-out") {
-      events.push({
-        date: d.date||("연도:"+d.year), kind: d.type, amount: d.amount, memo: d.memo,
-        sortKey: (d.date||d.year+"-01-01") + "_" + (d.id||"")
-      });
-    }
-  }
-
-  if (!events.length) return "";
-
-  events.sort((a,b)=> a.sortKey < b.sortKey ? 1 : -1); // 최신순
-
-  const rowHtml = events.map(ev => {
+// ─── 히스토리 이벤트 배열을 HTML로 변환하는 헬퍼 ─────────────
+function eventsToHtml(events, isUS, isCoin) {
+  return events.map(ev => {
     if (ev.kind === "buy" || ev.kind === "sell") {
       const isBuy = ev.kind === "buy";
       return `<div class="history-row">
@@ -542,33 +516,67 @@ function buildAccountHistorySection(acc) {
       </div>`;
     }
   }).join("");
+}
+
+// ─── 계좌 전체 거래 히스토리 ─────────────────────────────────
+let accHistoryExpanded = {}; // {accId: true/false}
+
+function buildAccountHistorySection(acc) {
+  const isUS = acc.type === "us";
+  const isCoin = acc.type === "coin";
+
+  const events = [];
+  for (const item of acc.items) {
+    for (const tr of (item.trades||[])) {
+      events.push({
+        date: tr.date, kind: tr.type, ticker: item.t, qty: tr.qty, price: tr.price,
+        pnl: tr.pnl, amount: tr.amount, memo: tr.memo, sortKey: tr.date + "_" + (tr.id||"")
+      });
+    }
+  }
+  for (const d of (acc.deposits||[])) {
+    if (d.type === "cash-in" || d.type === "cash-out") {
+      events.push({
+        date: d.date||("연도:"+d.year), kind: d.type, amount: d.amount, memo: d.memo,
+        sortKey: (d.date||d.year+"-01-01") + "_" + (d.id||"")
+      });
+    }
+  }
+
+  if (!events.length) return "";
+
+  events.sort((a,b)=> a.sortKey < b.sortKey ? 1 : -1); // 최신순
+
+  const showAll = accHistoryExpanded[acc.id] === true;
+  const visibleEvents = showAll ? events : events.slice(0, 5);
 
   return '<div class="card" style="margin-bottom:12px">'
     +'<div class="card-hdr"><span class="card-title">📜 전체 거래 히스토리</span><span style="font-size:11px;color:#475569">'+events.length+'건</span></div>'
-    +'<div style="max-height:320px;overflow-y:auto">'+rowHtml+'</div>'
+    +'<div>'+eventsToHtml(visibleEvents, isUS, isCoin)+'</div>'
+    +(events.length > 5
+      ? '<button class="add-btn" data-history-toggle="'+acc.id+'" style="margin-top:8px">'+(showAll?"접기 ▲":"전체 "+events.length+"건 보기 ▼")+'</button>'
+      : "")
     +'</div>';
 }
 
-// ─── 순입금 섹션 (계좌별) ────────────────────────────────────
 function buildDepositSection(deposits, accId) {
-  const sorted = [...deposits].sort((a,b)=>a.year-b.year);
-  const total  = sorted.reduce((s,x)=>s+(Number(x.amount)||0), 0);
+  // 연도별 합산
+  const yearMap = {};
+  for (const d of deposits) {
+    const y = d.year;
+    yearMap[y] = (yearMap[y]||0) + (Number(d.amount)||0);
+  }
+  const sorted = Object.entries(yearMap).map(([year,amount])=>({year:Number(year), amount})).sort((a,b)=>a.year-b.year);
+  const total  = sorted.reduce((s,x)=>s+x.amount, 0);
   const acc    = ST.accounts.find(a=>a.id===accId);
   const ev     = acc ? accTotal(acc) : 0;
   const diff    = total > 0 ? ev - total : null;
   const diffPct = total > 0 ? ((ev - total) / total) * 100 : null;
 
-  const editRows = sorted.map(d=>
-    '<div style="display:flex;gap:6px;margin-bottom:6px;align-items:center">'
-    +'<input class="inp inp-r" type="number" style="width:68px" data-df="year" data-did="'+d.id+'" data-dscope="'+accId+'" value="'+d.year+'" placeholder="연도"/>'
-    +'<input class="inp inp-r" type="number" style="flex:1" data-df="amount" data-did="'+d.id+'" data-dscope="'+accId+'" value="'+(d.amount||'')+'" placeholder="금액(원)"/>'
-    +'<button class="del-btn" data-ddel="'+d.id+'" data-dscope="'+accId+'">✕</button></div>'
-  ).join("");
-
   const viewRows = sorted.map(d=>
     '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">'
     +'<span style="font-size:12px;color:#94a3b8;width:48px">'+d.year+'년</span>'
-    +'<span style="font-size:13px;font-weight:600">'+won(Number(d.amount)||0)+'</span>'
+    +'<span style="font-size:13px;font-weight:600">'+won(d.amount)+'</span>'
     +'</div>'
   ).join("");
 
@@ -584,10 +592,8 @@ function buildDepositSection(deposits, accId) {
 
   return '<div class="card" style="margin-bottom:12px">'
     +'<div class="card-hdr"><span class="card-title">💸 순입금 내역</span></div>'
-    +(editMode ? editRows : (viewRows || '<div style="font-size:12px;color:#475569;text-align:center;padding:8px 0">입력된 내역이 없습니다</div>'))
-    +(editMode
-      ? '<button class="add-btn" data-dadd="'+accId+'">+ 연도 추가</button>'
-      : summaryHtml)
+    +(viewRows || '<div style="font-size:12px;color:#475569;text-align:center;padding:8px 0">입력된 내역이 없습니다</div>')
+    +summaryHtml
     +'</div>';
 }
 
@@ -655,6 +661,12 @@ function buildAccountSection(acc) {
     ? depositBtnHtml
     : depositBtnHtml
       +'<button class="btn-sm" style="color:#ef4444;border-color:#ef4444;padding:6px 10px;font-size:12px;font-weight:700;white-space:nowrap" data-new-trade="'+acc.id+'">+ 신규매수</button>';
+  const cashRow = (!isCash)
+    ? '<div style="display:flex;justify-content:space-between;align-items:center;background:#0f172a;border-radius:8px;padding:8px 12px;margin-bottom:10px">'
+      +'<span style="font-size:12px;color:#64748b">💵 예수금</span>'
+      +'<span style="font-size:13px;font-weight:700">'+(isUS?usd(acc.cash||0):won(acc.cash||0))+'</span>'
+      +'</div>'
+    : "";
   const hdrRight = '<div style="text-align:right">'
     +'<div style="font-weight:800;font-size:17px;color:'+acc.color+'">'+(total?won(total):"₩0")+'</div>'
     +(profit!=null?'<div style="font-size:12px;font-weight:600;color:'+(profit>=0?'#ef4444':'#3b82f6')+'">'+fProfit(profit)+'</div>':"")
@@ -725,6 +737,7 @@ function buildAccountSection(acc) {
 
   return '<div class="card" style="border-top:3px solid '+acc.color+'">'
     +'<div class="card-hdr"><span class="card-title">'+acc.name+'</span><div style="display:flex;align-items:center;gap:8px">'+buyBtn+hdrRight+'</div></div>'
+    +cashRow
     +accEdit
     +tradeHint
     +'<div class="tbl-wrap"><table>'+thead+'<tbody>'+rows+'</tbody></table></div>'
@@ -793,6 +806,16 @@ function buildOverview() {
   const krxItems = buildTickerItems(a=>a.type==="krx", (l,i)=>SECTOR_COLORS[getSector(l,"krx")] ||COLORS[i%COLORS.length]);
   const allItems = buildTickerItems(a=>a.type!=="cash", (l,i)=>COLORS[i%COLORS.length]);
 
+  // 각 투자계좌의 예수금을 "예수금" 항목으로 합산해서 종목별 비중에 추가
+  let totalCashKrw = 0;
+  for (const acc of ST.accounts) {
+    if (acc.type === "cash" || !acc.cash) continue;
+    totalCashKrw += acc.type === "us" ? (acc.cash * (usdKrw||0)) : acc.cash;
+  }
+  const allItemsWithCash = totalCashKrw > 0
+    ? [...allItems, {l:"예수금", v: totalCashKrw, c: SECTOR_COLORS["현금/예금"]||"#475569"}].sort((a,b)=>b.v-a.v)
+    : allItems;
+
   return buildGoals(tot)
     +'<div class="card-grad">'
     +'<div style="font-size:12px;color:#64748b;margin-bottom:6px">총 평가 자산</div>'
@@ -808,7 +831,7 @@ function buildOverview() {
     +(segs.length
       ?'<div style="display:flex;align-items:center;gap:20px;flex-wrap:wrap"><svg id="overview-donut" width="160" height="160" viewBox="0 0 160 160" style="flex-shrink:0">'+paths+'<text x="80" y="75" text-anchor="middle" fill="#94a3b8" font-size="9" class="donut-ct">탭하여</text><text x="80" y="88" text-anchor="middle" fill="#94a3b8" font-size="9" class="donut-cb">확인</text></svg><div style="flex:1;min-width:140px">'+legend+'</div></div>'
       :'<div style="color:#475569;text-align:center;padding:16px;font-size:12px">자산을 입력해주세요</div>')
-    +(allItems.length >= 2 ? buildDonutCard(allItems, '📦 전체 종목별 비중') : '');
+    +(allItemsWithCash.length >= 2 ? buildDonutCard(allItemsWithCash, '📦 전체 종목별 비중') : '');
 }
 
 
@@ -1495,6 +1518,13 @@ function bindEvents() {
     const dep=(acc.deposits||[]).find(d=>d.id===did); if(!dep) return;
     dep[field]=field==="year"?parseInt(e.target.value)||new Date().getFullYear():Number(e.target.value)||0;
     saveData();
+  }));
+
+  // 히스토리 접기/펼치기
+  document.querySelectorAll("[data-history-toggle]").forEach(b=>b.addEventListener("click",()=>{
+    const accId = b.dataset.historyToggle;
+    accHistoryExpanded[accId] = !accHistoryExpanded[accId];
+    render();
   }));
 
   // 목표
