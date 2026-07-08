@@ -821,24 +821,45 @@ function buildDepositModal() {
   const acc  = ST.accounts.find(a=>a.id===accId);
   if (!acc) return "";
   const isUS = acc.type === "us";
+  const isCashAcc = acc.type === "cash";
   const isIn = mode === "in";
   const curCash = acc.cash || 0;
+
+  // 현금/예금 계좌: 어떤 항목(비상금, 청약저축 등)인지 선택
+  const selectedItemId = depositModal.itemId || (acc.items[0]?.id || "");
+  const selectedItem = isCashAcc ? acc.items.find(x=>x.id===selectedItemId) : null;
+  const curItemBalance = selectedItem ? (Number(selectedItem.a)||0) : 0;
+
+  const itemPicker = isCashAcc ? `
+      <div class="trade-inp-group">
+        <div class="trade-inp-label">어느 항목인가요?</div>
+        <select class="trade-inp" id="dm-item-select">
+          ${acc.items.map(it=>`<option value="${it.id}" ${it.id===selectedItemId?"selected":""}>${it.n} (${won(Number(it.a)||0)})</option>`).join("")}
+          <option value="__new__">+ 새 항목 만들기</option>
+        </select>
+      </div>
+      <div id="dm-new-item-name-group" style="display:none" class="trade-inp-group">
+        <div class="trade-inp-label">새 항목 이름</div>
+        <input class="trade-inp" id="dm-new-item-name" placeholder="예) 비상금, 주택청약저축"/>
+      </div>` : "";
 
   return `<div class="trade-modal-bg" id="deposit-modal-bg">
     <div class="trade-modal">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
-        <div class="modal-title" style="margin:0">${acc.name} 예수금 관리</div>
+        <div class="modal-title" style="margin:0">${acc.name} ${isCashAcc?"관리":"예수금 관리"}</div>
         <button id="dm-close" style="background:transparent;border:none;color:#64748b;font-size:20px;cursor:pointer">✕</button>
       </div>
+      ${!isCashAcc ? `
       <div style="background:#0f172a;border-radius:10px;padding:10px 12px;margin-bottom:14px;display:flex;justify-content:space-between">
         <span style="font-size:12px;color:#64748b">현재 예수금</span>
         <span style="font-size:14px;font-weight:800">${isUS?usd(curCash):won(curCash)}</span>
-      </div>
+      </div>` : ""}
       <div class="trade-tabs">
-        <button class="trade-tab buy${isIn?" on":""}" id="dm-in-tab">💰 입금${isUS?" (환전)":""}</button>
-        <button class="trade-tab sell${!isIn?" on":""}" id="dm-out-tab">💸 출금${isUS?" (환전)":""}</button>
+        <button class="trade-tab buy${isIn?" on":""}" id="dm-in-tab">💰 입금${isUS&&!isCashAcc?" (환전)":""}</button>
+        <button class="trade-tab sell${!isIn?" on":""}" id="dm-out-tab">💸 출금${isUS&&!isCashAcc?" (환전)":""}</button>
       </div>
-      ${isUS ? `
+      ${itemPicker}
+      ${isUS&&!isCashAcc ? `
       <div class="trade-inp-group">
         <div class="trade-inp-label">원화 금액 (KRW)</div>
         <input class="trade-inp" id="dm-krw" type="number" placeholder="예) 1000000"/>
@@ -1109,6 +1130,7 @@ function bindDepositModalEvents() {
   const acc  = ST.accounts.find(a=>a.id===accId);
   if (!acc) return;
   const isUS = acc.type === "us";
+  const isCashAcc = acc.type === "cash";
   const $ = id => document.getElementById(id);
 
   // 닫기
@@ -1119,8 +1141,17 @@ function bindDepositModalEvents() {
   $("dm-in-tab")?.addEventListener("click",()=>{ depositModal.mode="in"; render(); setTimeout(()=>bindDepositModalEvents(),50); });
   $("dm-out-tab")?.addEventListener("click",()=>{ depositModal.mode="out"; render(); setTimeout(()=>bindDepositModalEvents(),50); });
 
-  // USD 환전 계산 미리보기
-  if (isUS) {
+  // 현금계좌: 항목 선택 드롭다운
+  if (isCashAcc) {
+    $("dm-item-select")?.addEventListener("change", e=>{
+      depositModal.itemId = e.target.value;
+      const newGroup = $("dm-new-item-name-group");
+      if (newGroup) newGroup.style.display = (e.target.value === "__new__") ? "block" : "none";
+    });
+  }
+
+  // USD 환전 계산 미리보기 (현금계좌 제외)
+  if (isUS && !isCashAcc) {
     const updateUsdPreview = () => {
       const krw  = parseFloat($("dm-krw")?.value) || 0;
       const rate = parseFloat($("dm-rate")?.value) || 0;
@@ -1138,24 +1169,51 @@ function bindDepositModalEvents() {
   $("dm-confirm")?.addEventListener("click", ()=>{
     const isIn  = depositModal.mode === "in";
     const krw   = parseFloat($("dm-krw")?.value) || 0;
-    const rate  = isUS ? (parseFloat($("dm-rate")?.value) || usdKrw || 1350) : 1;
+    const rate  = (isUS && !isCashAcc) ? (parseFloat($("dm-rate")?.value) || usdKrw || 1350) : 1;
     const date  = $("dm-date")?.value || new Date().toISOString().slice(0,10);
     const memo  = $("dm-memo")?.value || "";
 
     if (!krw || krw <= 0) { alert("금액을 입력해주세요"); return; }
 
-    const amount = isUS ? krw / rate : krw; // USD 또는 KRW
+    // ─ 현금/예금 계좌: 선택한 항목의 잔액을 직접 증감 ─
+    if (isCashAcc) {
+      let itemId = $("dm-item-select")?.value;
+      let item;
+
+      if (itemId === "__new__") {
+        const newName = $("dm-new-item-name")?.value.trim();
+        if (!newName) { alert("새 항목 이름을 입력해주세요"); return; }
+        item = { id:"ca"+Date.now(), n:newName, a:0 };
+        acc.items.push(item);
+      } else {
+        item = acc.items.find(x=>x.id===itemId);
+      }
+      if (!item) { alert("항목을 선택해주세요"); return; }
+
+      if (isIn) {
+        item.a = (Number(item.a)||0) + krw;
+      } else {
+        if (krw > (Number(item.a)||0)) { alert(item.n+" 잔액보다 많이 출금할 수 없어요"); return; }
+        item.a = (Number(item.a)||0) - krw;
+      }
+
+      saveData();
+      depositModal = null;
+      render();
+      return;
+    }
+
+    // ─ 투자 계좌(us/krx/coin): 예수금(acc.cash) 증감 ─
+    const amount = (isUS) ? krw / rate : krw; // USD 또는 KRW
 
     if (!acc.deposits) acc.deposits = [];
 
     if (isIn) {
       acc.cash = (acc.cash || 0) + amount;
-      // 순입금에 KRW 기준으로 추가
       acc.deposits.push({ id:"d"+Date.now(), year:new Date(date).getFullYear(), amount: krw, memo, type:"cash-in", date });
     } else {
       if (amount > (acc.cash||0)) { alert("예수금보다 많이 출금할 수 없어요"); return; }
       acc.cash = (acc.cash || 0) - amount;
-      // 출금은 순입금에서 차감
       acc.deposits.push({ id:"d"+Date.now(), year:new Date(date).getFullYear(), amount: -krw, memo, type:"cash-out", date });
     }
 
