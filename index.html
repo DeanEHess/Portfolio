@@ -1186,7 +1186,7 @@ function render() {
 function bindEvents() {
   const $=id=>document.getElementById(id);
   $("btn-refresh")?.addEventListener("click",fetchAll);
-  $("btn-cloud-save")?.addEventListener("click", cloudSave);
+  $("btn-cloud-save")?.addEventListener("click", ()=>cloudSave(false));
   $("btn-cloud-load")?.addEventListener("click", cloudLoad);
   $("btn-edit")?.addEventListener("click",()=>{editMode=!editMode;render();});
   $("btn-backup")?.addEventListener("click",backupData);
