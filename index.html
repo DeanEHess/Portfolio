@@ -576,9 +576,11 @@ function buildAccountSection(acc) {
   const sorted = isCash ? [...acc.items].sort((a,b)=>(Number(b.a)||0)-(Number(a.a)||0)) : sortItems(acc.items,type);
 
   // 계좌 헤더 우측: 평가금액 / 수익금 / 수익률
-  const buyBtn = isCash ? "" :
-    '<button class="btn-sm" style="color:#10b981;border-color:#10b981;padding:6px 10px;font-size:12px;font-weight:700" data-deposit-acc="'+acc.id+'">입출금</button>'
-    +'<button class="btn-sm" style="color:#ef4444;border-color:#ef4444;padding:6px 10px;font-size:12px;font-weight:700" data-new-trade="'+acc.id+'">+ 신규매수</button>';
+  const depositBtnHtml = '<button class="btn-sm" style="color:#10b981;border-color:#10b981;padding:6px 10px;font-size:12px;font-weight:700;white-space:nowrap" data-deposit-acc="'+acc.id+'">입출금</button>';
+  const buyBtn = isCash
+    ? depositBtnHtml
+    : depositBtnHtml
+      +'<button class="btn-sm" style="color:#ef4444;border-color:#ef4444;padding:6px 10px;font-size:12px;font-weight:700;white-space:nowrap" data-new-trade="'+acc.id+'">+ 신규매수</button>';
   const hdrRight = '<div style="text-align:right">'
     +'<div style="font-weight:800;font-size:17px;color:'+acc.color+'">'+(total?won(total):"₩0")+'</div>'
     +(profit!=null?'<div style="font-size:12px;font-weight:600;color:'+(profit>=0?'#ef4444':'#3b82f6')+'">'+fProfit(profit)+'</div>':"")
