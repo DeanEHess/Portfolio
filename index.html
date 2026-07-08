@@ -475,6 +475,80 @@ function buildDonutCard(items, title) {
     +'</div></div>';
 }
 
+
+// ─── 계좌 전체 거래 히스토리 ─────────────────────────────────
+function buildAccountHistorySection(acc) {
+  const isUS = acc.type === "us";
+  const isCoin = acc.type === "coin";
+
+  // 종목 거래(trades) + 예수금 입출금(deposits의 cash-in/out) 통합
+  const events = [];
+
+  for (const item of acc.items) {
+    for (const tr of (item.trades||[])) {
+      events.push({
+        date: tr.date, kind: tr.type, ticker: item.t, qty: tr.qty, price: tr.price,
+        pnl: tr.pnl, amount: tr.amount, memo: tr.memo, sortKey: tr.date + "_" + (tr.id||"")
+      });
+    }
+  }
+  for (const d of (acc.deposits||[])) {
+    if (d.type === "cash-in" || d.type === "cash-out") {
+      events.push({
+        date: d.date||("연도:"+d.year), kind: d.type, amount: d.amount, memo: d.memo,
+        sortKey: (d.date||d.year+"-01-01") + "_" + (d.id||"")
+      });
+    }
+  }
+
+  if (!events.length) return "";
+
+  events.sort((a,b)=> a.sortKey < b.sortKey ? 1 : -1); // 최신순
+
+  const rowHtml = events.map(ev => {
+    if (ev.kind === "buy" || ev.kind === "sell") {
+      const isBuy = ev.kind === "buy";
+      return `<div class="history-row">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span class="history-badge ${isBuy?"badge-buy":"badge-sell"}">${isBuy?"매수":"매도"}</span>
+          <span style="font-weight:600">${ev.ticker}</span>
+          <span style="color:#64748b">${ev.date}</span>
+          ${ev.memo?`<span style="color:#475569;font-size:10px">${ev.memo}</span>`:""}
+        </div>
+        <div style="text-align:right">
+          <div>${ev.qty}${isCoin?"":"주"} · ${isUS?usd(ev.price):won(ev.price)}</div>
+          ${!isBuy&&ev.pnl!=null?`<div style="font-size:10px;color:${ev.pnl>=0?"#ef4444":"#3b82f6"}">${ev.pnl>=0?"+":""}${isUS?usd(ev.pnl):won(ev.pnl)}</div>`:""}
+        </div>
+      </div>`;
+    } else if (ev.kind === "dividend") {
+      return `<div class="history-row">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span class="history-badge" style="background:#f59e0b20;color:#f59e0b">배당</span>
+          <span style="font-weight:600">${ev.ticker}</span>
+          <span style="color:#64748b">${ev.date}</span>
+          ${ev.memo?`<span style="color:#475569;font-size:10px">${ev.memo}</span>`:""}
+        </div>
+        <div style="font-weight:600;color:#f59e0b">+${isUS?usd(ev.amount):won(ev.amount)}</div>
+      </div>`;
+    } else {
+      const isIn = ev.kind === "cash-in";
+      return `<div class="history-row">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span class="history-badge" style="background:${isIn?"#10b98120":"#f59e0b20"};color:${isIn?"#10b981":"#f59e0b"}">${isIn?"입금":"출금"}</span>
+          <span style="color:#64748b">${ev.date}</span>
+          ${ev.memo?`<span style="color:#475569;font-size:10px">${ev.memo}</span>`:""}
+        </div>
+        <div style="font-weight:600">${won(Math.abs(ev.amount))}</div>
+      </div>`;
+    }
+  }).join("");
+
+  return '<div class="card" style="margin-bottom:12px">'
+    +'<div class="card-hdr"><span class="card-title">📜 전체 거래 히스토리</span><span style="font-size:11px;color:#475569">'+events.length+'건</span></div>'
+    +'<div style="max-height:320px;overflow-y:auto">'+rowHtml+'</div>'
+    +'</div>';
+}
+
 // ─── 순입금 섹션 (계좌별) ────────────────────────────────────
 function buildDepositSection(deposits, accId) {
   const sorted = [...deposits].sort((a,b)=>a.year-b.year);
@@ -656,6 +730,7 @@ function buildAccountSection(acc) {
     +'<div class="tbl-wrap"><table>'+thead+'<tbody>'+rows+'</tbody></table></div>'
     +(editMode?'<button class="add-btn" data-add-item="'+acc.id+'">+ 종목 추가</button>':"")
     +(acc.type!=="cash" ? buildDepositSection(acc.deposits, acc.id) : "")
+    +buildAccountHistorySection(acc)
     +buildDonutCard(valItems,acc.name+" 비중")
     +buildDonutCard(secItems,acc.name+" 섹터")
     +'</div>';
@@ -823,13 +898,15 @@ function buildTradeModal() {
         </div>
        </div>`;
 
+  const isDividend = !isNew && mode === "dividend";
   const modeTabs = isNew ? "" :
     `<div class="trade-tabs">
-      <button class="trade-tab buy${isBuy?" on":""}" id="tm-buy-tab">📈 매수</button>
-      <button class="trade-tab sell${!isBuy?" on":""}" id="tm-sell-tab">📉 매도</button>
+      <button class="trade-tab buy${isBuy&&!isDividend?" on":""}" id="tm-buy-tab">📈 매수</button>
+      <button class="trade-tab sell${!isBuy&&!isDividend?" on":""}" id="tm-sell-tab">📉 매도</button>
+      <button class="trade-tab" style="background:${isDividend?"#f59e0b":"#f59e0b20"};color:${isDividend?"#fff":"#f59e0b"}" id="tm-dividend-tab">💵 배당</button>
      </div>`;
 
-  const maxQty = (!isNew && !isBuy) ? (item?.q||0) : "";
+  const maxQty = (!isNew && !isBuy && !isDividend) ? (item?.q||0) : "";
 
   return `<div class="trade-modal-bg" id="trade-modal-bg">
     <div class="trade-modal">
@@ -839,6 +916,11 @@ function buildTradeModal() {
       </div>
       ${tickerSection}
       ${modeTabs}
+      ${isDividend ? `
+      <div class="trade-inp-group">
+        <div class="trade-inp-label">배당금 (세후 실수령액, ${isUS?"USD":"KRW"})</div>
+        <input class="trade-inp" id="tm-dividend-amount" type="number" step="0.01" placeholder="0"/>
+      </div>` : `
       <div class="trade-inp-group">
         <div class="trade-inp-label">수량${isCoin?" (소수점 가능)":""}</div>
         <input class="trade-inp" id="tm-qty" type="number" step="${isCoin?"0.0001":"1"}" min="0.0001" ${maxQty?"max="+maxQty:""} placeholder="0"/>
@@ -846,7 +928,7 @@ function buildTradeModal() {
       <div class="trade-inp-group">
         <div class="trade-inp-label">단가 (${isUS?"USD":isCoin?"KRW":"KRW"})</div>
         <input class="trade-inp" id="tm-price" type="number" step="0.01" placeholder="${curPrice?(isUS?curPrice.toFixed(2):Math.round(curPriceKrw)):"0"}"/>
-      </div>
+      </div>`}
       <div class="trade-inp-group">
         <div class="trade-inp-label">날짜</div>
         <input class="trade-inp" id="tm-date" type="date" value="${new Date().toISOString().slice(0,10)}"/>
@@ -856,20 +938,20 @@ function buildTradeModal() {
         <input class="trade-inp" id="tm-memo" placeholder="예) IRP 회사분, 월급날 추매"/>
       </div>
       <div class="trade-result" id="tm-result" style="display:none"></div>
-      <button class="trade-btn ${isBuy?"buy":"sell"}" id="tm-confirm">${isBuy?"매수 확정":"매도 확정"}</button>
+      <button class="trade-btn" style="background:${isDividend?"#f59e0b":isBuy?"#ef4444":"#3b82f6"}" id="tm-confirm">${isDividend?"배당 확정":isBuy?"매수 확정":"매도 확정"}</button>
       ${!isNew && item?.trades?.length ? `
       <div style="margin-top:16px">
         <div style="font-size:12px;font-weight:700;color:#64748b;margin-bottom:8px">거래 히스토리</div>
         ${[...item.trades].reverse().map(tr=>`
           <div class="history-row">
             <div style="display:flex;align-items:center;gap:8px">
-              <span class="history-badge ${tr.type==="buy"?"badge-buy":"badge-sell"}">${tr.type==="buy"?"매수":"매도"}</span>
+              <span class="history-badge ${tr.type==="buy"?"badge-buy":tr.type==="sell"?"badge-sell":""}" style="${tr.type==="dividend"?"background:#f59e0b20;color:#f59e0b":""}">${tr.type==="buy"?"매수":tr.type==="sell"?"매도":"배당"}</span>
               <span style="color:#64748b">${tr.date}</span>
               ${tr.memo?`<span style="color:#475569;font-size:10px">${tr.memo}</span>`:""}
             </div>
             <div style="display:flex;align-items:center;gap:8px">
               <div style="text-align:right">
-                <div>${tr.qty}${isCoin?"":"주"} · ${isUS?usd(tr.price):won(tr.price)}</div>
+                <div>${tr.type==="dividend" ? (isUS?usd(tr.amount):won(tr.amount)) : tr.qty+(isCoin?"":"주")+" · "+(isUS?usd(tr.price):won(tr.price))}</div>
                 ${tr.type==="sell"&&tr.pnl!=null?`<div style="font-size:10px;color:${tr.pnl>=0?"#ef4444":"#3b82f6"}">${tr.pnl>=0?"+":""}${isUS?usd(tr.pnl):won(tr.pnl)}</div>`:""}
               </div>
               <button class="del-btn" data-trade-del="${tr.id}" style="padding:3px 7px;font-size:10px">✕</button>
@@ -992,11 +1074,13 @@ function deleteTrade(accId, itemId, tradeId) {
   const tr = item.trades.find(t=>t.id===tradeId);
   if (!tr) return;
 
-  // 예수금 역산: 매수 삭제 → 예수금 복구(+), 매도 삭제 → 예수금 차감(-)
+  // 예수금 역산: 매수 삭제 → 예수금 복구(+), 매도 삭제 → 예수금 차감(-), 배당 삭제 → 예수금 차감(-)
   if (tr.type === "buy") {
     acc.cash = (acc.cash||0) + tr.qty*tr.price;
-  } else {
+  } else if (tr.type === "sell") {
     acc.cash = Math.max(0, (acc.cash||0) - tr.qty*tr.price);
+  } else if (tr.type === "dividend") {
+    acc.cash = Math.max(0, (acc.cash||0) - tr.amount);
   }
 
   item.trades = item.trades.filter(t=>t.id!==tradeId);
@@ -1107,6 +1191,7 @@ function bindTradeModalEvents() {
   // 매수/매도 탭 전환
   $("tm-buy-tab")?.addEventListener("click",()=>{ tradeModal.mode="buy"; render(); setTimeout(()=>bindTradeModalEvents(),50); });
   $("tm-sell-tab")?.addEventListener("click",()=>{ tradeModal.mode="sell"; render(); setTimeout(()=>bindTradeModalEvents(),50); });
+  $("tm-dividend-tab")?.addEventListener("click",()=>{ tradeModal.mode="dividend"; render(); setTimeout(()=>bindTradeModalEvents(),50); });
 
   // 티커 자동완성 (신규 매수)
   if (isNew) {
@@ -1171,11 +1256,29 @@ function bindTradeModalEvents() {
 
   // 확정 버튼
   $("tm-confirm")?.addEventListener("click", ()=>{
+    const isDiv = tradeModal.mode === "dividend";
     const qty   = parseFloat(qEl?.value) || 0;
     const price = parseFloat(pEl?.value) || 0;
+    const divAmount = parseFloat($("tm-dividend-amount")?.value) || 0;
     const date  = $("tm-date")?.value || new Date().toISOString().slice(0,10);
     const memo  = $("tm-memo")?.value || "";
     const isBuy = tradeModal.mode === "buy";
+
+    // 배당 처리 (신규 종목에서는 배당 불가)
+    if (isDiv) {
+      if (isNew) { alert("배당은 기존 종목에서만 입력할 수 있어요"); return; }
+      if (!divAmount || divAmount <= 0) { alert("배당금을 입력해주세요"); return; }
+      const item = acc.items.find(x=>x.id===itemId);
+      if (!item) return;
+      if (!item.trades) item.trades=[];
+      item.trades.push({id:"tr"+Date.now(), type:"dividend", date, amount:divAmount, memo});
+      // 예수금 증가
+      acc.cash = (acc.cash||0) + divAmount;
+      saveData();
+      tradeModal = null;
+      render();
+      return;
+    }
 
     if (!qty || qty <= 0) { alert("수량을 입력해주세요"); return; }
     if (!price || price <= 0) { alert("단가를 입력해주세요"); return; }
