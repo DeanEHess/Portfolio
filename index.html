@@ -837,61 +837,6 @@ function buildGoals(tot) {
 }
 
 // ─── 전체 현황 ───────────────────────────────────────────────
-// ─── 월별 자산 추이 (막대+꺾은선 SVG) ─────────────────────────
-function buildMonthlyTrendChart() {
-  const snapshots = ST.snapshots || [];
-  if (snapshots.length < 2) return "";
-
-  const W = 320, H = 160, padL = 8, padR = 8, padT = 16, padB = 24;
-  const chartW = W - padL - padR, chartH = H - padT - padB;
-  const maxVal = Math.max(...snapshots.map(s=>s.total));
-  const minVal = Math.min(0, Math.min(...snapshots.map(s=>s.total)));
-  const range = maxVal - minVal || 1;
-
-  const n = snapshots.length;
-  const stepX = chartW / Math.max(n-1, 1);
-  const barW = Math.min(20, chartW / n * 0.5);
-
-  const points = snapshots.map((s,i)=>{
-    const x = padL + i*stepX;
-    const y = padT + chartH - ((s.total-minVal)/range)*chartH;
-    return {x,y,s};
-  });
-
-  const bars = points.map((p,i)=>{
-    if (i===0) return "";
-    const prev = snapshots[i-1].total;
-    const diff = p.s.total - prev;
-    const barColor = diff >= 0 ? "#ef4444" : "#3b82f6";
-    const barH = Math.min(Math.abs(diff)/range*chartH, chartH);
-    return `<rect x="${p.x-barW/2}" y="${p.y}" width="${barW}" height="${Math.max(barH,2)}" fill="${barColor}" opacity="0.35" rx="2"/>`;
-  }).join("");
-
-  const linePath = points.map((p,i)=> (i===0?"M":"L")+p.x.toFixed(1)+","+p.y.toFixed(1)).join(" ");
-
-  const dots = points.map((p,i)=>{
-    const isFirstOrLast = i===0 || i===points.length-1;
-    return `<circle cx="${p.x}" cy="${p.y}" r="3" fill="#6366f1"/>`
-      + (isFirstOrLast ? `<text x="${p.x}" y="${p.y-8}" font-size="9" fill="#94a3b8" text-anchor="${i===0?'start':'end'}">${(p.s.total/1e8).toFixed(1)}억</text>` : "");
-  }).join("");
-
-  const monthLabels = points.filter((p,i)=> i===0 || i===points.length-1 || i===Math.floor(points.length/2))
-    .map(p=>`<text x="${p.x}" y="${H-6}" font-size="9" fill="#475569" text-anchor="middle">${p.s.month.slice(2)}</text>`).join("");
-
-  const latestDiff = snapshots.length>=2 ? snapshots[snapshots.length-1].total - snapshots[snapshots.length-2].total : 0;
-  const latestDiffPct = snapshots.length>=2 && snapshots[snapshots.length-2].total>0 ? (latestDiff/snapshots[snapshots.length-2].total)*100 : 0;
-
-  return '<div class="card" style="margin-bottom:12px">'
-    +'<div class="card-hdr" style="margin-bottom:8px"><span class="card-title">📈 월별 자산 추이</span>'
-    +'<span style="font-size:12px;font-weight:700;color:'+(latestDiff>=0?'#ef4444':'#3b82f6')+'">'+(latestDiff>=0?'+':'')+won(latestDiff)+' ('+fPct(latestDiffPct)+')</span></div>'
-    +'<svg width="100%" height="'+H+'" viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="xMidYMid meet">'
-    +bars
-    +'<path d="'+linePath+'" fill="none" stroke="#6366f1" stroke-width="2"/>'
-    +dots+monthLabels
-    +'</svg>'
-    +'</div>';
-}
-
 function buildOverview() {
   const tot=grandTotal(), profit=grandProfit(), gp=grandGp();
   const pp=v=>tot>0?(v/tot*100).toFixed(1):"0.0";
@@ -940,7 +885,6 @@ function buildOverview() {
     +'</div>'
     +(profit!=null?'<div style="font-size:13px;font-weight:600;color:'+(profit>=0?'#ef4444':'#3b82f6')+';margin-top:4px">'+fProfit(profit)+'</div>':"")
     +'<div style="margin-top:8px;display:flex;gap:14px;flex-wrap:wrap">'+segs.map(s=>'<span style="font-size:11px;color:#64748b">'+s.l+' <b style="color:#94a3b8">'+pp(s.v)+'%</b></span>').join("")+'</div></div>'
-    +buildMonthlyTrendChart()
     +buildOverviewDepositSection()
     +buildDonutCard(secItems,"섹터 비중")
     +'<div class="card"><div class="card-title" style="margin-bottom:12px">계좌별 비중</div>'
@@ -1707,4 +1651,13 @@ function bindEvents() {
   document.querySelectorAll(".inp[data-gid]").forEach(inp=>inp.addEventListener("input",e=>{const g=ST.goals.find(x=>x.id===inp.dataset.gid);if(g){g[inp.dataset.gf]=Number(e.target.value)||0;saveData();}}));
 
   // 도넛 클릭
-  document.querySelectorAll(".donut-seg").forEach(seg=>{ seg.addEventListener("click",()=>{ const svg=seg.closest("svg"), allSegs=svg?.querySelectorAll(".donut-seg")||[]; const isActive=seg.dataset.active==="1"; if(isActive){allSegs.forEach(s=>{s.style.opacity="1";delete s.dataset.active;});const ct=svg?.querySelector(".donut-ct");if(ct)ct.textContent="탭하여";const cb=svg?.querySelector(".donut-cb");if(cb)cb.textContent="확인";clearOverlayLine(svg);document.querySelectorAll(".legend-item").forEach(el=>el.style.opacity="1"
+  document.querySelectorAll(".donut-seg").forEach(seg=>{ seg.addEventListener("click",()=>{ const svg=seg.closest("svg"), allSegs=svg?.querySelectorAll(".donut-seg")||[]; const isActive=seg.dataset.active==="1"; if(isActive){allSegs.forEach(s=>{s.style.opacity="1";delete s.dataset.active;});const ct=svg?.querySelector(".donut-ct");if(ct)ct.textContent="탭하여";const cb=svg?.querySelector(".donut-cb");if(cb)cb.textContent="확인";clearOverlayLine(svg);document.querySelectorAll(".legend-item").forEach(el=>el.style.opacity="1");return;} allSegs.forEach(s=>{s.style.opacity="0.25";delete s.dataset.active;});seg.style.opacity="1";seg.dataset.active="1";const ct=svg?.querySelector(".donut-ct");if(ct)ct.textContent=seg.dataset.label;const cb=svg?.querySelector(".donut-cb");if(cb)cb.textContent=seg.dataset.pct+"%"; if(svg?.id==="overview-donut"){document.querySelectorAll(".legend-item").forEach(el=>{el.style.opacity=el.dataset.label===seg.dataset.label?"1":"0.2";});}else if(svg?.dataset.sectorDonut==="1"){showSectorPopup(seg,svg);}else{document.querySelectorAll(".legend-item").forEach(el=>el.style.opacity="1");showDonutPopup(seg,svg);} }); });
+}
+
+// ─── 시작 ────────────────────────────────────────────────────
+render();
+fetchAll();
+setInterval(fetchAll,60000);
+</script>
+</body>
+</html>
