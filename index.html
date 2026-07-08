@@ -113,6 +113,49 @@ const WORKER = "https://asset-proxy.omyakryl0541.workers.dev";
 const COLORS  = ["#6366f1","#f59e0b","#10b981","#3b82f6","#f43f5e","#a855f7","#06b6d4","#84cc16","#f97316","#ec4899"];
 const SK      = "asset_v7";
 
+// ─── 클라우드 UID ─────────────────────────────────────────────
+function getOrCreateUid() {
+  let uid = localStorage.getItem("asset_uid");
+  if (!uid) {
+    uid = "u_" + Date.now().toString(36) + Math.random().toString(36).slice(2,8);
+    localStorage.setItem("asset_uid", uid);
+  }
+  return uid;
+}
+const CLOUD_UID = getOrCreateUid();
+let cloudStatus = "";
+
+async function cloudSave() {
+  cloudStatus = "saving"; render();
+  try {
+    const r = await fetch(WORKER + "?type=kv-save&uid=" + CLOUD_UID, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(ST),
+    });
+    const d = await r.json();
+    cloudStatus = d.ok ? "saved" : "error";
+  } catch { cloudStatus = "error"; }
+  render();
+  setTimeout(() => { cloudStatus = ""; render(); }, 3000);
+}
+
+async function cloudLoad() {
+  const uid = prompt("복원할 백업 키를 입력하세요:\n(현재 내 키: " + CLOUD_UID + ")");
+  if (!uid) return;
+  cloudStatus = "loading"; render();
+  try {
+    const r = await fetch(WORKER + "?type=kv-load&uid=" + uid.trim());
+    if (r.status === 404) { alert("해당 키로 저장된 데이터가 없어요"); cloudStatus = ""; render(); return; }
+    const d = await r.json();
+    if (!d.accounts) throw new Error("잘못된 데이터");
+    Object.assign(ST, d);
+    localStorage.setItem("asset_uid", uid.trim());
+    saveData(); cloudStatus = ""; render(); fetchAll();
+    alert("✅ 복원 완료!");
+  } catch(e) { alert("❌ 복원 실패: " + e.message); cloudStatus = ""; render(); }
+}
+
 const ACCOUNT_TYPES = {
   us:   { label:"해외주식",     icon:"🌎", desc:"달러 평단 입력" },
   krx:  { label:"국내주식/ETF", icon:"🇰🇷", desc:"원화 평단 입력" },
@@ -767,7 +810,7 @@ function buildPage() {
     :'<div style="display:flex;gap:4px;margin-bottom:10px;overflow-x:auto;padding-bottom:2px">'+getProfiles().map(p=>'<button style="background:'+(curProfile===p?'#6366f1':'#0f172a')+';border:1px solid '+(curProfile===p?'#6366f1':'#334155')+';color:'+(curProfile===p?'#fff':'#94a3b8')+';padding:5px 12px;border-radius:20px;font-size:12px;font-weight:'+(curProfile===p?'700':'400')+';white-space:nowrap;cursor:pointer;flex-shrink:0" data-profile="'+p+'">👤 '+p+'</button>').join("")+'<button style="background:transparent;border:1px dashed #334155;color:#6366f1;padding:5px 10px;border-radius:20px;font-size:12px;cursor:pointer;flex-shrink:0" id="btn-add-profile">+</button></div>';
 
   return (loading?'<div class="loading-bar"><div class="loading-bar-inner"></div></div>':"")
-    +'<div class="hdr"><div><div class="hdr-title">📊 자산 대시보드</div><div class="hdr-sub">'+subStr+'</div><div class="hdr-rate">'+rateStr+'</div></div>'
+    +'<div class="hdr"><div><div class="hdr-title">📊 자산 대시보드</div><div class="hdr-sub">'+subStr+'</div><div class="hdr-rate">'+rateStr+'</div><div style="font-size:10px;color:#334155;margin-top:2px;user-select:all">🔑 '+CLOUD_UID+'</div></div>'
     +'<div class="hdr-btns"><button class="btn" id="btn-refresh">↻</button><button class="btn'+(editMode?" on":"")+'" id="btn-edit">'+(editMode?"✓":"✏")+'</button></div></div>'
     +profileUI
     +'<div class="btn-row"><button class="btn-sm" id="btn-backup">💾 백업</button><label class="btn-sm">📂 복원<input type="file" accept=".json" id="inp-restore" style="display:none"/></label>'+(editMode?'<button class="btn-sm" id="btn-add-acc" style="color:#6366f1;border-color:#6366f1">➕ 계좌 추가</button>':"")+'</div>'
@@ -986,6 +1029,8 @@ function render() {
 function bindEvents() {
   const $=id=>document.getElementById(id);
   $("btn-refresh")?.addEventListener("click",fetchAll);
+  $("btn-cloud-save")?.addEventListener("click", cloudSave);
+  $("btn-cloud-load")?.addEventListener("click", cloudLoad);
   $("btn-edit")?.addEventListener("click",()=>{editMode=!editMode;render();});
   $("btn-backup")?.addEventListener("click",backupData);
   $("inp-restore")?.addEventListener("change",e=>restoreData(e.target.files[0]));
