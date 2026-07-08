@@ -297,6 +297,18 @@ async function fetchAll() {
     coinTickers.forEach(t=>{ const id=GECKO_ID[t.toUpperCase()]; if(id&&d.coins?.[id]?.krw) px[t]=d.coins[id].krw; });
     for (const [sym,sec] of Object.entries(d.sectors||{})) sectorCache[sym]=SECTOR_EN[sec]||sec;
     localStorage.setItem("sector_cache",JSON.stringify(sectorCache));
+    // Worker에서 받은 종목명으로 자동 업데이트 (이름 없는 종목만)
+    for (const acc of ST.accounts) {
+      if (acc.type !== "us") continue;
+      for (const item of acc.items) {
+        if (!item.t) continue;
+        const fetchedName = d.names?.[item.t];
+        if (fetchedName && !item.n) {
+          item.n = fetchedName;
+        }
+      }
+    }
+    saveData();
   } catch {}
   loading=false; lastUp=new Date(); render();
   fetchMissingSectors();
