@@ -125,8 +125,8 @@ function getOrCreateUid() {
 const CLOUD_UID = getOrCreateUid();
 let cloudStatus = "";
 
-async function cloudSave() {
-  cloudStatus = "saving"; render();
+async function cloudSave(silent=false) {
+  if (!silent) { cloudStatus = "saving"; render(); }
   try {
     const r = await fetch(WORKER + "?type=kv-save&uid=" + CLOUD_UID, {
       method: "POST",
@@ -134,10 +134,14 @@ async function cloudSave() {
       body: JSON.stringify(ST),
     });
     const d = await r.json();
-    cloudStatus = d.ok ? "saved" : "error";
-  } catch { cloudStatus = "error"; }
-  render();
-  setTimeout(() => { cloudStatus = ""; render(); }, 3000);
+    if (!silent) {
+      cloudStatus = d.ok ? "saved" : "error";
+      render();
+      setTimeout(() => { cloudStatus = ""; render(); }, 3000);
+    }
+  } catch {
+    if (!silent) { cloudStatus = "error"; render(); setTimeout(()=>{ cloudStatus=""; render(); }, 3000); }
+  }
 }
 
 async function cloudLoad() {
@@ -230,7 +234,13 @@ function loadData() {
     return JSON.parse(JSON.stringify(DEFAULT_DATA));
   } catch { return JSON.parse(JSON.stringify(DEFAULT_DATA)); }
 }
-function saveData() { try { localStorage.setItem(SK,JSON.stringify(ST)); localStorage.setItem(profileKey(curProfile),JSON.stringify(ST)); } catch {} }
+let _autoSaveTimer = null;
+function saveData() {
+  try { localStorage.setItem(SK,JSON.stringify(ST)); localStorage.setItem(profileKey(curProfile),JSON.stringify(ST)); } catch {}
+  // 자동 클라우드 저장 (5초 디바운스)
+  clearTimeout(_autoSaveTimer);
+  _autoSaveTimer = setTimeout(()=>{ cloudSave(true); }, 5000);
+}
 
 // ─── 앱 상태 ─────────────────────────────────────────────────
 const ST       = loadData();
