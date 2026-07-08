@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -128,6 +129,7 @@ let cloudStatus = "";
 async function cloudSave(silent=false) {
   if (!silent) { cloudStatus = "saving"; render(); }
   try {
+    ST._savedAt = Date.now();
     const r = await fetch(WORKER + "?type=kv-save&uid=" + CLOUD_UID, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -153,6 +155,14 @@ async function cloudLoad() {
     if (r.status === 404) { alert("해당 키로 저장된 데이터가 없어요"); cloudStatus = ""; render(); return; }
     const d = await r.json();
     if (!d.accounts) throw new Error("잘못된 데이터");
+    // 로컬 데이터가 클라우드보다 최신이면 경고
+    if (ST._savedAt && d._savedAt && ST._savedAt > d._savedAt) {
+      const localTime = new Date(ST._savedAt).toLocaleString("ko-KR");
+      const cloudTime = new Date(d._savedAt).toLocaleString("ko-KR");
+      if (!confirm("⚠️ 현재 기기 데이터가 클라우드보다 최신이에요.\n\n기기: "+localTime+"\n클라우드: "+cloudTime+"\n\n클라우드 데이터로 덮어쓸까요?")) {
+        cloudStatus = ""; render(); return;
+      }
+    }
     Object.assign(ST, d);
     localStorage.setItem("asset_uid", uid.trim());
     saveData(); cloudStatus = ""; render(); fetchAll();
@@ -771,8 +781,9 @@ function buildAccountSection(acc) {
         +'<td class="r '+gCls(profit)+'" data-calc="profit">'+(isUS?(profit&&usdKrw?((profit>=0?"+":"")+"$"+Math.abs(profit/usdKrw).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})):"—"):fProfit(profit))+'</td>'
         +'<td class="r '+gCls(gp)+'" data-calc="gp">'+fPct(gp)+'</td>'
         +'<td><button class="del-btn" data-del="'+item.id+'" data-acc="'+acc.id+'">✕</button></td></tr>';
-      return '<tr class="ticker-row" data-trade-item="'+item.id+'" data-trade-acc="'+acc.id+'">'
-        +'<td style="min-width:110px"><div class="ticker">'+item.t+'</div><div class="subname">'+(item.n||"")+'</div></td>'
+      const isGhost = (!item.q || item.q === 0);
+      return '<tr class="ticker-row" data-trade-item="'+item.id+'" data-trade-acc="'+acc.id+'"'+(isGhost?' style="opacity:0.4"':'')+'>'
+        +'<td style="min-width:110px"><div class="ticker">'+item.t+(isGhost?' <span style="font-size:9px;color:#64748b">(보유 0)</span>':'')+'</div><div class="subname">'+(item.n||"")+'</div></td>'
         +'<td class="r">'+item.q+'</td>'
         +'<td class="r" style="color:#94a3b8">'+(isUS?usd(item.a):won(item.a))+'</td>'
         +'<td class="r">'+priceStr+'</td>'
@@ -933,9 +944,12 @@ function buildDepositModal() {
         <button id="dm-close" style="background:transparent;border:none;color:#64748b;font-size:20px;cursor:pointer">✕</button>
       </div>
       ${!isCashAcc ? `
-      <div style="background:#0f172a;border-radius:10px;padding:10px 12px;margin-bottom:14px;display:flex;justify-content:space-between">
+      <div style="background:#0f172a;border-radius:10px;padding:10px 12px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center">
         <span style="font-size:12px;color:#64748b">현재 예수금</span>
-        <span style="font-size:14px;font-weight:800">${isUS?usd(curCash):won(curCash)}</span>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:14px;font-weight:800">${isUS?usd(curCash):won(curCash)}</span>
+          <button id="dm-recalc" style="background:transparent;border:1px solid #334155;color:#64748b;border-radius:6px;padding:3px 8px;font-size:10px;cursor:pointer">⟳ 재계산</button>
+        </div>
       </div>` : ""}
       <div class="trade-tabs">
         <button class="trade-tab buy${isIn?" on":""}" id="dm-in-tab">💰 입금${isUS&&!isCashAcc?" (환전)":""}</button>
@@ -1182,12 +1196,53 @@ function recalcItemFromTrades(acc, item) {
   item.a = totalBuyQty > 0 ? totalCost / totalBuyQty : 0;
 }
 
+// 예수금 전체 재계산: 입출금 + 모든 거래를 처음부터 다시 합산
+function recalcAccountCash(accId) {
+  const acc = ST.accounts.find(a=>a.id===accId);
+  if (!acc || acc.type === "cash") return;
+  const isUS = acc.type === "us";
+
+  let cash = 0;
+  // 1) 입출금 내역 합산 (us는 저장된 KRW를 당시 환율 몰라서 amount/rate 저장 안했으므로 USD 환산분을 별도 추적 필요)
+  //    cash-in/out의 amount는 KRW 기준으로 저장되어 있으므로, USD 계좌는 usdAmount 필드가 있으면 그걸 쓰고 없으면 현재환율로 근사
+  for (const d of (acc.deposits||[])) {
+    if (d.type === "cash-in") {
+      cash += (d.usdAmount != null) ? d.usdAmount : (isUS ? (d.amount/(usdKrw||1350)) : d.amount);
+    } else if (d.type === "cash-out") {
+      cash -= (d.usdAmount != null) ? d.usdAmount : (isUS ? (Math.abs(d.amount)/(usdKrw||1350)) : Math.abs(d.amount));
+    }
+  }
+  // 2) 모든 거래 반영
+  for (const item of acc.items) {
+    for (const tr of (item.trades||[])) {
+      if (tr.type === "buy")       cash -= tr.qty * tr.price;
+      else if (tr.type === "sell") cash += tr.qty * tr.price;
+      else if (tr.type === "dividend") cash += tr.amount;
+    }
+  }
+  acc.cash = cash;
+  saveData();
+  render();
+  alert("예수금을 재계산했어요.\n" + acc.name + ": " + (isUS ? usd(cash) : won(cash))
+    + (isUS ? "\n\n※ 과거 환전 시 환율 정보가 없는 입출금은 현재 환율로 근사 계산됐어요. 값이 다르면 입출금으로 보정해주세요." : ""));
+}
+
 function deleteTrade(accId, itemId, tradeId) {
   const acc  = ST.accounts.find(a=>a.id===accId);
   const item = acc?.items.find(x=>x.id===itemId);
   if (!acc || !item || !item.trades) return;
   const tr = item.trades.find(t=>t.id===tradeId);
   if (!tr) return;
+
+  // 매수 삭제 검증: 삭제 후 총매수량 < 총매도량이 되면 차단
+  if (tr.type === "buy") {
+    const totalBuyAfter = item.trades.filter(t=>t.type==="buy" && t.id!==tradeId).reduce((s,t)=>s+t.qty,0);
+    const totalSold     = item.trades.filter(t=>t.type==="sell").reduce((s,t)=>s+t.qty,0);
+    if (totalBuyAfter < totalSold) {
+      alert("이 매수를 삭제하면 매도 수량이 매수 수량보다 많아져요.\n연결된 매도 기록을 먼저 삭제해주세요.");
+      return;
+    }
+  }
 
   // 예수금 역산: 매수 삭제 → 예수금 복구(+), 매도 삭제 → 예수금 차감(-), 배당 삭제 → 예수금 차감(-)
   if (tr.type === "buy") {
@@ -1230,6 +1285,13 @@ function bindDepositModalEvents() {
   // 닫기
   $("dm-close")?.addEventListener("click",()=>{ depositModal=null; render(); });
   $("deposit-modal-bg")?.addEventListener("click",e=>{ if(e.target.id==="deposit-modal-bg"){depositModal=null;render();} });
+
+  // 예수금 재계산
+  $("dm-recalc")?.addEventListener("click",()=>{
+    if(!confirm("모든 입출금·거래 내역을 기반으로 예수금을 처음부터 다시 계산할까요?\n(수동 보정한 값이 있다면 덮어써져요)")) return;
+    depositModal = null;
+    recalcAccountCash(accId);
+  });
 
   // 탭 전환
   $("dm-in-tab")?.addEventListener("click",()=>{ depositModal.mode="in"; render(); setTimeout(()=>bindDepositModalEvents(),50); });
@@ -1304,11 +1366,11 @@ function bindDepositModalEvents() {
 
     if (isIn) {
       acc.cash = (acc.cash || 0) + amount;
-      acc.deposits.push({ id:"d"+Date.now(), year:new Date(date).getFullYear(), amount: krw, memo, type:"cash-in", date });
+      acc.deposits.push({ id:"d"+Date.now(), year:new Date(date).getFullYear(), amount: krw, usdAmount: isUS ? amount : undefined, memo, type:"cash-in", date });
     } else {
       if (amount > (acc.cash||0)) { alert("예수금보다 많이 출금할 수 없어요"); return; }
       acc.cash = (acc.cash || 0) - amount;
-      acc.deposits.push({ id:"d"+Date.now(), year:new Date(date).getFullYear(), amount: -krw, memo, type:"cash-out", date });
+      acc.deposits.push({ id:"d"+Date.now(), year:new Date(date).getFullYear(), amount: -krw, usdAmount: isUS ? amount : undefined, memo, type:"cash-out", date });
     }
 
     saveData();
@@ -1507,12 +1569,19 @@ function bindTradeModalEvents() {
         // 예수금 차감
         acc.cash = (acc.cash||0) - cost;
       } else {
-        if (qty > item.q) { alert("보유 수량보다 많이 매도할 수 없어요"); return; }
-        const pnl = (price - item.a) * qty;
-        item.trades.push({id:"tr"+Date.now(), type:"sell", date, qty, price, memo, pnl, thesis});
-        item.q -= qty;
+        // 부동소수점 허용 오차: 잔량의 99.999% 이상이면 전량 매도로 처리
+        let sellQty = qty;
+        if (qty > item.q) {
+          if (qty <= item.q * 1.00001 + 0.00001) { sellQty = item.q; }
+          else { alert("보유 수량보다 많이 매도할 수 없어요"); return; }
+        } else if (qty >= item.q * 0.99999) {
+          sellQty = item.q; // 사실상 전량 매도
+        }
+        const pnl = (price - item.a) * sellQty;
+        item.trades.push({id:"tr"+Date.now(), type:"sell", date, qty: sellQty, price, memo, pnl, thesis});
+        item.q -= sellQty;
         // 예수금 증가
-        acc.cash = (acc.cash||0) + qty*price;
+        acc.cash = (acc.cash||0) + sellQty*price;
         if (item.q <= 0.00001) {
           if (confirm("보유 수량이 0이 됐어요. 종목을 삭제할까요?")) {
             const idx = acc.items.findIndex(x=>x.id===itemId);
