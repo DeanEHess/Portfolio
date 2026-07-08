@@ -1376,10 +1376,9 @@ function bindTradeModalEvents() {
   if (isNew) {
     let nameTimer;
     $("tm-ticker")?.addEventListener("input", e=>{
-      const t = e.target.value.toUpperCase();
-      e.target.value = t;
+      const t = e.target.value.toUpperCase().trim();
       clearTimeout(nameTimer);
-      if (!t) return;
+      if (!t) { const el=$("tm-name-preview"); if(el) el.textContent=""; return; }
       // KRX DB 먼저
       const krxName = KRX_DB[t];
       if (krxName) { const el=$("tm-name-preview"); if(el) el.textContent="✓ "+krxName; return; }
@@ -1390,7 +1389,6 @@ function bindTradeModalEvents() {
         try {
           const r = await fetch(WORKER+"?type=us&symbols="+t);
           const d = await r.json();
-          // names는 별도 요청 필요 — 가격만 확인해서 존재 여부 파악
           const el=$("tm-name-preview");
           if(el) el.textContent = d.prices?.[t] ? "✓ 종목 확인됨" : "⚠ 종목을 찾을 수 없어요";
         } catch {}
