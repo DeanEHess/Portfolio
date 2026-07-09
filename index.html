@@ -105,7 +105,7 @@
   </style>
 </head>
 <body>
-<div id="app"></div>
+<div id="app">⏳ 로딩 중... (이 글자가 계속 보이면 JavaScript가 차단된 거예요)</div>
 <div id="tip"></div>
 <script>
 // ─── 전역 에러 핸들러 (콘솔 없이도 화면에 에러 표시) ──────────
@@ -1748,5 +1748,4 @@ function bindEvents() {
     saveData(); render();
   }));
   document.querySelectorAll("[data-ddel]").forEach(b=>b.addEventListener("click",()=>{
-    const accId=b.dataset.dscope, did=b.dataset.ddel;
-    const acc=S
+    const accId=b.dataset
