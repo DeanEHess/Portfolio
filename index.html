@@ -648,6 +648,34 @@ function buildAccountHistorySection(acc) {
     return '<button class="btn-sm" data-history-year="'+acc.id+'" data-filter-year="'+y+'" style="padding:4px 10px;font-size:11px;'+(isOn?'background:#334155;color:#fff;border-color:#64748b':'')+'">'+label+'</button>';
   }).join("") : "";
 
+  // 필터링된 결과 합계 (배당/매도손익/입출금 등)
+  let summaryHtml = "";
+  const fmtMoney = n => isUS ? usd(n) : won(n);
+  if (filter.kind === "dividend" && filteredEvents.length) {
+    const totalDiv = filteredEvents.reduce((s,e)=>s+(e.amount||0),0);
+    summaryHtml = '<div style="display:flex;justify-content:space-between;align-items:center;background:#0f172a;border-radius:8px;padding:8px 12px;margin-bottom:10px">'
+      +'<span style="font-size:12px;color:#64748b">배당 합계 ('+filteredEvents.length+'건)</span>'
+      +'<span style="font-size:13px;font-weight:700;color:#f59e0b">+'+fmtMoney(totalDiv)+'</span></div>';
+  } else if (filter.kind === "sell" && filteredEvents.length) {
+    const totalSell = filteredEvents.reduce((s,e)=>s+(e.qty*e.price||0),0);
+    const totalPnl  = filteredEvents.reduce((s,e)=>s+(e.pnl||0),0);
+    summaryHtml = '<div style="display:flex;justify-content:space-between;align-items:center;background:#0f172a;border-radius:8px;padding:8px 12px;margin-bottom:10px">'
+      +'<span style="font-size:12px;color:#64748b">매도 합계 ('+filteredEvents.length+'건)</span>'
+      +'<div style="text-align:right"><span style="font-size:13px;font-weight:700">'+fmtMoney(totalSell)+'</span>'
+      +'<span style="font-size:12px;font-weight:700;color:'+(totalPnl>=0?'#ef4444':'#3b82f6')+';margin-left:6px">'+(totalPnl>=0?'+':'')+fmtMoney(totalPnl)+' 손익</span></div></div>';
+  } else if (filter.kind === "buy" && filteredEvents.length) {
+    const totalBuy = filteredEvents.reduce((s,e)=>s+(e.qty*e.price||0),0);
+    summaryHtml = '<div style="display:flex;justify-content:space-between;align-items:center;background:#0f172a;border-radius:8px;padding:8px 12px;margin-bottom:10px">'
+      +'<span style="font-size:12px;color:#64748b">매수 합계 ('+filteredEvents.length+'건)</span>'
+      +'<span style="font-size:13px;font-weight:700">'+fmtMoney(totalBuy)+'</span></div>';
+  } else if (filter.kind === "cash" && filteredEvents.length) {
+    const totalIn  = filteredEvents.filter(e=>e.kind==="cash-in").reduce((s,e)=>s+Math.abs(e.amount||0),0);
+    const totalOut = filteredEvents.filter(e=>e.kind==="cash-out").reduce((s,e)=>s+Math.abs(e.amount||0),0);
+    summaryHtml = '<div style="display:flex;justify-content:space-between;align-items:center;background:#0f172a;border-radius:8px;padding:8px 12px;margin-bottom:10px">'
+      +'<span style="font-size:12px;color:#64748b">입금 '+won(totalIn)+' · 출금 '+won(totalOut)+'</span>'
+      +'<span style="font-size:13px;font-weight:700">순 '+won(totalIn-totalOut)+'</span></div>';
+  }
+
   const hasTickerSearch = acc.type !== "cash";
 
   return '<div class="card" style="margin-bottom:12px">'
@@ -655,6 +683,7 @@ function buildAccountHistorySection(acc) {
     +'<div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:10px">'+filterTabs+'</div>'
     +(yearTabs ? '<div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:10px">'+yearTabs+'</div>' : "")
     +(hasTickerSearch ? '<input class="inp inp-l" data-history-search="'+acc.id+'" placeholder="🔍 종목 검색 (예: NVO)" value="'+(filter.search||"")+'" style="margin-bottom:10px"/>' : "")
+    +summaryHtml
     +'<div>'+(filteredEvents.length ? eventsToHtml(visibleEvents, isUS, isCoin) : '<div style="font-size:12px;color:#475569;text-align:center;padding:12px 0">해당하는 내역이 없어요</div>')+'</div>'
     +(filteredEvents.length > 5
       ? '<button class="add-btn" data-history-toggle="'+acc.id+'" style="margin-top:8px">'+(showAll?"접기 ▲":"전체 "+filteredEvents.length+"건 보기 ▼")+'</button>'
