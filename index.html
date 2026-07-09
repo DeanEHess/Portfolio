@@ -108,6 +108,26 @@
 <div id="app"></div>
 <div id="tip"></div>
 <script>
+// ─── 전역 에러 핸들러 (콘솔 없이도 화면에 에러 표시) ──────────
+window.addEventListener('error', function(e) {
+  const app = document.getElementById('app');
+  if (app) {
+    app.innerHTML = '<div style="padding:20px;color:#ef4444;font-size:13px;white-space:pre-wrap">'
+      + '⚠️ 스크립트 오류\n\n' + (e.message||'') + '\n\n파일: ' + (e.filename||'') + '\n줄: ' + (e.lineno||'') + ':' + (e.colno||'')
+      + (e.error && e.error.stack ? '\n\n' + e.error.stack : '')
+      + '</div>';
+  }
+});
+window.addEventListener('unhandledrejection', function(e) {
+  const app = document.getElementById('app');
+  if (app) {
+    app.innerHTML = '<div style="padding:20px;color:#ef4444;font-size:13px;white-space:pre-wrap">'
+      + '⚠️ 비동기 오류\n\n' + (e.reason && e.reason.message ? e.reason.message : String(e.reason))
+      + (e.reason && e.reason.stack ? '\n\n' + e.reason.stack : '')
+      + '</div>';
+  }
+});
+
 // ─── 상수 ────────────────────────────────────────────────────
 const WORKER = "https://asset-proxy.omyakryl0541.workers.dev";
 const COLORS  = ["#6366f1","#f59e0b","#10b981","#3b82f6","#f43f5e","#a855f7","#06b6d4","#84cc16","#f97316","#ec4899"];
@@ -190,7 +210,9 @@ const PROFILE_CUR_KEY  = "asset_cur_profile";
 function profileKey(name) { return "asset_v7_" + name; }
 function getProfiles() { try { return JSON.parse(localStorage.getItem(PROFILE_LIST_KEY)) || ["기본"]; } catch { return ["기본"]; } }
 function saveProfiles(list) { localStorage.setItem(PROFILE_LIST_KEY, JSON.stringify(list)); }
-let curProfile = localStorage.getItem(PROFILE_CUR_KEY) || getProfiles()[0];
+let curProfile;
+try { curProfile = localStorage.getItem(PROFILE_CUR_KEY) || getProfiles()[0]; }
+catch(e) { curProfile = "기본"; }
 function switchProfile(name) {
   curProfile = name;
   localStorage.setItem(PROFILE_CUR_KEY, name);
@@ -1727,24 +1749,4 @@ function bindEvents() {
   }));
   document.querySelectorAll("[data-ddel]").forEach(b=>b.addEventListener("click",()=>{
     const accId=b.dataset.dscope, did=b.dataset.ddel;
-    const acc=ST.accounts.find(a=>a.id===accId); if(!acc) return;
-    acc.deposits=(acc.deposits||[]).filter(d=>d.id!==did);
-    saveData(); render();
-  }));
-  document.querySelectorAll(".inp[data-did][data-dscope]").forEach(inp=>inp.addEventListener("input",e=>{
-    const accId=inp.dataset.dscope, did=inp.dataset.did, field=inp.dataset.df;
-    const acc=ST.accounts.find(a=>a.id===accId); if(!acc) return;
-    const dep=(acc.deposits||[]).find(d=>d.id===did); if(!dep) return;
-    dep[field]=field==="year"?parseInt(e.target.value)||new Date().getFullYear():Number(e.target.value)||0;
-    saveData();
-  }));
-
-  // 히스토리 접기/펼치기
-  document.querySelectorAll("[data-history-toggle]").forEach(b=>b.addEventListener("click",()=>{
-    const accId = b.dataset.historyToggle;
-    accHistoryExpanded[accId] = !accHistoryExpanded[accId];
-    render();
-  }));
-
-  // 히스토리 필터 탭
-  document.querySelectorAll("[data-history-filter]").forEach(b=>b.addEventLi
+    const acc=S
