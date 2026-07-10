@@ -1026,11 +1026,17 @@ function buildDepositModal() {
         <button id="dm-close" style="background:transparent;border:none;color:#64748b;font-size:20px;cursor:pointer">✕</button>
       </div>
       ${!isCashAcc ? `
-      <div style="background:#0f172a;border-radius:10px;padding:10px 12px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center">
-        <span style="font-size:12px;color:#64748b">현재 예수금</span>
-        <div style="display:flex;align-items:center;gap:8px">
-          <span style="font-size:14px;font-weight:800">${isUS?usd(curCash):won(curCash)}</span>
-          <button id="dm-recalc" style="background:transparent;border:1px solid #334155;color:#64748b;border-radius:6px;padding:3px 8px;font-size:10px;cursor:pointer">⟳ 재계산</button>
+      <div style="background:#0f172a;border-radius:10px;padding:10px 12px;margin-bottom:14px">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span style="font-size:12px;color:#64748b">현재 예수금</span>
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="font-size:14px;font-weight:800">${isUS?usd(curCash):won(curCash)}</span>
+            <button id="dm-recalc" style="background:transparent;border:1px solid #334155;color:#64748b;border-radius:6px;padding:3px 8px;font-size:10px;cursor:pointer">⟳ 재계산</button>
+          </div>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;padding-top:6px;border-top:1px dashed #1e293b">
+          <span style="font-size:10px;color:#475569">기초 예수금${acc.openingCash?" ("+(isUS?usd(acc.openingCash):won(acc.openingCash))+")":""}<br/><span style="color:#334155">거래내역서 없는 IRP/연금저축용 · 순입금엔 안 잡혀요</span></span>
+          <button id="dm-set-opening" style="background:transparent;border:1px solid #334155;color:#64748b;border-radius:6px;padding:3px 8px;font-size:10px;cursor:pointer;white-space:nowrap">설정</button>
         </div>
       </div>` : ""}
       <div class="trade-tabs">
@@ -1312,7 +1318,7 @@ function recalcAccountCash(accId) {
   if (!acc || acc.type === "cash") return;
   const isUS = acc.type === "us";
 
-  let cash = 0;
+  let cash = acc.openingCash || 0; // IRP/연금저축처럼 거래내역서 없는 계좌는 기초 예수금부터 시작
   // 1) 입출금 내역 합산 (us는 저장된 KRW를 당시 환율 몰라서 amount/rate 저장 안했으므로 USD 환산분을 별도 추적 필요)
   //    cash-in/out의 amount는 KRW 기준으로 저장되어 있으므로, USD 계좌는 usdAmount 필드가 있으면 그걸 쓰고 없으면 현재환율로 근사
   for (const d of (acc.deposits||[])) {
@@ -1427,9 +1433,22 @@ function bindDepositModalEvents() {
 
   // 예수금 재계산
   $("dm-recalc")?.addEventListener("click",()=>{
-    if(!confirm("모든 입출금·거래 내역을 기반으로 예수금을 처음부터 다시 계산할까요?\n(수동 보정한 값이 있다면 덮어써져요)")) return;
+    if(!confirm("모든 입출금·거래 내역을 기반으로 예수금을 처음부터 다시 계산할까요?\n(기초 예수금이 설정돼있으면 그 값부터 시작해서 계산해요)")) return;
     depositModal = null;
     recalcAccountCash(accId);
+  });
+
+  // 기초 예수금 설정 (IRP/연금저축 등 거래내역서 없는 계좌용 - 순입금엔 반영 안 됨)
+  $("dm-set-opening")?.addEventListener("click",()=>{
+    const cur = acc.openingCash || 0;
+    const input = prompt("기초 예수금을 입력하세요 (연도별 순입금엔 안 잡혀요, 재계산 시 이 값부터 시작해요):", cur);
+    if (input === null) return;
+    const v = parseFloat(input.replace(/,/g,""));
+    if (isNaN(v) || v < 0) { alert("올바른 숫자를 입력해주세요"); return; }
+    acc.openingCash = v;
+    saveData();
+    render();
+    setTimeout(()=>bindDepositModalEvents(),50);
   });
 
   // 탭 전환
