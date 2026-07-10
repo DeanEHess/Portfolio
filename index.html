@@ -556,9 +556,12 @@ function eventsToHtml(events, isUS, isCoin) {
           <span style="color:#64748b">${ev.date}</span>
           ${ev.memo?`<span style="color:#475569;font-size:10px">${ev.memo}</span>`:""}
         </div>
-        <div style="text-align:right">
-          <div>${ev.qty}${isCoin?"":"주"} · ${isUS?usd(ev.price):won(ev.price)}</div>
-          ${!isBuy&&ev.pnl!=null?`<div style="font-size:10px;color:${ev.pnl>=0?"#ef4444":"#3b82f6"}">${ev.pnl>=0?"+":""}${isUS?usd(ev.pnl):won(ev.pnl)}</div>`:""}
+        <div style="display:flex;align-items:center;gap:8px">
+          <div style="text-align:right">
+            <div>${ev.qty}${isCoin?"":"주"} · ${isUS?usd(ev.price):won(ev.price)}</div>
+            ${!isBuy&&ev.pnl!=null?`<div style="font-size:10px;color:${ev.pnl>=0?"#ef4444":"#3b82f6"}">${ev.pnl>=0?"+":""}${isUS?usd(ev.pnl):won(ev.pnl)}</div>`:""}
+          </div>
+          <button class="del-btn" data-hist-trade-del="${ev.trId}" data-hist-trade-acc="${ev.accId}" data-hist-trade-item="${ev.itemId}" style="padding:3px 7px;font-size:10px">✕</button>
         </div>
       </div>`;
     } else if (ev.kind === "dividend") {
@@ -569,7 +572,10 @@ function eventsToHtml(events, isUS, isCoin) {
           <span style="color:#64748b">${ev.date}</span>
           ${ev.memo?`<span style="color:#475569;font-size:10px">${ev.memo}</span>`:""}
         </div>
-        <div style="font-weight:600;color:#f59e0b">+${isUS?usd(ev.amount):won(ev.amount)}</div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <div style="font-weight:600;color:#f59e0b">+${isUS?usd(ev.amount):won(ev.amount)}</div>
+          <button class="del-btn" data-hist-trade-del="${ev.trId}" data-hist-trade-acc="${ev.accId}" data-hist-trade-item="${ev.itemId}" style="padding:3px 7px;font-size:10px">✕</button>
+        </div>
       </div>`;
     } else {
       const isIn = ev.kind === "cash-in";
@@ -603,7 +609,8 @@ function buildAccountHistorySection(acc) {
     for (const tr of (item.trades||[])) {
       events.push({
         date: tr.date, kind: tr.type, ticker: item.t, qty: tr.qty, price: tr.price,
-        pnl: tr.pnl, amount: tr.amount, memo: tr.memo, sortKey: tr.date + "_" + (tr.id||"")
+        pnl: tr.pnl, amount: tr.amount, memo: tr.memo, sortKey: tr.date + "_" + (tr.id||""),
+        accId: acc.id, itemId: item.id, trId: tr.id
       });
     }
   }
@@ -1516,6 +1523,14 @@ function bindTradeModalEvents() {
   $("tm-close")?.addEventListener("click",()=>{ tradeModal=null; render(); });
 
   // 거래 삭제
+  // 전체 히스토리 탭에서 매수/매도/배당 삭제
+  document.querySelectorAll("[data-hist-trade-del]").forEach(b=>b.addEventListener("click",e=>{
+    e.stopPropagation();
+    if(!confirm("이 거래 기록을 삭제할까요?\n예수금/수량이 자동으로 되돌려져요.")) return;
+    deleteTrade(b.dataset.histTradeAcc, b.dataset.histTradeItem, b.dataset.histTradeDel);
+    render();
+  }));
+
   document.querySelectorAll("[data-trade-del]").forEach(b=>b.addEventListener("click",e=>{
     e.stopPropagation();
     if(!confirm("이 거래를 삭제할까요?\n평단·수량·예수금이 자동으로 되돌려져요.")) return;
