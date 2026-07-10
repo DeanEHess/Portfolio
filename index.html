@@ -283,20 +283,6 @@ let loading    = false;
 let lastUp     = null;
 let editMode   = false;
 let previewNameCache = {}; // {ticker: name} - 신규매수 미리보기에서 조회된 이름 캐시 (세션 내 재사용)
-
-// ─ 매매 수수료율 (기기에 저장, 한 번 넣으면 계속 재사용) ─
-function getFeeRatePct() {
-  const v = localStorage.getItem("trade_fee_rate_pct");
-  return v !== null ? v : "0.1";
-}
-function saveFeeRatePct(v) {
-  localStorage.setItem("trade_fee_rate_pct", v);
-}
-// 수수료 반영한 실효 단가 계산: 매수는 수수료만큼 비싸게, 매도는 수수료만큼 적게 받는 것으로 처리
-function applyFee(price, feeRatePct, isBuy) {
-  const rate = (Number(feeRatePct) || 0) / 100;
-  return isBuy ? price * (1 + rate) : price * (1 - rate);
-}
 let tab        = "overview";
 let showModal  = false;
 let modalType  = "us";
@@ -1153,8 +1139,8 @@ function buildTradeModal() {
         <input class="trade-inp" id="tm-price" type="number" step="0.01" placeholder="${curPrice?(isUS?curPrice.toFixed(2):Math.round(curPriceKrw)):"0"}"/>
       </div>
       <div class="trade-inp-group">
-        <div class="trade-inp-label">수수료율 (%, 매매금액 기준)</div>
-        <input class="trade-inp" id="tm-fee-rate" type="number" step="0.0001" value="${getFeeRatePct()}" placeholder="0"/>
+        <div class="trade-inp-label">실제 체결 총액 (선택, 앱에 찍힌 총액 그대로)</div>
+        <input class="trade-inp" id="tm-total-amount" type="number" step="0.01" placeholder="비워두면 단가×수량으로 계산"/>
       </div>`}
       <div class="trade-inp-group">
         <div class="trade-inp-label">날짜</div>
@@ -1542,8 +1528,8 @@ function bindTradeModalEvents() {
   const isCoin= acc?.type === "coin";
 
   const $  = id => document.getElementById(id);
-  const qEl = $("tm-qty"), pEl = $("tm-price"), feEl = $("tm-fee-rate"), resEl = $("tm-result");
-  feEl?.addEventListener("input", ()=>{ saveFeeRatePct(feEl.value); updateResult(); });
+  const qEl = $("tm-qty"), pEl = $("tm-price"), totEl = $("tm-total-amount"), resEl = $("tm-result");
+  totEl?.addEventListener("input", updateResult);
 
   // 닫기
   $("tm-close")?.addEventListener("click",()=>{ tradeModal=null; render(); });
@@ -1647,12 +1633,12 @@ function bindTradeModalEvents() {
   function updateResult() {
     const qty   = parseFloat(qEl?.value) || 0;
     const rawPrice = parseFloat(pEl?.value) || 0;
-    if (!qty || !rawPrice || !resEl) { resEl.style.display="none"; return; }
+    const totalInput = parseFloat(totEl?.value) || 0;
+    if (!qty || (!rawPrice && !totalInput) || !resEl) { resEl.style.display="none"; return; }
 
     const item  = isNew ? null : acc?.items.find(x=>x.id===itemId);
     const isBuy = tradeModal.mode === "buy";
-    const feeRatePct = feEl?.value || 0;
-    const price = applyFee(rawPrice, feeRatePct, isBuy); // 수수료 반영 실효단가
+    const price = totalInput > 0 ? totalInput / qty : rawPrice; // 체결총액 있으면 역산, 없으면 단가 그대로
 
     resEl.style.display = "block";
 
@@ -1685,13 +1671,13 @@ function bindTradeModalEvents() {
     const isDiv = tradeModal.mode === "dividend";
     const qty   = parseFloat(qEl?.value) || 0;
     const rawPrice = parseFloat(pEl?.value) || 0;
-    const feeRatePct = feEl?.value || 0;
+    const totalInput = parseFloat(totEl?.value) || 0;
     const isBuy = tradeModal.mode === "buy";
-    const price = isDiv ? rawPrice : applyFee(rawPrice, feeRatePct, isBuy); // 수수료 반영 실효단가
+    const price = isDiv ? rawPrice : (totalInput > 0 && qty > 0 ? totalInput / qty : rawPrice);
     const divAmount = parseFloat($("tm-dividend-amount")?.value) || 0;
     const date  = $("tm-date")?.value || new Date().toISOString().slice(0,10);
     const memoBase  = $("tm-memo")?.value || "";
-    const memo = (!isDiv && feeRatePct && Number(feeRatePct)>0) ? (memoBase ? memoBase+" · " : "")+"수수료 "+feeRatePct+"% 반영(원단가 "+rawPrice+")" : memoBase;
+    const memo = (!isDiv && totalInput > 0) ? (memoBase ? memoBase+" · " : "")+"체결총액 "+totalInput+" 기준(단가 입력값 "+rawPrice+")" : memoBase;
     const thesis = $("tm-thesis")?.value.trim() || "";
 
     // 배당 처리 (신규 종목에서는 배당 불가)
