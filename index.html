@@ -578,6 +578,7 @@ function eventsToHtml(events, isUS, isCoin) {
           <span class="history-badge" style="background:${isIn?"#10b98120":"#f59e0b20"};color:${isIn?"#10b981":"#f59e0b"}">${isIn?"입금":"출금"}</span>
           <span style="color:#64748b">${ev.date}</span>
           ${ev.memo?`<span style="color:#475569;font-size:10px">${ev.memo}</span>`:""}
+          <button data-deposit-edit-memo="${ev.id}" data-deposit-acc="${ev.accId}" style="background:transparent;border:none;color:#475569;font-size:11px;cursor:pointer;padding:0">✏️</button>
         </div>
         <div style="display:flex;align-items:center;gap:8px">
           <span style="font-weight:600">${won(Math.abs(ev.amount))}</span>
@@ -1859,6 +1860,20 @@ function bindEvents() {
     e.stopPropagation();
     if(!confirm("이 입출금 기록을 삭제할까요?\n예수금이 자동으로 되돌려져요.")) return;
     deleteDeposit(b.dataset.depositAcc, b.dataset.depositDel);
+  }));
+
+  // 입출금 메모 수정
+  document.querySelectorAll("[data-deposit-edit-memo]").forEach(b=>b.addEventListener("click",e=>{
+    e.stopPropagation();
+    const accId = b.dataset.depositAcc, depId = b.dataset.depositEditMemo;
+    const acc = ST.accounts.find(a=>a.id===accId);
+    const dep = acc?.deposits?.find(d=>d.id===depId);
+    if (!dep) return;
+    const newMemo = prompt("메모를 입력해주세요:", dep.memo || "");
+    if (newMemo === null) return; // 취소
+    dep.memo = newMemo.trim();
+    saveData();
+    render();
   }));
 
   // 히스토리 종목 검색
