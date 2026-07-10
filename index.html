@@ -579,7 +579,10 @@ function eventsToHtml(events, isUS, isCoin) {
           <span style="color:#64748b">${ev.date}</span>
           ${ev.memo?`<span style="color:#475569;font-size:10px">${ev.memo}</span>`:""}
         </div>
-        <div style="font-weight:600">${won(Math.abs(ev.amount))}</div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-weight:600">${won(Math.abs(ev.amount))}</span>
+          <button class="del-btn" data-deposit-del="${ev.id}" data-deposit-acc="${ev.accId}" style="padding:3px 7px;font-size:10px">✕</button>
+        </div>
       </div>`;
     }
   }).join("");
@@ -607,6 +610,7 @@ function buildAccountHistorySection(acc) {
     if (d.type === "cash-in" || d.type === "cash-out") {
       events.push({
         date: d.date||("연도:"+d.year), kind: d.type, amount: d.amount, memo: d.memo,
+        id: d.id, accId: acc.id, usdAmount: d.usdAmount,
         sortKey: (d.date||d.year+"-01-01") + "_" + (d.id||"")
       });
     }
@@ -1359,6 +1363,30 @@ function deleteTrade(accId, itemId, tradeId) {
   setTimeout(()=>bindTradeModalEvents(),50);
 }
 
+// 환전/입출금 기록 삭제 (예수금 자동 역산)
+function deleteDeposit(accId, depositId) {
+  const acc = ST.accounts.find(a=>a.id===accId);
+  if (!acc || !acc.deposits) return;
+  const dep = acc.deposits.find(d=>d.id===depositId);
+  if (!dep) return;
+
+  const isUS = acc.type === "us";
+  // 역산 기준: usdAmount 있으면 그걸로, 없으면 KRW amount를 현재 환율로 근사(USD 계좌만)
+  const usdAmt = dep.usdAmount != null
+    ? dep.usdAmount
+    : (isUS ? dep.amount/(usdKrw||1350) : dep.amount);
+
+  if (dep.type === "cash-in") {
+    acc.cash = (acc.cash||0) - Math.abs(usdAmt);
+  } else if (dep.type === "cash-out") {
+    acc.cash = (acc.cash||0) + Math.abs(usdAmt);
+  }
+
+  acc.deposits = acc.deposits.filter(d=>d.id!==depositId);
+  saveData();
+  render();
+}
+
 // ─── 입금/출금 모달 이벤트 ───────────────────────────────────
 function bindDepositModalEvents() {
   if (!depositModal) return;
@@ -1741,113 +1769,4 @@ function bindEvents() {
 
   // 탭 드래그
   if (editMode) {
-    let dragId=null;
-    document.querySelectorAll("[data-drag]").forEach(b=>{ b.addEventListener("dragstart",e=>{dragId=b.dataset.drag;e.dataTransfer.effectAllowed="move";b.style.opacity="0.4";}); b.addEventListener("dragend",()=>b.style.opacity="1"); b.addEventListener("dragover",e=>e.preventDefault()); b.addEventListener("drop",e=>{ e.preventDefault(); const toId=b.dataset.drag; if(!dragId||!toId||dragId===toId||dragId==="overview"||toId==="overview") return; const fi=ST.accounts.findIndex(a=>a.id===dragId), ti=ST.accounts.findIndex(a=>a.id===toId); if(fi>-1&&ti>-1){const [a]=ST.accounts.splice(fi,1);ST.accounts.splice(ti,0,a);} saveData();render(); }); });
-  }
-
-  // 계좌 CRUD
-  document.querySelectorAll("[data-acc-del]").forEach(b=>b.addEventListener("click",()=>{ if(!confirm("'"+ST.accounts.find(a=>a.id===b.dataset.accDel)?.name+"' 계좌를 삭제할까요?")) return; const i=ST.accounts.findIndex(a=>a.id===b.dataset.accDel); if(i>-1) ST.accounts.splice(i,1); tab="overview"; render(); }));
-  document.querySelectorAll("[data-acc-name]").forEach(inp=>inp.addEventListener("input",e=>{ const acc=ST.accounts.find(a=>a.id===inp.dataset.accName); if(acc){acc.name=e.target.value;saveData();} }));
-  document.querySelectorAll("[data-acc-color]").forEach(dot=>dot.addEventListener("click",()=>{ const acc=ST.accounts.find(a=>a.id===dot.dataset.accColor); if(acc){acc.color=dot.dataset.color;saveData();render();} }));
-
-  // 종목 추가/삭제
-  document.querySelectorAll("[data-add-item]").forEach(b=>b.addEventListener("click",()=>{ const acc=ST.accounts.find(a=>a.id===b.dataset.addItem); if(!acc) return; const id="i"+Date.now(); acc.items.push(acc.type==="cash"?{id,n:"새 항목",a:0}:{id,t:"",n:"",q:0,a:0}); render(); }));
-  document.querySelectorAll("[data-del][data-acc]").forEach(b=>b.addEventListener("click",()=>{ const acc=ST.accounts.find(a=>a.id===b.dataset.acc); if(!acc) return; const i=acc.items.findIndex(x=>x.id===b.dataset.del); if(i>-1) acc.items.splice(i,1); render(); }));
-
-  // 종목 인풋
-  document.querySelectorAll(".inp[data-id][data-acc]").forEach(inp=>{ const id=inp.dataset.id, f=inp.dataset.f, accId=inp.dataset.acc; const acc=ST.accounts.find(a=>a.id===accId); const item=acc?.items.find(x=>x.id===id); if(!item||!acc) return; const tr=inp.closest("tr"), isUS=tr?.dataset.usd==="true"; inp.addEventListener("input",e=>{ const v=e.target.value; if(f==="t"){const upper=v.toUpperCase();item.t=upper;e.target.value=upper;const db=isUS?US_DB:acc.type==="coin"?null:KRX_DB;const auto=db?.[upper];if(auto){item.n=auto;const ni=tr?.querySelector('[data-f="n"]');if(ni)ni.value=auto;}}else if(f==="n"){item.n=v;}else{item[f]=Number(v)||0;if(acc.type!=="cash"){const vc=tr?.querySelector("[data-calc='val']"),gc=tr?.querySelector("[data-calc='gp']"),pc=tr?.querySelector("[data-calc='profit']");if(vc)vc.textContent=won(itemVal(item,acc.type))||"₩0";const gp=itemGp(item,acc.type);if(gc){gc.textContent=fPct(gp);gc.className="r "+gCls(gp);}const profit=(itemVal(item,acc.type)&&itemCost(item,acc.type))?itemVal(item,acc.type)-itemCost(item,acc.type):null;if(pc){pc.textContent=fProfit(profit);pc.className="r "+gCls(profit);}}} saveData(); }); });
-
-  // ─ 입금/출금 버튼
-  document.querySelectorAll("[data-deposit-acc]").forEach(b=>b.addEventListener("click",e=>{
-    e.stopPropagation();
-    depositModal={accId:b.dataset.depositAcc, mode:"in"};
-    render();
-    setTimeout(()=>bindDepositModalEvents(),50);
-  }));
-
-  // ─ 신규 매수 버튼
-  document.querySelectorAll("[data-new-trade]").forEach(b=>b.addEventListener("click",e=>{
-    e.stopPropagation();
-    tradeModal={accId:b.dataset.newTrade, itemId:"__new__", mode:"buy"};
-    render();
-    setTimeout(()=>bindTradeModalEvents(),50);
-  }));
-
-  // ─ 종목 행 탭 → 매수/매도 모달
-  document.querySelectorAll("[data-trade-item]").forEach(tr=>tr.addEventListener("click",()=>{
-    if(editMode) return;
-    tradeModal={accId:tr.dataset.tradeAcc, itemId:tr.dataset.tradeItem, mode:"buy"};
-    render();
-    setTimeout(()=>bindTradeModalEvents(),50);
-  }));
-
-  // 순입금 CRUD
-  document.querySelectorAll("[data-dadd]").forEach(b=>b.addEventListener("click",()=>{
-    const accId=b.dataset.dadd;
-    const acc=ST.accounts.find(a=>a.id===accId); if(!acc) return;
-    if(!acc.deposits) acc.deposits=[];
-    acc.deposits.push({id:"d"+Date.now(), year:new Date().getFullYear(), amount:0});
-    saveData(); render();
-  }));
-  document.querySelectorAll("[data-ddel]").forEach(b=>b.addEventListener("click",()=>{
-    const accId=b.dataset.dscope, did=b.dataset.ddel;
-    const acc=ST.accounts.find(a=>a.id===accId); if(!acc) return;
-    acc.deposits=(acc.deposits||[]).filter(d=>d.id!==did);
-    saveData(); render();
-  }));
-  document.querySelectorAll(".inp[data-did][data-dscope]").forEach(inp=>inp.addEventListener("input",e=>{
-    const accId=inp.dataset.dscope, did=inp.dataset.did, field=inp.dataset.df;
-    const acc=ST.accounts.find(a=>a.id===accId); if(!acc) return;
-    const dep=(acc.deposits||[]).find(d=>d.id===did); if(!dep) return;
-    dep[field]=field==="year"?parseInt(e.target.value)||new Date().getFullYear():Number(e.target.value)||0;
-    saveData();
-  }));
-
-  // 히스토리 접기/펼치기
-  document.querySelectorAll("[data-history-toggle]").forEach(b=>b.addEventListener("click",()=>{
-    const accId = b.dataset.historyToggle;
-    accHistoryExpanded[accId] = !accHistoryExpanded[accId];
-    render();
-  }));
-
-  // 히스토리 필터 탭
-  document.querySelectorAll("[data-history-filter]").forEach(b=>b.addEventListener("click",()=>{
-    const accId = b.dataset.historyFilter, kind = b.dataset.filterKind;
-    if (!accHistoryFilter[accId]) accHistoryFilter[accId] = {kind:"all", search:"", year:"all"};
-    accHistoryFilter[accId].kind = kind;
-    render();
-  }));
-
-  // 히스토리 연도 필터
-  document.querySelectorAll("[data-history-year]").forEach(b=>b.addEventListener("click",()=>{
-    const accId = b.dataset.historyYear, year = b.dataset.filterYear;
-    if (!accHistoryFilter[accId]) accHistoryFilter[accId] = {kind:"all", search:"", year:"all"};
-    accHistoryFilter[accId].year = year;
-    render();
-  }));
-
-  // 히스토리 종목 검색
-  document.querySelectorAll("[data-history-search]").forEach(inp=>inp.addEventListener("input", e=>{
-    const accId = inp.dataset.historySearch;
-    if (!accHistoryFilter[accId]) accHistoryFilter[accId] = {kind:"all", search:""};
-    accHistoryFilter[accId].search = e.target.value;
-    render();
-    setTimeout(()=>{ const el=document.querySelector('[data-history-search="'+accId+'"]'); if(el){el.focus(); el.setSelectionRange(el.value.length, el.value.length);} }, 30);
-  }));
-
-  // 목표
-  $("btn-add-goal")?.addEventListener("click",()=>{ST.goals.push({id:"g"+Date.now(),year:new Date().getFullYear()+1,target:100000000,snapshot:null});render();});
-  document.querySelectorAll("[data-gdel]").forEach(b=>b.addEventListener("click",()=>{const i=ST.goals.findIndex(g=>g.id===b.dataset.gdel);if(i>-1)ST.goals.splice(i,1);render();}));
-  document.querySelectorAll(".inp[data-gid]").forEach(inp=>inp.addEventListener("input",e=>{const g=ST.goals.find(x=>x.id===inp.dataset.gid);if(g){g[inp.dataset.gf]=Number(e.target.value)||0;saveData();}}));
-
-  // 도넛 클릭
-  document.querySelectorAll(".donut-seg").forEach(seg=>{ seg.addEventListener("click",()=>{ const svg=seg.closest("svg"), allSegs=svg?.querySelectorAll(".donut-seg")||[]; const isActive=seg.dataset.active==="1"; if(isActive){allSegs.forEach(s=>{s.style.opacity="1";delete s.dataset.active;});const ct=svg?.querySelector(".donut-ct");if(ct)ct.textContent="탭하여";const cb=svg?.querySelector(".donut-cb");if(cb)cb.textContent="확인";clearOverlayLine(svg);document.querySelectorAll(".legend-item").forEach(el=>el.style.opacity="1");return;} allSegs.forEach(s=>{s.style.opacity="0.25";delete s.dataset.active;});seg.style.opacity="1";seg.dataset.active="1";const ct=svg?.querySelector(".donut-ct");if(ct)ct.textContent=seg.dataset.label;const cb=svg?.querySelector(".donut-cb");if(cb)cb.textContent=seg.dataset.pct+"%"; if(svg?.id==="overview-donut"){document.querySelectorAll(".legend-item").forEach(el=>{el.style.opacity=el.dataset.label===seg.dataset.label?"1":"0.2";});}else if(svg?.dataset.sectorDonut==="1"){showSectorPopup(seg,svg);}else{document.querySelectorAll(".legend-item").forEach(el=>el.style.opacity="1");showDonutPopup(seg,svg);} }); });
-}
-
-// ─── 시작 ────────────────────────────────────────────────────
-render();
-fetchAll();
-setInterval(fetchAll,60000);
-</script>
-</body>
-</html>
+    let dragId=
