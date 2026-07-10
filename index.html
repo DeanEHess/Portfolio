@@ -799,10 +799,15 @@ function buildAccountSection(acc) {
     : depositBtnHtml
       +'<button class="btn-sm" style="color:#ef4444;border-color:#ef4444;padding:6px 10px;font-size:12px;font-weight:700;white-space:nowrap" data-new-trade="'+acc.id+'">+ 신규매수</button>';
   const cashRow = (!isCash)
-    ? '<div style="display:flex;justify-content:space-between;align-items:center;background:#0f172a;border-radius:8px;padding:8px 12px;margin-bottom:10px">'
-      +'<span style="font-size:12px;color:#64748b">💵 예수금</span>'
-      +'<span style="font-size:13px;font-weight:700">'+(isUS?usd(acc.cash||0):won(acc.cash||0))+'</span>'
-      +'</div>'
+    ? (editMode
+        ? '<div style="display:flex;justify-content:space-between;align-items:center;background:#0f172a;border-radius:8px;padding:8px 12px;margin-bottom:10px">'
+          +'<span style="font-size:12px;color:#64748b">💵 예수금 직접 수정<span style="color:#475569">(기록 안 남음)</span></span>'
+          +'<input class="inp inp-r" type="number" step="0.01" style="width:120px" data-cash-edit="'+acc.id+'" value="'+(acc.cash||0)+'" placeholder="'+(isUS?"USD":"KRW")+'"/>'
+          +'</div>'
+        : '<div style="display:flex;justify-content:space-between;align-items:center;background:#0f172a;border-radius:8px;padding:8px 12px;margin-bottom:10px">'
+          +'<span style="font-size:12px;color:#64748b">💵 예수금</span>'
+          +'<span style="font-size:13px;font-weight:700">'+(isUS?usd(acc.cash||0):won(acc.cash||0))+'</span>'
+          +'</div>')
     : "";
   const hdrRight = '<div style="text-align:right">'
     +'<div style="font-weight:800;font-size:17px;color:'+acc.color+'">'+(total?won(total):"₩0")+'</div>'
@@ -1777,6 +1782,7 @@ function bindEvents() {
   // 계좌 CRUD
   document.querySelectorAll("[data-acc-del]").forEach(b=>b.addEventListener("click",()=>{ if(!confirm("'"+ST.accounts.find(a=>a.id===b.dataset.accDel)?.name+"' 계좌를 삭제할까요?")) return; const i=ST.accounts.findIndex(a=>a.id===b.dataset.accDel); if(i>-1) ST.accounts.splice(i,1); tab="overview"; render(); }));
   document.querySelectorAll("[data-acc-name]").forEach(inp=>inp.addEventListener("input",e=>{ const acc=ST.accounts.find(a=>a.id===inp.dataset.accName); if(acc){acc.name=e.target.value;saveData();} }));
+  document.querySelectorAll("[data-cash-edit]").forEach(inp=>inp.addEventListener("input",e=>{ const acc=ST.accounts.find(a=>a.id===inp.dataset.cashEdit); if(acc){acc.cash=Number(e.target.value)||0; saveData();} }));
   document.querySelectorAll("[data-acc-color]").forEach(dot=>dot.addEventListener("click",()=>{ const acc=ST.accounts.find(a=>a.id===dot.dataset.accColor); if(acc){acc.color=dot.dataset.color;saveData();render();} }));
 
   // 종목 추가/삭제
