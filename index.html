@@ -1593,13 +1593,21 @@ function bindTradeModalEvents() {
       if (krxName) { const el=$("tm-name-preview"); if(el) el.textContent="✓ "+krxName; return; }
       const usName = US_DB[t];
       if (usName) { const el=$("tm-name-preview"); if(el) el.textContent="✓ "+usName; return; }
-      // Yahoo에서 이름 조회
+      // Yahoo/네이버에서 실시간 조회 (하드코딩 DB에 없는 임의 종목 대응)
       nameTimer = setTimeout(async()=>{
         try {
-          const r = await fetch(WORKER+"?type=us&symbols="+t);
-          const d = await r.json();
-          const el=$("tm-name-preview");
-          if(el) el.textContent = d.prices?.[t] ? "✓ 종목 확인됨" : "⚠ 종목을 찾을 수 없어요";
+          const isKrxCode = /^\d{6}$/.test(t); // 6자리 숫자 = 국내 종목코드 패턴
+          if (isKrxCode) {
+            const r = await fetch(WORKER+"?type=krx&codes="+t);
+            const d = await r.json();
+            const el=$("tm-name-preview");
+            if(el) el.textContent = d?.[t] ? "✓ 종목 확인됨 (현재가 "+won(d[t])+")" : "⚠ 종목을 찾을 수 없어요";
+          } else {
+            const r = await fetch(WORKER+"?type=us&symbols="+t);
+            const d = await r.json();
+            const el=$("tm-name-preview");
+            if(el) el.textContent = d.prices?.[t] ? "✓ 종목 확인됨" : "⚠ 종목을 찾을 수 없어요";
+          }
         } catch {}
       }, 600);
     });
