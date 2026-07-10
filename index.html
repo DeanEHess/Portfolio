@@ -282,6 +282,21 @@ let sectorCache= JSON.parse(localStorage.getItem("sector_cache")||"{}");
 let loading    = false;
 let lastUp     = null;
 let editMode   = false;
+let previewNameCache = {}; // {ticker: name} - 신규매수 미리보기에서 조회된 이름 캐시 (세션 내 재사용)
+
+// ─ 매매 수수료율 (기기에 저장, 한 번 넣으면 계속 재사용) ─
+function getFeeRatePct() {
+  const v = localStorage.getItem("trade_fee_rate_pct");
+  return v !== null ? v : "0.0968";
+}
+function saveFeeRatePct(v) {
+  localStorage.setItem("trade_fee_rate_pct", v);
+}
+// 수수료 반영한 실효 단가 계산: 매수는 수수료만큼 비싸게, 매도는 수수료만큼 적게 받는 것으로 처리
+function applyFee(price, feeRatePct, isBuy) {
+  const rate = (Number(feeRatePct) || 0) / 100;
+  return isBuy ? price * (1 + rate) : price * (1 - rate);
+}
 let tab        = "overview";
 let showModal  = false;
 let modalType  = "us";
@@ -448,12 +463,13 @@ async function fetchAll() {
     coinTickers.forEach(t=>{ const id=GECKO_ID[t.toUpperCase()]; if(id&&d.coins?.[id]?.krw) px[t]=d.coins[id].krw; });
     for (const [sym,sec] of Object.entries(d.sectors||{})) sectorCache[sym]=SECTOR_EN[sec]||sec;
     localStorage.setItem("sector_cache",JSON.stringify(sectorCache));
-    // Worker에서 받은 종목명으로 자동 업데이트 (이름 없는 종목만)
+    // Worker에서 받은 종목명으로 자동 업데이트 (이름 없는 종목만, US/KRX 둘 다)
     for (const acc of ST.accounts) {
-      if (acc.type !== "us") continue;
+      if (acc.type !== "us" && acc.type !== "krx") continue;
+      const nameMap = acc.type === "us" ? d.names : d.krxNames;
       for (const item of acc.items) {
         if (!item.t) continue;
-        const fetchedName = d.names?.[item.t];
+        const fetchedName = nameMap?.[item.t];
         if (fetchedName && !item.n) {
           item.n = fetchedName;
         }
@@ -1135,6 +1151,10 @@ function buildTradeModal() {
       <div class="trade-inp-group">
         <div class="trade-inp-label">단가 (${isUS?"USD":isCoin?"KRW":"KRW"})</div>
         <input class="trade-inp" id="tm-price" type="number" step="0.01" placeholder="${curPrice?(isUS?curPrice.toFixed(2):Math.round(curPriceKrw)):"0"}"/>
+      </div>
+      <div class="trade-inp-group">
+        <div class="trade-inp-label">수수료율 (%, 매매금액 기준)</div>
+        <input class="trade-inp" id="tm-fee-rate" type="number" step="0.0001" value="${getFeeRatePct()}" placeholder="0"/>
       </div>`}
       <div class="trade-inp-group">
         <div class="trade-inp-label">날짜</div>
@@ -1522,7 +1542,8 @@ function bindTradeModalEvents() {
   const isCoin= acc?.type === "coin";
 
   const $  = id => document.getElementById(id);
-  const qEl = $("tm-qty"), pEl = $("tm-price"), resEl = $("tm-result");
+  const qEl = $("tm-qty"), pEl = $("tm-price"), feEl = $("tm-fee-rate"), resEl = $("tm-result");
+  feEl?.addEventListener("input", ()=>{ saveFeeRatePct(feEl.value); updateResult(); });
 
   // 닫기
   $("tm-close")?.addEventListener("click",()=>{ tradeModal=null; render(); });
@@ -1590,9 +1611,9 @@ function bindTradeModalEvents() {
       if (!t) { const el=$("tm-name-preview"); if(el) el.textContent=""; return; }
       // KRX DB 먼저
       const krxName = KRX_DB[t];
-      if (krxName) { const el=$("tm-name-preview"); if(el) el.textContent="✓ "+krxName; return; }
+      if (krxName) { previewNameCache[t]=krxName; const el=$("tm-name-preview"); if(el) el.textContent="✓ "+krxName; return; }
       const usName = US_DB[t];
-      if (usName) { const el=$("tm-name-preview"); if(el) el.textContent="✓ "+usName; return; }
+      if (usName) { previewNameCache[t]=usName; const el=$("tm-name-preview"); if(el) el.textContent="✓ "+usName; return; }
       // Yahoo/네이버에서 실시간 조회 (하드코딩 DB에 없는 임의 종목 대응)
       nameTimer = setTimeout(async()=>{
         try {
@@ -1601,11 +1622,20 @@ function bindTradeModalEvents() {
             const r = await fetch(WORKER+"?type=krx&codes="+t);
             const d = await r.json();
             const el=$("tm-name-preview");
-            if(el) el.textContent = d?.[t] ? "✓ 종목 확인됨 (현재가 "+won(d[t])+")" : "⚠ 종목을 찾을 수 없어요";
+            const nm = d?.names?.[t];
+            const price = d?.prices?.[t];
+            if (nm) previewNameCache[t]=nm;
+            if (el) {
+              if (nm) el.textContent = "✓ "+nm+(price?" ("+won(price)+")":"");
+              else if (price) el.textContent = "✓ 종목 확인됨 (현재가 "+won(price)+")";
+              else el.textContent = "⚠ 종목을 찾을 수 없어요";
+            }
           } else {
             const r = await fetch(WORKER+"?type=us&symbols="+t);
             const d = await r.json();
             const el=$("tm-name-preview");
+            const nm = d.names?.[t];
+            if (nm) previewNameCache[t]=nm;
             if(el) el.textContent = d.prices?.[t] ? "✓ 종목 확인됨" : "⚠ 종목을 찾을 수 없어요";
           }
         } catch {}
@@ -1616,11 +1646,13 @@ function bindTradeModalEvents() {
   // 수량/단가 입력 시 예상 결과 계산
   function updateResult() {
     const qty   = parseFloat(qEl?.value) || 0;
-    const price = parseFloat(pEl?.value) || 0;
-    if (!qty || !price || !resEl) { resEl.style.display="none"; return; }
+    const rawPrice = parseFloat(pEl?.value) || 0;
+    if (!qty || !rawPrice || !resEl) { resEl.style.display="none"; return; }
 
     const item  = isNew ? null : acc?.items.find(x=>x.id===itemId);
     const isBuy = tradeModal.mode === "buy";
+    const feeRatePct = feEl?.value || 0;
+    const price = applyFee(rawPrice, feeRatePct, isBuy); // 수수료 반영 실효단가
 
     resEl.style.display = "block";
 
@@ -1652,12 +1684,15 @@ function bindTradeModalEvents() {
   $("tm-confirm")?.addEventListener("click", ()=>{
     const isDiv = tradeModal.mode === "dividend";
     const qty   = parseFloat(qEl?.value) || 0;
-    const price = parseFloat(pEl?.value) || 0;
+    const rawPrice = parseFloat(pEl?.value) || 0;
+    const feeRatePct = feEl?.value || 0;
+    const isBuy = tradeModal.mode === "buy";
+    const price = isDiv ? rawPrice : applyFee(rawPrice, feeRatePct, isBuy); // 수수료 반영 실효단가
     const divAmount = parseFloat($("tm-dividend-amount")?.value) || 0;
     const date  = $("tm-date")?.value || new Date().toISOString().slice(0,10);
-    const memo  = $("tm-memo")?.value || "";
+    const memoBase  = $("tm-memo")?.value || "";
+    const memo = (!isDiv && feeRatePct && Number(feeRatePct)>0) ? (memoBase ? memoBase+" · " : "")+"수수료 "+feeRatePct+"% 반영(원단가 "+rawPrice+")" : memoBase;
     const thesis = $("tm-thesis")?.value.trim() || "";
-    const isBuy = tradeModal.mode === "buy";
 
     // 배당 처리 (신규 종목에서는 배당 불가)
     if (isDiv) {
@@ -1688,7 +1723,7 @@ function bindTradeModalEvents() {
       if (isCarryover) {
         // 이월 잔고: 거래 이력 없이 수량/평단만 등록, 예수금 영향 없음
         if (!item) {
-          item = {id:"i"+Date.now(), t:ticker, n:US_DB[ticker]||KRX_DB[ticker]||"", q:0, a:0, trades:[]};
+          item = {id:"i"+Date.now(), t:ticker, n:US_DB[ticker]||KRX_DB[ticker]||previewNameCache[ticker]||"", q:0, a:0, trades:[]};
           acc.items.push(item);
         }
         if (item.trades && item.trades.length) {
@@ -1705,7 +1740,7 @@ function bindTradeModalEvents() {
           return;
         }
         if (!item) {
-          item = {id:"i"+Date.now(), t:ticker, n:US_DB[ticker]||KRX_DB[ticker]||"", q:0, a:0, trades:[]};
+          item = {id:"i"+Date.now(), t:ticker, n:US_DB[ticker]||KRX_DB[ticker]||previewNameCache[ticker]||"", q:0, a:0, trades:[]};
           acc.items.push(item);
         }
         if (!item.trades) item.trades=[];
