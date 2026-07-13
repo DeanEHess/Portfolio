@@ -283,6 +283,7 @@ let loading    = false;
 let lastUp     = null;
 let editMode   = false;
 let previewNameCache = {}; // {ticker: name} - 신규매수 미리보기에서 조회된 이름 캐시 (세션 내 재사용)
+let rebalanceModal = null; // {accId, investAmount}
 let tab        = "overview";
 let showModal  = false;
 let modalType  = "us";
@@ -803,9 +804,10 @@ function buildAccountSection(acc) {
 
   // 계좌 헤더 우측: 평가금액 / 수익금 / 수익률
   const depositBtnHtml = '<button class="btn-sm" style="color:#10b981;border-color:#10b981;padding:6px 10px;font-size:12px;font-weight:700;white-space:nowrap" data-deposit-acc="'+acc.id+'">입출금</button>';
+  const rebalanceBtnHtml = isCash ? '' : '<button class="btn-sm" style="color:#8b5cf6;border-color:#8b5cf6;padding:6px 10px;font-size:12px;font-weight:700;white-space:nowrap" data-rebalance-acc="'+acc.id+'">🎯 리밸런싱</button>';
   const buyBtn = isCash
     ? depositBtnHtml
-    : depositBtnHtml
+    : depositBtnHtml + rebalanceBtnHtml
       +'<button class="btn-sm" style="color:#ef4444;border-color:#ef4444;padding:6px 10px;font-size:12px;font-weight:700;white-space:nowrap" data-new-trade="'+acc.id+'">+ 신규매수</button>';
   const cashRow = (!isCash)
     ? (editMode
@@ -1038,6 +1040,10 @@ function buildDepositModal() {
           <span style="font-size:10px;color:#475569">기초 예수금${acc.openingCash?" ("+(isUS?usd(acc.openingCash):won(acc.openingCash))+")":""}<br/><span style="color:#334155">거래내역서 없는 IRP/연금저축용 · 순입금엔 안 잡혀요</span></span>
           <button id="dm-set-opening" style="background:transparent;border:1px solid #334155;color:#64748b;border-radius:6px;padding:3px 8px;font-size:10px;cursor:pointer;white-space:nowrap">설정</button>
         </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;padding-top:6px;border-top:1px dashed #1e293b">
+          <span style="font-size:10px;color:#475569">예수금 직접 수정<br/><span style="color:#334155">재계산 없이 값만 덮어씀 · 환전 섞인 계좌처럼 재계산 부정확할 때</span></span>
+          <button id="dm-set-cash" style="background:transparent;border:1px solid #334155;color:#64748b;border-radius:6px;padding:3px 8px;font-size:10px;cursor:pointer;white-space:nowrap">수정</button>
+        </div>
       </div>` : ""}
       <div class="trade-tabs">
         <button class="trade-tab buy${isIn?" on":""}" id="dm-in-tab">💰 입금${isUS&&!isCashAcc?" (환전)":""}</button>
@@ -1072,6 +1078,70 @@ function buildDepositModal() {
         <input class="trade-inp" id="dm-memo" placeholder="예) 월급날 입금, 생활비 출금"/>
       </div>
       <button class="trade-btn ${isIn?"buy":"sell"}" id="dm-confirm">${isIn?"입금 확정":"출금 확정"}</button>
+    </div>
+  </div>`;
+}
+
+// ─── 리밸런싱 계산기 모달 ────────────────────────────────────
+function buildRebalanceModal() {
+  if (!rebalanceModal) return "";
+  const acc = ST.accounts.find(a=>a.id===rebalanceModal.accId);
+  if (!acc) return "";
+  const isUS = acc.type === "us";
+  const items = acc.items.filter(it=>it.t); // 종목만 (현금성 제외)
+  const curTotal = items.reduce((s,it)=>s+itemVal(it, acc.type), 0); // KRW 환산 평가금액 합
+  const investRaw = rebalanceModal.investAmount != null ? rebalanceModal.investAmount : (acc.cash||0);
+  const investKrw = isUS ? investRaw*(usdKrw||1) : investRaw; // 계산은 전부 KRW 기준으로 통일
+  const futureTotal = curTotal + investKrw;
+
+  const rows = items.map(it=>{
+    const val = itemVal(it, acc.type);
+    const curPct = curTotal>0 ? val/curTotal*100 : 0;
+    const tp = Number(it.tp)||0;
+    const targetVal = futureTotal * tp/100;
+    const need = Math.max(0, targetVal - val);
+    return {item:it, val, curPct, tp, need};
+  });
+
+  const totalNeed = rows.reduce((s,r)=>s+r.need,0);
+  const scale = totalNeed > investKrw && totalNeed>0 ? investKrw/totalNeed : 1;
+
+  const rowsHtml = rows.map(r=>{
+    const buyKrw = r.need*scale;
+    const buyNative = isUS ? buyKrw/(usdKrw||1) : buyKrw; // 매수 제안 금액을 계좌 통화로 환산
+    const price = px[r.item.t] || r.item.a || 0;
+    const shares = price>0 ? Math.floor((buyNative/price)*10000)/10000 : 0;
+    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #1e293b">
+      <div style="flex:1">
+        <div style="font-weight:700;font-size:13px">${r.item.n||r.item.t}</div>
+        <div style="font-size:10px;color:#64748b">목표 <input class="inp" data-rb-tp="${r.item.id}" type="number" step="0.1" min="0" max="100" style="width:48px;padding:2px 4px;font-size:10px" value="${r.tp}"/>% · 현재 ${r.curPct.toFixed(1)}%</div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-weight:700;color:${buyNative>0.009?"#ef4444":"#475569"};font-size:13px">${buyNative>0.009?(isUS?usd(buyNative):won(buyNative)):"—"}</div>
+        <div style="font-size:10px;color:#64748b">${shares>0?shares+(acc.type==="coin"?"":"주"):""}</div>
+      </div>
+    </div>`;
+  }).join("");
+
+  const tpSum = rows.reduce((s,r)=>s+r.tp,0);
+  const warnHtml = Math.abs(tpSum-100) > 0.5
+    ? `<div style="font-size:11px;color:#f59e0b;margin-bottom:8px">⚠ 목표비중 합계 ${tpSum.toFixed(1)}% (100%가 안 되면 남는 만큼은 계산에서 빠져요)</div>` : "";
+  const scaleWarnHtml = scale < 1
+    ? `<div style="font-size:11px;color:#64748b;margin-bottom:8px">필요 금액(${isUS?usd(totalNeed/(usdKrw||1)):won(totalNeed)})이 투자금보다 많아서 비율대로 나눴어요</div>` : "";
+
+  return `<div class="trade-modal-bg" id="rebalance-modal-bg">
+    <div class="trade-modal">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+        <div style="font-size:16px;font-weight:800">🎯 ${acc.name} 리밸런싱</div>
+        <button id="rb-close" style="background:transparent;border:none;color:#64748b;font-size:20px;cursor:pointer">✕</button>
+      </div>
+      <div class="trade-inp-group">
+        <div class="trade-inp-label">이번에 투자할 금액 (${isUS?"USD":"KRW"}, 기본값=예수금)</div>
+        <input class="trade-inp" id="rb-invest" type="number" step="0.01" value="${investRaw}"/>
+      </div>
+      ${warnHtml}${scaleWarnHtml}
+      <div style="margin-top:8px">${rowsHtml || '<div style="color:#64748b;font-size:12px;padding:12px 0">종목이 없어요</div>'}</div>
+      <div style="font-size:10px;color:#334155;margin-top:10px">목표비중 입력하면 자동 저장돼요 · 매수 제안은 참고용, 실제 매수는 종목 탭에서</div>
     </div>
   </div>`;
 }
@@ -1227,6 +1297,7 @@ function buildPage() {
     +buildModal()
     +buildTradeModal()
     +buildDepositModal()
+    +buildRebalanceModal()
     +buildThesisViewModal();
 }
 
@@ -1451,6 +1522,19 @@ function bindDepositModalEvents() {
     setTimeout(()=>bindDepositModalEvents(),50);
   });
 
+  // 예수금 직접 수정 (재계산 없이 값만 덮어씀 - 환전 등으로 재계산이 부정확한 계좌용)
+  $("dm-set-cash")?.addEventListener("click",()=>{
+    const cur = acc.cash || 0;
+    const input = prompt("예수금을 거래내역서 기준 값으로 직접 입력하세요 (재계산 없이 이 값으로 바로 덮어써요):", cur);
+    if (input === null) return;
+    const v = parseFloat(input.replace(/,/g,""));
+    if (isNaN(v)) { alert("올바른 숫자를 입력해주세요"); return; }
+    acc.cash = v;
+    saveData();
+    render();
+    setTimeout(()=>bindDepositModalEvents(),50);
+  });
+
   // 탭 전환
   $("dm-in-tab")?.addEventListener("click",()=>{ depositModal.mode="in"; render(); setTimeout(()=>bindDepositModalEvents(),50); });
   $("dm-out-tab")?.addEventListener("click",()=>{ depositModal.mode="out"; render(); setTimeout(()=>bindDepositModalEvents(),50); });
@@ -1538,6 +1622,31 @@ function bindDepositModalEvents() {
 }
 
 // ─── 트레이드 모달 이벤트 ───────────────────────────────────
+// ─── 리밸런싱 모달 이벤트 ───────────────────────────────────
+function bindRebalanceModalEvents() {
+  if (!rebalanceModal) return;
+  const $ = id => document.getElementById(id);
+
+  $("rb-close")?.addEventListener("click",()=>{ rebalanceModal=null; render(); });
+  $("rebalance-modal-bg")?.addEventListener("click",e=>{ if(e.target.id==="rebalance-modal-bg"){rebalanceModal=null;render();} });
+
+  $("rb-invest")?.addEventListener("change", e=>{
+    rebalanceModal.investAmount = parseFloat(e.target.value) || 0;
+    render();
+    setTimeout(()=>bindRebalanceModalEvents(),50);
+  });
+
+  document.querySelectorAll("[data-rb-tp]").forEach(inp=>inp.addEventListener("change", e=>{
+    const acc = ST.accounts.find(a=>a.id===rebalanceModal.accId);
+    const item = acc?.items.find(x=>x.id===inp.dataset.rbTp);
+    if (!item) return;
+    item.tp = Math.max(0, Math.min(100, parseFloat(e.target.value)||0));
+    saveData();
+    render();
+    setTimeout(()=>bindRebalanceModalEvents(),50);
+  }));
+}
+
 function bindTradeModalEvents() {
   if (!tradeModal) return;
   const {accId, itemId} = tradeModal;
@@ -1874,6 +1983,14 @@ function bindEvents() {
     tradeModal={accId:b.dataset.newTrade, itemId:"__new__", mode:"buy"};
     render();
     setTimeout(()=>bindTradeModalEvents(),50);
+  }));
+
+  // ─ 리밸런싱 버튼
+  document.querySelectorAll("[data-rebalance-acc]").forEach(b=>b.addEventListener("click",e=>{
+    e.stopPropagation();
+    rebalanceModal={accId:b.dataset.rebalanceAcc, investAmount:null};
+    render();
+    setTimeout(()=>bindRebalanceModalEvents(),50);
   }));
 
   // ─ 종목 행 탭 → 매수/매도 모달
