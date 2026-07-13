@@ -241,7 +241,7 @@ function makeDefaultAccounts() {
 }
 const DEFAULT_DATA = {
   accounts: makeDefaultAccounts(),
-  goals: [{id:"g1",year:2027,target:50000000,snapshot:null},{id:"g2",year:2028,target:100000000,snapshot:null},{id:"g3",year:2030,target:300000000,snapshot:null},{id:"g4",year:2033,target:500000000,snapshot:null}],
+  goals: [], // 처음엔 비워두고, 편집 모드의 "+ 목표 추가"로 직접 설정하게 함 (특정 개인의 목표값을 기본값처럼 보여주지 않기 위함)
   deposits: [],
   snapshots: [], // [{month:"2026-07", total: 12345678}]
 };
@@ -291,6 +291,9 @@ let modalColor = COLORS[0];
 let showUSD    = false;
 let tradeModal = null; // {accId, itemId, mode:"buy"|"sell"}
 let thesisViewModal = null; // {text: string}
+let uidRevealed = false; // 클라우드 키(UID)를 화면에 평문으로 노출할지 여부 (기본 마스킹)
+let uidAcknowledged = localStorage.getItem("asset_uid_ack") === "1"; // 사용자가 키를 한 번이라도 보거나 복사했는지 (백업 안내 문구 숨김 조건)
+function markUidAcknowledged() { if (!uidAcknowledged) { uidAcknowledged = true; localStorage.setItem("asset_uid_ack","1"); } }
 
 // 아주 간단한 마크다운 → HTML 렌더러 (제목, 리스트, 굵게, 기울임, 링크 정도만)
 function simpleMarkdownToHtml(md) {
@@ -489,11 +492,6 @@ function backupData() {
 }
 function restoreData(file) {
   if (!file) return;
-  new FileReader().onload=e=>{
-    try { const d=JSON.parse(e.target.result); if(!d.accounts) throw new Error("올바른 백업 파일이 아니에요"); Object.assign(ST,d); saveData(); render(); alert("✅ 복원 완료!"); }
-    catch(err) { alert("❌ 복원 실패: "+err.message); }
-  };
-  // 위 방식은 onload 할당 안됨 — 수정
   const reader=new FileReader();
   reader.onload=e=>{ try { const d=JSON.parse(e.target.result); if(!d.accounts) throw new Error("올바른 백업 파일이 아니에요"); Object.assign(ST,d); saveData(); render(); alert("✅ 복원 완료!"); } catch(err){alert("❌ 복원 실패: "+err.message);} };
   reader.readAsText(file);
@@ -820,6 +818,10 @@ function buildAccountSection(acc) {
           +'<span style="font-size:13px;font-weight:700">'+(isUS?usd(acc.cash||0):won(acc.cash||0))+'</span>'
           +'</div>')
     : "";
+  // 처음 여는 계좌(예수금 0, 보유 종목 없음)에는 매수 전에 입출금부터 해야 한다는 걸 안내
+  const emptyCashHint = (!isCash && !editMode && (acc.cash||0) <= 0 && acc.items.length === 0)
+    ? '<div style="font-size:11px;color:#a5b4fc;background:#6366f11a;border:1px solid #6366f133;border-radius:8px;padding:8px 12px;margin-bottom:10px">💡 먼저 <b>입출금</b> 버튼으로 예수금을 채운 다음 <b>+ 신규매수</b>로 종목을 사보세요</div>'
+    : '';
   const hdrRight = '<div style="text-align:right">'
     +'<div style="font-weight:800;font-size:17px;color:'+acc.color+'">'+(total?won(total):"₩0")+'</div>'
     +(profit!=null?'<div style="font-size:12px;font-weight:600;color:'+(profit>=0?'#ef4444':'#3b82f6')+'">'+fProfit(profit)+'</div>':"")
@@ -893,6 +895,7 @@ function buildAccountSection(acc) {
   return '<div class="card" style="border-top:3px solid '+acc.color+'">'
     +'<div class="card-hdr"><span class="card-title">'+acc.name+'</span><div style="display:flex;align-items:center;gap:8px">'+buyBtn+hdrRight+'</div></div>'
     +cashRow
+    +emptyCashHint
     +accEdit
     +tradeHint
     +'<div class="tbl-wrap"><table>'+thead+'<tbody>'+rows+'</tbody></table></div>'
@@ -1281,7 +1284,12 @@ function buildPage() {
     :'<div style="display:flex;gap:4px;margin-bottom:10px;overflow-x:auto;padding-bottom:2px">'+getProfiles().map(p=>'<button style="background:'+(curProfile===p?'#6366f1':'#0f172a')+';border:1px solid '+(curProfile===p?'#6366f1':'#334155')+';color:'+(curProfile===p?'#fff':'#94a3b8')+';padding:5px 12px;border-radius:20px;font-size:12px;font-weight:'+(curProfile===p?'700':'400')+';white-space:nowrap;cursor:pointer;flex-shrink:0" data-profile="'+p+'">👤 '+p+'</button>').join("")+'<button style="background:transparent;border:1px dashed #334155;color:#6366f1;padding:5px 10px;border-radius:20px;font-size:12px;cursor:pointer;flex-shrink:0" id="btn-add-profile">+</button></div>';
 
   return (loading?'<div class="loading-bar"><div class="loading-bar-inner"></div></div>':"")
-    +'<div class="hdr"><div><div class="hdr-title">📊 자산 대시보드</div><div class="hdr-sub">'+subStr+'</div><div class="hdr-rate">'+rateStr+'</div><div style="font-size:10px;color:#334155;margin-top:2px;user-select:all">🔑 '+CLOUD_UID+'</div></div>'
+    +'<div class="hdr"><div><div class="hdr-title">📊 자산 대시보드</div><div class="hdr-sub">'+subStr+'</div><div class="hdr-rate">'+rateStr+'</div>'
+    +'<div style="font-size:10px;color:#334155;margin-top:2px;display:flex;align-items:center;gap:6px" title="이 키를 아는 사람은 누구든 클라우드 복원으로 내 자산 데이터를 볼 수 있어요. 화면 공유·캡처 시 주의하세요.">'
+    +'<span'+(uidRevealed?' style="user-select:all"':'')+'>🔑 '+(uidRevealed?CLOUD_UID:"••••••••••••")+'</span>'
+    +'<button id="btn-uid-toggle" style="background:transparent;border:none;color:#475569;font-size:10px;cursor:pointer;padding:0;text-decoration:underline">'+(uidRevealed?"숨기기":"보기")+'</button>'
+    +'<button id="btn-uid-copy" style="background:transparent;border:none;color:#475569;font-size:10px;cursor:pointer;padding:0;text-decoration:underline">복사</button>'
+    +'</div></div>'
     +'<div class="hdr-btns"><button class="btn" id="btn-refresh">↻</button><button class="btn'+(editMode?" on":"")+'" id="btn-edit">'+(editMode?"✓":"✏")+'</button></div></div>'
     +profileUI
     +'<div class="btn-row">'
@@ -1290,6 +1298,7 @@ function buildPage() {
     +'<button class="btn-sm" id="btn-cloud-save" style="color:#10b981;border-color:#10b981">'+(cloudStatus==="saving"?"⟳ 저장 중...": cloudStatus==="saved"?"✅ 저장됨":cloudStatus==="error"?"❌ 실패":"☁️ 클라우드 저장")+'</button>'
     +'<button class="btn-sm" id="btn-cloud-load" style="color:#6366f1;border-color:#6366f1">☁️ 복원</button>'
     +(editMode?'<button class="btn-sm" id="btn-add-acc" style="color:#6366f1;border-color:#6366f1">➕ 계좌 추가</button>':"")+'</div>'
+    +(!uidAcknowledged ? '<div style="font-size:10px;color:#64748b;margin:-6px 0 10px">⚠️ 위 🔑 키가 클라우드 데이터의 유일한 복구 수단이에요. 다른 기기에서 복원하려면 꼭 저장해두세요. ("보기"나 "복사"를 누르면 이 안내는 사라져요)</div>' : '')
     +'<div class="tabs">'+tabHtml+'</div>'
     +(tab==="overview"?buildOverview():"")
     +(activeAcc?buildAccountSection(activeAcc):"")
@@ -1377,7 +1386,7 @@ function computeMovingAverage(trades) {
 }
 
 function recalcItemFromTrades(acc, item) {
-  if (!item.trades || !item.trades.length) return;
+  if (!item.trades) return;
   const { qty, avg } = computeMovingAverage(item.trades);
   item.q = qty;
   item.a = avg;
@@ -1663,14 +1672,6 @@ function bindTradeModalEvents() {
   $("tm-close")?.addEventListener("click",()=>{ tradeModal=null; render(); });
 
   // 거래 삭제
-  // 전체 히스토리 탭에서 매수/매도/배당 삭제
-  document.querySelectorAll("[data-hist-trade-del]").forEach(b=>b.addEventListener("click",e=>{
-    e.stopPropagation();
-    if(!confirm("이 거래 기록을 삭제할까요?\n예수금/수량이 자동으로 되돌려져요.")) return;
-    deleteTrade(b.dataset.histTradeAcc, b.dataset.histTradeItem, b.dataset.histTradeDel);
-    render();
-  }));
-
   document.querySelectorAll("[data-trade-del]").forEach(b=>b.addEventListener("click",e=>{
     e.stopPropagation();
     if(!confirm("이 거래를 삭제할까요?\n평단·수량·예수금이 자동으로 되돌려져요.")) return;
@@ -1934,6 +1935,32 @@ function bindEvents() {
   $("btn-add-acc")?.addEventListener("click",()=>{showModal=true;modalType="us";modalColor=COLORS[ST.accounts.length%COLORS.length];render();});
   $("btn-toggle-usd")?.addEventListener("click",()=>{showUSD=!showUSD;render();});
 
+  // 클라우드 키(UID) 표시/복사
+  $("btn-uid-toggle")?.addEventListener("click",()=>{ uidRevealed=!uidRevealed; markUidAcknowledged(); render(); });
+  $("btn-uid-copy")?.addEventListener("click",()=>{
+    markUidAcknowledged();
+    const btn=$("btn-uid-copy"); if(!btn) return;
+    const orig=btn.textContent;
+    const flash=(text)=>{ btn.textContent=text; setTimeout(()=>{ if(btn.isConnected) btn.textContent=orig; },1500); };
+    // 클립보드 API가 권한 프롬프트에 걸려 응답 없이 멈추는 경우를 대비해 구식 execCommand로 대체
+    const fallbackCopy=()=>{
+      try {
+        const ta=document.createElement("textarea");
+        ta.value=CLOUD_UID; ta.style.position="fixed"; ta.style.opacity="0";
+        document.body.appendChild(ta); ta.focus(); ta.select();
+        const ok=document.execCommand("copy");
+        document.body.removeChild(ta);
+        flash(ok?"복사됨!":"복사 실패");
+      } catch { flash("복사 실패"); }
+    };
+    if (navigator.clipboard?.writeText) {
+      const withTimeout = (p, ms) => Promise.race([p, new Promise((_,rej)=>setTimeout(()=>rej(new Error("timeout")),ms))]);
+      withTimeout(navigator.clipboard.writeText(CLOUD_UID), 1000).then(()=>flash("복사됨!")).catch(fallbackCopy);
+    } else {
+      fallbackCopy();
+    }
+  });
+
   // 프로필
   document.querySelectorAll("[data-profile]").forEach(b=>b.addEventListener("click",()=>switchProfile(b.dataset.profile)));
   $("btn-add-profile")?.addEventListener("click",()=>{ const name=prompt("새 프로필 이름:"); if(!name?.trim()) return; const list=getProfiles(); if(list.includes(name.trim())){alert("이미 있는 이름이에요");return;} list.push(name.trim()); saveProfiles(list); switchProfile(name.trim()); });
@@ -2051,6 +2078,14 @@ function bindEvents() {
     e.stopPropagation();
     if(!confirm("이 입출금 기록을 삭제할까요?\n예수금이 자동으로 되돌려져요.")) return;
     deleteDeposit(b.dataset.depositAcc, b.dataset.depositDel);
+  }));
+
+  // 전체 히스토리 카드에서 매수/매도/배당 삭제
+  document.querySelectorAll("[data-hist-trade-del]").forEach(b=>b.addEventListener("click",e=>{
+    e.stopPropagation();
+    if(!confirm("이 거래 기록을 삭제할까요?\n예수금/수량이 자동으로 되돌려져요.")) return;
+    deleteTrade(b.dataset.histTradeAcc, b.dataset.histTradeItem, b.dataset.histTradeDel);
+    render();
   }));
 
   // 입출금 메모 수정
