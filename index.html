@@ -1396,7 +1396,7 @@ function recalcAccountCash(accId) {
     if (d.type === "cash-in") {
       cash += (d.usdAmount != null) ? d.usdAmount : (isUS ? (d.amount/(usdKrw||1350)) : d.amount);
     } else if (d.type === "cash-out") {
-      cash -= (d.usdAmount != null) ? d.usdAmount : (isUS ? (Math.abs(d.amount)/(usdKrw||1350)) : Math.abs(d.amount));
+      cash -= Math.abs((d.usdAmount != null) ? d.usdAmount : (isUS ? (d.amount/(usdKrw||1350)) : d.amount));
     }
   }
   // 2) 모든 거래 반영
