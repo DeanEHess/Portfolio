@@ -273,7 +273,7 @@ const TUTORIAL_SEEN_KEY = "tutorial_seen_v1";
 // target: 이 단계에서 강조 표시할 실제 DOM 요소의 CSS 셀렉터를 반환하는 함수(없으면 null 반환 → 중앙 팝업으로 폴백)
 // need: 이 단계에 들어갈 때 강제로 맞춰줄 앱 상태({tab, editMode})를 반환하는 함수(선택)
 const TUTORIAL_STEPS = [
-  { title:"👋 환영합니다", body:"이 대시보드는 여러 증권사·계좌의 국내주식·해외주식·코인·현금을 한곳에서 관리하고, 목표 비중대로 리밸런싱하는 걸 도와줘요. 6단계로 짧게 사용법을 안내할게요. 실제 버튼을 하이라이트해서 보여줄 테니 그대로 따라 눌러보세요. 언제든 '그만두기'로 중단할 수 있어요.", target:()=>null },
+  { title:"👋 환영합니다", body:"이 앱을 만든 이유를 먼저 말씀드릴게요.<br><br>전설적인 투자자 필립 피셔는 이렇게 말했어요 — \"내가 주식을 매수할 때 가졌던 당초의 시각을 바꿀 만한 일이 벌어지지 않았다면, 나는 적어도 3년은 계속 보유할 것이다.\"<br><br>하지만 우리는 종종 잦은 뇌동매매로 후회하곤 하죠. 그래서 이 앱은 매수·매도할 때마다 '투자 근거'를 꼭 남기게 해요 — 나중에 그 근거가 정말 바뀌었는지 스스로 되짚어볼 수 있도록요. 여러분의 소중한 손가락(그리고 계좌)을 지킬 수 있으면 좋겠습니다 🙏<br><br>자, 실제 버튼을 하이라이트하면서 짧게 사용법을 안내할게요. 언제든 '그만두기'로 중단할 수 있어요.", target:()=>null },
   { title:"1️⃣ 계좌 추가하기", body:"편집 버튼을 눌러 편집 모드로 들어가세요. '➕ 계좌 추가' 버튼이 나타나면, 어떤 자산을 관리할 계좌인지 고르고(해외주식/국내주식/코인/혼합/현금) 이름을 입력해 계좌를 만들 수 있어요. 같은 증권사에 원화·달러가 섞여 있다면 '혼합' 타입을 추천해요.",
     target:()=> editMode ? "#btn-add-acc" : "#btn-edit" },
   { title:"2️⃣ 입출금(예수금) 등록", body:"계좌를 만들었으면 종목을 사기 전에 먼저 '입출금' 버튼으로 예수금을 채워주세요. 실제로 증권사에 넣은 돈만큼 입금을 기록하면, 매수할 때 예수금에서 자동으로 차감돼요. (아직 계좌가 없다면 이전 단계에서 먼저 만들어주세요)",
@@ -1567,6 +1567,7 @@ function buildTradeModal() {
         <span id="tm-thesis-filename" style="font-size:11px;color:#8e8e93;margin-left:8px"></span>
       </div>
       <div class="trade-result" id="tm-result" style="display:none"></div>
+      ${(!isNew && !isBuy && !isDividend) ? `<div style="font-size:11px;color:#8e8e93;text-align:center;margin-bottom:8px">💭 처음 살 때의 이유가 아직 유효한가요?</div>` : ""}
       <button class="trade-btn" style="background:${isDividend?"#f59e0b":isBuy?"#ef4444":"#3b82f6"}" id="tm-confirm">${isDividend?"배당 확정":isBuy?"매수 확정":"매도 확정"}</button>
       ${!isNew && item?.trades?.length ? `
       <div style="margin-top:16px">
