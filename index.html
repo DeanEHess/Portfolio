@@ -8,12 +8,13 @@
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
   <meta name="apple-mobile-web-app-title" content="자산현황"/>
-  <meta name="theme-color" content="#0f172a"/>
+  <meta name="theme-color" content="#000000"/>
   <style>
     :root {
-      --bg:#0f172a; --card:#1e293b; --border:#334155;
-      --text:#e2e8f0; --muted-1:#64748b; --muted-2:#475569; --muted-3:#94a3b8;
-      --accent:#6366f1;
+      /* 토스증권 스타일 참고: 거의 순검정 배경 + 짙은 그레이 카드 + 토스 블루 포인트 */
+      --bg:#000000; --card:#1c1c1e; --border:#2c2c2e;
+      --text:#ffffff; --muted-1:#8e8e93; --muted-2:#636366; --muted-3:#aeaeb2;
+      --accent:#3182f6;
       --up:#ef4444; --up-bg:#ef444420;
       --down:#3b82f6; --down-bg:#3b82f620;
       --danger-bg:#7f1d1d; --danger-text:#fca5a5;
@@ -44,14 +45,14 @@
     .hdr-sub { font-size:11px; color:var(--muted-2); margin-top:3px; }
     .hdr-rate { font-size:12px; color:var(--muted-3); font-weight:600; margin-top:2px; }
     .hdr-btns { display:flex; gap:6px; flex-shrink:0; }
-    .btn { background:var(--card); border:1px solid var(--border); color:var(--text); padding:7px 13px; border-radius:8px; font-size:15px; cursor:pointer; }
-    .btn.on { background:var(--accent); }
+    .btn { background:var(--card); border:1px solid var(--border); color:var(--text); padding:7px 13px; border-radius:999px; font-size:15px; cursor:pointer; }
+    .btn.on { background:var(--accent); border-color:var(--accent); }
     .btn-row { display:flex; gap:6px; margin-bottom:12px; }
-    .btn-sm { background:var(--card); border:1px solid var(--border); color:var(--muted-3); padding:6px 12px; border-radius:8px; font-size:12px; cursor:pointer; flex:1; text-align:center; }
+    .btn-sm { background:var(--card); border:1px solid var(--border); color:var(--muted-3); padding:6px 12px; border-radius:999px; font-size:12px; cursor:pointer; flex:1; text-align:center; }
 
     .tabs { display:flex; gap:4px; margin-bottom:14px; overflow-x:auto; padding-bottom:4px; -webkit-overflow-scrolling:touch; }
-    .tab { background:var(--card); border:none; color:var(--muted-1); padding:7px 12px; border-radius:8px; font-size:12px; font-weight:500; white-space:nowrap; cursor:pointer; flex-shrink:0; }
-    .tab.on { color:var(--white); font-weight:700; }
+    .tab { background:var(--card); border:none; color:var(--muted-1); padding:7px 12px; border-radius:999px; font-size:12px; font-weight:500; white-space:nowrap; cursor:pointer; flex-shrink:0; }
+    .tab.on { color:var(--white); font-weight:700; background:#3a3a3c; }
 
     .card { background:var(--card); border-radius:16px; padding:14px; margin-bottom:12px; border:1px solid var(--border); }
     .card-grad { background:linear-gradient(135deg,var(--card),var(--bg)); border:1px solid var(--card); border-radius:16px; padding:18px 16px; margin-bottom:12px; }
@@ -77,8 +78,9 @@
     .dn { color:var(--down); font-weight:700; }
     .na { color:var(--muted-3); }
 
+    @keyframes sheet-slide-up { from { transform:translateY(100%); } to { transform:translateY(0); } }
     .modal-bg { position:fixed; inset:0; background:var(--overlay); z-index:100; display:flex; align-items:flex-end; justify-content:center; }
-    .modal { background:var(--card); border-radius:20px 20px 0 0; padding:24px 20px; width:100%; max-width:600px; border:1px solid var(--border); }
+    .modal { background:var(--card); border-radius:20px 20px 0 0; padding:24px 20px; width:100%; max-width:600px; border:1px solid var(--border); animation:sheet-slide-up 0.25s ease-out; }
     .modal-title { font-size:16px; font-weight:700; margin-bottom:16px; }
     .type-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:16px; }
     .type-btn { background:var(--bg); border:2px solid var(--border); border-radius:12px; padding:14px 10px; cursor:pointer; text-align:center; transition:border-color 0.15s; }
@@ -91,9 +93,9 @@
     .color-dot.sel { border-color:var(--white); }
     #tip { position:fixed; bottom:80px; left:50%; transform:translateX(-50%); background:var(--card); border:1px solid var(--border); border-radius:12px; padding:10px 16px; font-size:13px; color:var(--text); z-index:999; text-align:center; min-width:180px; box-shadow:var(--shadow-modal); display:none; }
     .trade-modal-bg { position:fixed; inset:0; background:var(--overlay-strong); z-index:200; display:flex; align-items:flex-end; justify-content:center; }
-    .trade-modal { background:var(--card); border-radius:20px 20px 0 0; padding:20px 18px 32px; width:100%; max-width:600px; border:1px solid var(--border); max-height:85vh; overflow-y:auto; }
+    .trade-modal { background:var(--card); border-radius:20px 20px 0 0; padding:20px 18px 32px; width:100%; max-width:600px; border:1px solid var(--border); max-height:85vh; overflow-y:auto; animation:sheet-slide-up 0.25s ease-out; }
     .trade-tabs { display:flex; gap:6px; margin-bottom:16px; }
-    .trade-tab { flex:1; padding:9px; border-radius:10px; font-size:13px; font-weight:700; border:none; cursor:pointer; }
+    .trade-tab { flex:1; padding:9px; border-radius:14px; font-size:13px; font-weight:700; border:none; cursor:pointer; }
     .trade-tab.buy  { background:var(--up-bg); color:var(--up); }
     .trade-tab.sell { background:var(--down-bg); color:var(--down); }
     .trade-tab.buy.on  { background:var(--up); color:var(--white); }
@@ -141,7 +143,7 @@ window.addEventListener('unhandledrejection', function(e) {
 
 // ─── 상수 ────────────────────────────────────────────────────
 const WORKER = "https://asset-proxy.omyakryl0541.workers.dev";
-const COLORS  = ["#6366f1","#f59e0b","#10b981","#3b82f6","#f43f5e","#a855f7","#06b6d4","#84cc16","#f97316","#ec4899"];
+const COLORS  = ["#3182f6","#f59e0b","#10b981","#3b82f6","#f43f5e","#a855f7","#06b6d4","#84cc16","#f97316","#ec4899"];
 const SK      = "asset_v7";
 
 // ─── 클라우드 UID ─────────────────────────────────────────────
@@ -225,7 +227,7 @@ const KRX_DB = { "381170":"TIGER 미국테크TOP10 INDXX","360750":"TIGER 미국
 const GECKO_ID = { BTC:"bitcoin",ETH:"ethereum",XRP:"ripple",SOL:"solana",DOGE:"dogecoin",ADA:"cardano",MATIC:"matic-network",AVAX:"avalanche-2",DOT:"polkadot",LINK:"chainlink",UNI:"uniswap",ATOM:"cosmos",LTC:"litecoin",BCH:"bitcoin-cash",NEAR:"near",SHIB:"shiba-inu",TRX:"tron",XLM:"stellar",KLAY:"klay-token" };
 
 const SECTOR_DB = { NVO:"헬스케어",LLY:"헬스케어",JNJ:"헬스케어",UNH:"헬스케어",ABBV:"헬스케어",PFE:"헬스케어",MRK:"헬스케어",TMO:"헬스케어",AAPL:"IT",MSFT:"IT",NVDA:"IT",AVGO:"IT",AMD:"IT",INTC:"IT",CRM:"IT",ORCL:"IT",ADBE:"IT",QCOM:"IT",GOOGL:"커뮤니케이션",GOOG:"커뮤니케이션",META:"커뮤니케이션",NFLX:"커뮤니케이션",DIS:"커뮤니케이션",AMZN:"경기소비재",TSLA:"경기소비재",MCD:"경기소비재",NKE:"경기소비재",SBUX:"경기소비재",HD:"경기소비재",WMT:"필수소비재",PG:"필수소비재",KO:"필수소비재",PEP:"필수소비재",COST:"필수소비재",JPM:"금융",BAC:"금융",WFC:"금융",GS:"금융",MS:"금융",V:"금융",MA:"금융",RTX:"산업재",HON:"산업재",UPS:"산업재",CAT:"산업재",LMT:"산업재",BA:"산업재",GE:"산업재",XOM:"에너지",CVX:"에너지",COP:"에너지",EQT:"에너지",OXY:"에너지",URA:"에너지",LIN:"소재",NEM:"소재",FCX:"소재",NEE:"유틸리티",DUK:"유틸리티",EQIX:"부동산",PLD:"부동산",AMT:"부동산",QQQ:"지수추종",SPY:"지수추종",VOO:"지수추종",VTI:"지수추종",SCHD:"지수추종",JEPI:"지수추종",JEPQ:"지수추종",QQQM:"지수추종",TQQQ:"레버리지",QLD:"레버리지",SOXL:"레버리지",UPRO:"레버리지",TLT:"채권",IEF:"채권",SHY:"채권",BND:"채권",SGOV:"채권",HYG:"채권",LQD:"채권",GLD:"원자재",GLDM:"원자재",IAU:"원자재",SLV:"원자재","381170":"지수추종","360750":"지수추종","381180":"지수추종","367380":"지수추종","360200":"지수추종","438080":"채권","069500":"지수추종","133690":"지수추종","379800":"지수추종","448290":"지수추종","411060":"원자재","0072R0":"원자재" };
-const SECTOR_COLORS = { "IT":"#6366f1","헬스케어":"#10b981","경기소비재":"#f59e0b","필수소비재":"#84cc16","금융":"#3b82f6","커뮤니케이션":"#a855f7","산업재":"#06b6d4","에너지":"#f97316","소재":"#78716c","유틸리티":"#facc15","부동산":"#ec4899","지수추종":"#94a3b8","레버리지":"#ef4444","채권":"#0ea5e9","원자재":"#d97706","암호화폐":"#8b5cf6","현금/예금":"#475569","기타":"#334155" };
+const SECTOR_COLORS = { "IT":"#3182f6","헬스케어":"#10b981","경기소비재":"#f59e0b","필수소비재":"#84cc16","금융":"#3b82f6","커뮤니케이션":"#a855f7","산업재":"#06b6d4","에너지":"#f97316","소재":"#78716c","유틸리티":"#facc15","부동산":"#ec4899","지수추종":"#aeaeb2","레버리지":"#ef4444","채권":"#0ea5e9","원자재":"#d97706","암호화폐":"#8b5cf6","현금/예금":"#636366","기타":"#2c2c2e" };
 const SECTOR_EN = { "Healthcare":"헬스케어","Technology":"IT","Communication Services":"커뮤니케이션","Consumer Cyclical":"경기소비재","Consumer Defensive":"필수소비재","Financial Services":"금융","Industrials":"산업재","Energy":"에너지","Basic Materials":"소재","Utilities":"유틸리티","Real Estate":"부동산" };
 
 // ─── 프로필 ──────────────────────────────────────────────────
@@ -254,13 +256,13 @@ function deleteProfile(name) {
 // ─── 저장소 ──────────────────────────────────────────────────
 function makeDefaultAccounts() {
   return [
-    {id:"a_us",  name:"미국 주식", type:"us",   color:"#6366f1", items:[], cash:0, deposits:[]},
+    {id:"a_us",  name:"미국 주식", type:"us",   color:"#3182f6", items:[], cash:0, deposits:[]},
     {id:"a_krx", name:"한국 주식", type:"krx",  color:"#f43f5e", items:[], cash:0, deposits:[]},
     {id:"a_pen", name:"연금저축",  type:"krx",  color:"#f59e0b", items:[], cash:0, deposits:[]},
     {id:"a_irp", name:"IRP",      type:"krx",  color:"#10b981", items:[], cash:0, deposits:[]},
     {id:"a_isa", name:"ISA",      type:"krx",  color:"#a855f7", items:[], cash:0, deposits:[]},
     {id:"a_coin",name:"코인",      type:"coin", color:"#3b82f6", items:[], cash:0, deposits:[]},
-    {id:"a_cash",name:"현금/예금", type:"cash", color:"#475569", items:[{id:"ca1",n:"현금",a:0}]},
+    {id:"a_cash",name:"현금/예금", type:"cash", color:"#636366", items:[{id:"ca1",n:"현금",a:0}]},
   ];
 }
 const DEFAULT_DATA = {
@@ -331,7 +333,7 @@ function simpleMarkdownToHtml(md) {
     .replace(/^# (.*)$/gm, "<h2 style='margin:14px 0 8px;font-size:16px'>$1</h2>")
     .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
     .replace(/\*(.*?)\*/g, "<em>$1</em>")
-    .replace(/\[(.*?)\]\((.*?)\)/g, "<a href='$2' target='_blank' style='color:#6366f1'>$1</a>")
+    .replace(/\[(.*?)\]\((.*?)\)/g, "<a href='$2' target='_blank' style='color:#3182f6'>$1</a>")
     .replace(/^- (.*)$/gm, "<li style='margin-left:16px'>$1</li>")
     .replace(/\n\n/g, "</p><p style='margin:6px 0'>")
     .replace(/\n/g, "<br/>");
@@ -344,9 +346,9 @@ function buildThesisViewModal() {
     <div class="trade-modal">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
         <div class="modal-title" style="margin:0">📝 투자 근거</div>
-        <button id="thesis-close" style="background:transparent;border:none;color:#64748b;font-size:20px;cursor:pointer">✕</button>
+        <button id="thesis-close" style="background:transparent;border:none;color:#8e8e93;font-size:20px;cursor:pointer">✕</button>
       </div>
-      <div style="background:#0f172a;border-radius:10px;padding:14px;font-size:13px;line-height:1.6;max-height:60vh;overflow-y:auto">
+      <div style="background:#000000;border-radius:10px;padding:14px;font-size:13px;line-height:1.6;max-height:60vh;overflow-y:auto">
         ${simpleMarkdownToHtml(thesisViewModal.text)}
       </div>
     </div>
@@ -358,12 +360,12 @@ function buildTutorialModal() {
   const step = TUTORIAL_STEPS[tutorialStep];
   if (!step) return "";
   const total = TUTORIAL_STEPS.length;
-  const dots = TUTORIAL_STEPS.map((_,i)=>'<div style="width:6px;height:6px;border-radius:50%;background:'+(i===tutorialStep?"#6366f1":"#334155")+'"></div>').join("");
+  const dots = TUTORIAL_STEPS.map((_,i)=>'<div style="width:6px;height:6px;border-radius:50%;background:'+(i===tutorialStep?"#3182f6":"#2c2c2e")+'"></div>').join("");
   return `<div class="trade-modal-bg" id="tutorial-modal-bg">
     <div class="trade-modal">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
         <div style="display:flex;gap:4px">${dots}</div>
-        <button id="tutorial-quit" style="background:transparent;border:none;color:#64748b;font-size:12px;cursor:pointer;text-decoration:underline">그만두기 ✕</button>
+        <button id="tutorial-quit" style="background:transparent;border:none;color:#8e8e93;font-size:12px;cursor:pointer;text-decoration:underline">그만두기 ✕</button>
       </div>
       <div style="font-size:16px;font-weight:800;margin-bottom:10px">${step.title}</div>
       <div style="font-size:13px;line-height:1.7;color:#cbd5e1;margin-bottom:20px">${step.body}</div>
@@ -503,7 +505,7 @@ function calcSectorMap(accounts) {
   return map;
 }
 function sectorMapToItems(map) {
-  return Object.entries(map).sort((a,b)=>b[1]-a[1]).filter(([,v])=>v>0).map(([l,v])=>({l,v,c:SECTOR_COLORS[l]||"#334155"}));
+  return Object.entries(map).sort((a,b)=>b[1]-a[1]).filter(([,v])=>v>0).map(([l,v])=>({l,v,c:SECTOR_COLORS[l]||"#2c2c2e"}));
 }
 
 // ─── API ─────────────────────────────────────────────────────
@@ -589,7 +591,7 @@ function buildDonutSVG(segs, total, cx, cy, R, r, interactive) {
     const lg=a>Math.PI?1:0, col=seg.c||COLORS[i%COLORS.length];
     const pct=(seg.v/total*100).toFixed(1);
     const ex=interactive?` data-label="${seg.l}" data-pct="${pct}" data-val="${Math.round(seg.v)}" class="donut-seg" style="cursor:pointer"`:"";
-    return `<path d="M${xi1},${yi1}L${x1},${y1}A${R},${R} 0 ${lg},1 ${x2},${y2}L${xi2},${yi2}A${r},${r} 0 ${lg},0 ${xi1},${yi1}Z" fill="${col}" stroke="#0f172a" stroke-width="2"${ex}/>`;
+    return `<path d="M${xi1},${yi1}L${x1},${y1}A${R},${R} 0 ${lg},1 ${x2},${y2}L${xi2},${yi2}A${r},${r} 0 ${lg},0 ${xi1},${yi1}Z" fill="${col}" stroke="#000000" stroke-width="2"${ex}/>`;
   }).join("");
 }
 function buildDonutCard(items, title) {
@@ -602,7 +604,7 @@ function buildDonutCard(items, title) {
     '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">'
     +'<div style="display:flex;align-items:center;gap:6px"><div style="width:8px;height:8px;border-radius:2px;background:'+seg.c+'"></div>'
     +'<span style="font-size:11px">'+seg.l+'</span></div>'
-    +'<div><span style="font-size:11px;font-weight:700;color:#94a3b8;margin-right:4px">'+(seg.v/total*100).toFixed(1)+'%</span>'
+    +'<div><span style="font-size:11px;font-weight:700;color:#aeaeb2;margin-right:4px">'+(seg.v/total*100).toFixed(1)+'%</span>'
     +'<span style="font-size:11px;font-weight:600">'+won(seg.v)+'</span></div></div>'
   ).join("");
   return '<div class="card" style="margin-top:4px">'
@@ -610,8 +612,8 @@ function buildDonutCard(items, title) {
     +'<div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">'
     +'<svg width="180" height="180" viewBox="0 0 180 180" style="flex-shrink:0"'+(isSector?' data-sector-donut="1"':'')+' data-donut-title="'+title+'">'
     +paths
-    +'<text x="90" y="85" text-anchor="middle" fill="#94a3b8" font-size="10" class="donut-ct">탭하여</text>'
-    +'<text x="90" y="100" text-anchor="middle" fill="#94a3b8" font-size="10" class="donut-cb">확인</text>'
+    +'<text x="90" y="85" text-anchor="middle" fill="#aeaeb2" font-size="10" class="donut-ct">탭하여</text>'
+    +'<text x="90" y="100" text-anchor="middle" fill="#aeaeb2" font-size="10" class="donut-cb">확인</text>'
     +'</svg>'
     +'<div style="flex:1;min-width:150px" class="donut-legend">'+legend+'</div>'
     +'</div></div>';
@@ -631,8 +633,8 @@ function eventsToHtml(events, isUS, isCoin) {
         <div style="display:flex;align-items:center;gap:8px">
           <span class="history-badge ${isBuy?"badge-buy":"badge-sell"}">${isBuy?"매수":"매도"}</span>
           <span style="font-weight:600">${ev.ticker}</span>
-          <span style="color:#64748b">${ev.date}</span>
-          ${ev.memo?`<span style="color:#475569;font-size:10px">${ev.memo}</span>`:""}
+          <span style="color:#8e8e93">${ev.date}</span>
+          ${ev.memo?`<span style="color:#636366;font-size:10px">${ev.memo}</span>`:""}
         </div>
         <div style="display:flex;align-items:center;gap:8px">
           <div style="text-align:right">
@@ -647,8 +649,8 @@ function eventsToHtml(events, isUS, isCoin) {
         <div style="display:flex;align-items:center;gap:8px">
           <span class="history-badge" style="background:#f59e0b20;color:#f59e0b">배당</span>
           <span style="font-weight:600">${ev.ticker}</span>
-          <span style="color:#64748b">${ev.date}</span>
-          ${ev.memo?`<span style="color:#475569;font-size:10px">${ev.memo}</span>`:""}
+          <span style="color:#8e8e93">${ev.date}</span>
+          ${ev.memo?`<span style="color:#636366;font-size:10px">${ev.memo}</span>`:""}
         </div>
         <div style="display:flex;align-items:center;gap:8px">
           <div style="font-weight:600;color:#f59e0b">+${evIsUS?usd(ev.amount):won(ev.amount)}</div>
@@ -661,9 +663,9 @@ function eventsToHtml(events, isUS, isCoin) {
       return `<div class="history-row">
         <div style="display:flex;align-items:center;gap:8px">
           <span class="history-badge" style="background:${isIn?"#10b98120":"#f59e0b20"};color:${isIn?"#10b981":"#f59e0b"}">${isIn?"입금":"출금"}</span>
-          <span style="color:#64748b">${ev.date}</span>
-          ${ev.memo?`<span style="color:#475569;font-size:10px">${ev.memo}</span>`:""}
-          <button data-deposit-edit-memo="${ev.id}" data-deposit-acc="${ev.accId}" style="background:transparent;border:none;color:#475569;font-size:11px;cursor:pointer;padding:0">✏️</button>
+          <span style="color:#8e8e93">${ev.date}</span>
+          ${ev.memo?`<span style="color:#636366;font-size:10px">${ev.memo}</span>`:""}
+          <button data-deposit-edit-memo="${ev.id}" data-deposit-acc="${ev.accId}" style="background:transparent;border:none;color:#636366;font-size:11px;cursor:pointer;padding:0">✏️</button>
         </div>
         <div style="display:flex;align-items:center;gap:8px">
           <span style="font-weight:600">${amtStr}</span>
@@ -742,7 +744,7 @@ function buildAccountHistorySection(acc) {
   const yearTabs = availYears.length > 1 ? ['all', ...availYears].map(y=>{
     const isOn = (filter.year||"all") === y;
     const label = y === 'all' ? '전체연도' : y+'년';
-    return '<button class="btn-sm" data-history-year="'+acc.id+'" data-filter-year="'+y+'" style="padding:4px 10px;font-size:11px;'+(isOn?'background:#334155;color:#fff;border-color:#64748b':'')+'">'+label+'</button>';
+    return '<button class="btn-sm" data-history-year="'+acc.id+'" data-filter-year="'+y+'" style="padding:4px 10px;font-size:11px;'+(isOn?'background:#2c2c2e;color:#fff;border-color:#8e8e93':'')+'">'+label+'</button>';
   }).join("") : "";
 
   // 필터링된 결과 합계 (배당/매도손익/입출금 등)
@@ -751,38 +753,38 @@ function buildAccountHistorySection(acc) {
   const fmtMoney = n => isUS ? usd(n) : won(n);
   if (filter.kind === "dividend" && filteredEvents.length) {
     const totalDiv = isMixed ? filteredEvents.reduce((s,e)=>s+(e.krwVal||0),0) : filteredEvents.reduce((s,e)=>s+(e.amount||0),0);
-    summaryHtml = '<div style="display:flex;justify-content:space-between;align-items:center;background:#0f172a;border-radius:8px;padding:8px 12px;margin-bottom:10px">'
-      +'<span style="font-size:12px;color:#64748b">배당 합계 ('+filteredEvents.length+'건)</span>'
+    summaryHtml = '<div style="display:flex;justify-content:space-between;align-items:center;background:#000000;border-radius:8px;padding:8px 12px;margin-bottom:10px">'
+      +'<span style="font-size:12px;color:#8e8e93">배당 합계 ('+filteredEvents.length+'건)</span>'
       +'<span style="font-size:13px;font-weight:700;color:#f59e0b">+'+(isMixed?won(totalDiv):fmtMoney(totalDiv))+'</span></div>';
   } else if (filter.kind === "sell" && filteredEvents.length) {
     const totalSell = isMixed ? filteredEvents.reduce((s,e)=>s+(e.krwVal||0),0) : filteredEvents.reduce((s,e)=>s+(e.qty*e.price||0),0);
     const totalPnl  = filteredEvents.reduce((s,e)=>s+(e.pnl||0),0);
-    summaryHtml = '<div style="display:flex;justify-content:space-between;align-items:center;background:#0f172a;border-radius:8px;padding:8px 12px;margin-bottom:10px">'
-      +'<span style="font-size:12px;color:#64748b">매도 합계 ('+filteredEvents.length+'건)</span>'
+    summaryHtml = '<div style="display:flex;justify-content:space-between;align-items:center;background:#000000;border-radius:8px;padding:8px 12px;margin-bottom:10px">'
+      +'<span style="font-size:12px;color:#8e8e93">매도 합계 ('+filteredEvents.length+'건)</span>'
       +'<div style="text-align:right"><span style="font-size:13px;font-weight:700">'+(isMixed?won(totalSell):fmtMoney(totalSell))+'</span>'
       +'<span style="font-size:12px;font-weight:700;color:'+(totalPnl>=0?'#ef4444':'#3b82f6')+';margin-left:6px">'+(totalPnl>=0?'+':'')+(isMixed?won(totalPnl):fmtMoney(totalPnl))+' 손익</span></div></div>';
   } else if (filter.kind === "buy" && filteredEvents.length) {
     const totalBuy = isMixed ? filteredEvents.reduce((s,e)=>s+(e.krwVal||0),0) : filteredEvents.reduce((s,e)=>s+(e.qty*e.price||0),0);
-    summaryHtml = '<div style="display:flex;justify-content:space-between;align-items:center;background:#0f172a;border-radius:8px;padding:8px 12px;margin-bottom:10px">'
-      +'<span style="font-size:12px;color:#64748b">매수 합계 ('+filteredEvents.length+'건)</span>'
+    summaryHtml = '<div style="display:flex;justify-content:space-between;align-items:center;background:#000000;border-radius:8px;padding:8px 12px;margin-bottom:10px">'
+      +'<span style="font-size:12px;color:#8e8e93">매수 합계 ('+filteredEvents.length+'건)</span>'
       +'<span style="font-size:13px;font-weight:700">'+(isMixed?won(totalBuy):fmtMoney(totalBuy))+'</span></div>';
   } else if (filter.kind === "cash" && filteredEvents.length) {
     const totalIn  = filteredEvents.filter(e=>e.kind==="cash-in").reduce((s,e)=>s+(isMixed?(e.krwVal||0):Math.abs(e.amount||0)),0);
     const totalOut = filteredEvents.filter(e=>e.kind==="cash-out").reduce((s,e)=>s+(isMixed?(e.krwVal||0):Math.abs(e.amount||0)),0);
-    summaryHtml = '<div style="display:flex;justify-content:space-between;align-items:center;background:#0f172a;border-radius:8px;padding:8px 12px;margin-bottom:10px">'
-      +'<span style="font-size:12px;color:#64748b">입금 '+won(totalIn)+' · 출금 '+won(totalOut)+'</span>'
+    summaryHtml = '<div style="display:flex;justify-content:space-between;align-items:center;background:#000000;border-radius:8px;padding:8px 12px;margin-bottom:10px">'
+      +'<span style="font-size:12px;color:#8e8e93">입금 '+won(totalIn)+' · 출금 '+won(totalOut)+'</span>'
       +'<span style="font-size:13px;font-weight:700">순 '+won(totalIn-totalOut)+'</span></div>';
   }
 
   const hasTickerSearch = acc.type !== "cash";
 
   return '<div class="card" style="margin-bottom:12px">'
-    +'<div class="card-hdr"><span class="card-title">📜 전체 거래 히스토리</span><span style="font-size:11px;color:#475569">'+filteredEvents.length+'/'+events.length+'건</span></div>'
+    +'<div class="card-hdr"><span class="card-title">📜 전체 거래 히스토리</span><span style="font-size:11px;color:#636366">'+filteredEvents.length+'/'+events.length+'건</span></div>'
     +'<div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:10px">'+filterTabs+'</div>'
     +(yearTabs ? '<div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:10px">'+yearTabs+'</div>' : "")
     +(hasTickerSearch ? '<input class="inp inp-l" data-history-search="'+acc.id+'" placeholder="🔍 종목 검색 (예: NVO)" value="'+(filter.search||"")+'" style="margin-bottom:10px"/>' : "")
     +summaryHtml
-    +'<div>'+(filteredEvents.length ? eventsToHtml(visibleEvents, isUS, isCoin) : '<div style="font-size:12px;color:#475569;text-align:center;padding:12px 0">해당하는 내역이 없어요</div>')+'</div>'
+    +'<div>'+(filteredEvents.length ? eventsToHtml(visibleEvents, isUS, isCoin) : '<div style="font-size:12px;color:#636366;text-align:center;padding:12px 0">해당하는 내역이 없어요</div>')+'</div>'
     +(filteredEvents.length > 5
       ? '<button class="add-btn" data-history-toggle="'+acc.id+'" style="margin-top:8px">'+(showAll?"접기 ▲":"전체 "+filteredEvents.length+"건 보기 ▼")+'</button>'
       : "")
@@ -805,14 +807,14 @@ function buildDepositSection(deposits, accId) {
 
   const viewRows = sorted.map(d=>
     '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">'
-    +'<span style="font-size:12px;color:#94a3b8;width:48px">'+d.year+'년</span>'
+    +'<span style="font-size:12px;color:#aeaeb2;width:48px">'+d.year+'년</span>'
     +'<span style="font-size:13px;font-weight:600">'+won(d.amount)+'</span>'
     +'</div>'
   ).join("");
 
   const summaryHtml = total > 0
-    ? '<div style="display:flex;justify-content:space-between;align-items:center;padding-top:10px;border-top:1px solid #334155;margin-top:6px">'
-      +'<span style="font-size:12px;color:#64748b">총 순입금</span>'
+    ? '<div style="display:flex;justify-content:space-between;align-items:center;padding-top:10px;border-top:1px solid #2c2c2e;margin-top:6px">'
+      +'<span style="font-size:12px;color:#8e8e93">총 순입금</span>'
       +'<div style="text-align:right">'
       +'<span style="font-size:14px;font-weight:800">'+won(total)+'</span>'
       +(diff!=null?'<span style="font-size:12px;font-weight:700;color:'+(diff>=0?'#ef4444':'#3b82f6')+';margin-left:8px">'+(diff>=0?'+':'')+won(diff)+'</span>':"")
@@ -822,7 +824,7 @@ function buildDepositSection(deposits, accId) {
 
   return '<div class="card" style="margin-bottom:12px">'
     +'<div class="card-hdr"><span class="card-title">💸 순입금 내역</span></div>'
-    +(viewRows || '<div style="font-size:12px;color:#475569;text-align:center;padding:8px 0">입력된 내역이 없습니다</div>')
+    +(viewRows || '<div style="font-size:12px;color:#636366;text-align:center;padding:8px 0">입력된 내역이 없습니다</div>')
     +summaryHtml
     +'</div>';
 }
@@ -852,9 +854,9 @@ function buildOverviewDepositSection() {
     const diffPct = r.dep > 0 ? ((r.ev - r.dep) / r.dep) * 100 : null;
     return '<tr>'
       +'<td><div style="display:flex;align-items:center;gap:6px"><div style="width:8px;height:8px;border-radius:2px;background:'+r.color+';flex-shrink:0"></div><span style="font-size:12px;font-weight:600">'+r.name+'</span></div></td>'
-      +'<td class="r" style="font-size:12px">'+(r.dep>0?won(r.dep):'<span style="color:#475569">미입력</span>')+'</td>'
+      +'<td class="r" style="font-size:12px">'+(r.dep>0?won(r.dep):'<span style="color:#636366">미입력</span>')+'</td>'
       +'<td class="r" style="font-size:12px;font-weight:600">'+won(r.ev)+'</td>'
-      +'<td class="r"><span style="font-size:11px;font-weight:700;color:'+(diff==null?'#475569':diff>=0?'#ef4444':'#3b82f6')+'">'
+      +'<td class="r"><span style="font-size:11px;font-weight:700;color:'+(diff==null?'#636366':diff>=0?'#ef4444':'#3b82f6')+'">'
       +(diff==null?'—':(diffPct>=0?'+':'')+diffPct.toFixed(1)+'%')+'</span></td>'
       +'</tr>';
   }).join("");
@@ -865,10 +867,10 @@ function buildOverviewDepositSection() {
     +'<tbody>'+rowHtml+'</tbody>'
     +'</table></div>'
     +(totalDep>0
-      ? '<div style="display:flex;justify-content:space-between;align-items:center;padding-top:10px;border-top:1px solid #334155;margin-top:6px">'
-        +'<span style="font-size:12px;color:#64748b">전체 합계</span>'
+      ? '<div style="display:flex;justify-content:space-between;align-items:center;padding-top:10px;border-top:1px solid #2c2c2e;margin-top:6px">'
+        +'<span style="font-size:12px;color:#8e8e93">전체 합계</span>'
         +'<div style="text-align:right">'
-        +'<span style="font-size:12px;color:#94a3b8">입금 '+won(totalDep)+'</span>'
+        +'<span style="font-size:12px;color:#aeaeb2">입금 '+won(totalDep)+'</span>'
         +'<span style="font-size:14px;font-weight:800;margin-left:8px">'+won(totalEval)+'</span>'
         +(ovDiff!=null?'<span style="font-size:12px;font-weight:700;color:'+(ovDiff>=0?'#ef4444':'#3b82f6')+';margin-left:6px">'+(ovDiff>=0?'+':'')+won(ovDiff)+'</span>':"")
         +(ovDiffPct!=null?'<span style="font-size:11px;font-weight:700;color:'+(ovDiffPct>=0?'#ef4444':'#3b82f6')+';margin-left:4px">('+fPct(ovDiffPct)+')</span>':"")
@@ -894,27 +896,27 @@ function buildAccountSection(acc) {
       +'<button class="btn-sm" style="color:#ef4444;border-color:#ef4444;padding:6px 10px;font-size:12px;font-weight:700;white-space:nowrap" data-new-trade="'+acc.id+'">+ 신규매수</button>';
   const cashRow = isCash ? "" : isMixed
     ? (editMode
-        ? '<div style="display:flex;flex-direction:column;gap:6px;background:#0f172a;border-radius:8px;padding:8px 12px;margin-bottom:10px">'
-          +'<div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:12px;color:#64748b">💵 원화예수금<span style="color:#475569">(기록 안 남음)</span></span><input class="inp inp-r" type="number" style="width:120px" data-cash-edit-krw="'+acc.id+'" value="'+(acc.cashKrw||0)+'"/></div>'
-          +'<div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:12px;color:#64748b">💵 외화(USD)예수금</span><input class="inp inp-r" type="number" step="0.01" style="width:120px" data-cash-edit-usd="'+acc.id+'" value="'+(acc.cashUsd||0)+'"/></div>'
+        ? '<div style="display:flex;flex-direction:column;gap:6px;background:#000000;border-radius:8px;padding:8px 12px;margin-bottom:10px">'
+          +'<div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:12px;color:#8e8e93">💵 원화예수금<span style="color:#636366">(기록 안 남음)</span></span><input class="inp inp-r" type="number" style="width:120px" data-cash-edit-krw="'+acc.id+'" value="'+(acc.cashKrw||0)+'"/></div>'
+          +'<div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:12px;color:#8e8e93">💵 외화(USD)예수금</span><input class="inp inp-r" type="number" step="0.01" style="width:120px" data-cash-edit-usd="'+acc.id+'" value="'+(acc.cashUsd||0)+'"/></div>'
           +'</div>'
-        : '<div style="display:flex;flex-direction:column;gap:4px;background:#0f172a;border-radius:8px;padding:8px 12px;margin-bottom:10px">'
-          +'<div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:12px;color:#64748b">💵 원화예수금</span><span style="font-size:13px;font-weight:700">'+won(acc.cashKrw||0)+'</span></div>'
-          +'<div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:12px;color:#64748b">💵 외화예수금</span><span style="font-size:13px;font-weight:700">'+usd(acc.cashUsd||0)+'</span></div>'
+        : '<div style="display:flex;flex-direction:column;gap:4px;background:#000000;border-radius:8px;padding:8px 12px;margin-bottom:10px">'
+          +'<div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:12px;color:#8e8e93">💵 원화예수금</span><span style="font-size:13px;font-weight:700">'+won(acc.cashKrw||0)+'</span></div>'
+          +'<div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:12px;color:#8e8e93">💵 외화예수금</span><span style="font-size:13px;font-weight:700">'+usd(acc.cashUsd||0)+'</span></div>'
           +'</div>')
     : (editMode
-        ? '<div style="display:flex;justify-content:space-between;align-items:center;background:#0f172a;border-radius:8px;padding:8px 12px;margin-bottom:10px">'
-          +'<span style="font-size:12px;color:#64748b">💵 예수금 직접 수정<span style="color:#475569">(기록 안 남음)</span></span>'
+        ? '<div style="display:flex;justify-content:space-between;align-items:center;background:#000000;border-radius:8px;padding:8px 12px;margin-bottom:10px">'
+          +'<span style="font-size:12px;color:#8e8e93">💵 예수금 직접 수정<span style="color:#636366">(기록 안 남음)</span></span>'
           +'<input class="inp inp-r" type="number" step="0.01" style="width:120px" data-cash-edit="'+acc.id+'" value="'+(acc.cash||0)+'" placeholder="'+(isUS?"USD":"KRW")+'"/>'
           +'</div>'
-        : '<div style="display:flex;justify-content:space-between;align-items:center;background:#0f172a;border-radius:8px;padding:8px 12px;margin-bottom:10px">'
-          +'<span style="font-size:12px;color:#64748b">💵 예수금</span>'
+        : '<div style="display:flex;justify-content:space-between;align-items:center;background:#000000;border-radius:8px;padding:8px 12px;margin-bottom:10px">'
+          +'<span style="font-size:12px;color:#8e8e93">💵 예수금</span>'
           +'<span style="font-size:13px;font-weight:700">'+(isUS?usd(acc.cash||0):won(acc.cash||0))+'</span>'
           +'</div>');
   // 처음 여는 계좌(예수금 0, 보유 종목 없음)에는 매수 전에 입출금부터 해야 한다는 걸 안내
   const cashEmpty = isMixed ? ((acc.cashKrw||0)+(acc.cashUsd||0)) <= 0 : (acc.cash||0) <= 0;
   const emptyCashHint = (!isCash && !editMode && cashEmpty && acc.items.length === 0)
-    ? '<div style="font-size:11px;color:#a5b4fc;background:#6366f11a;border:1px solid #6366f133;border-radius:8px;padding:8px 12px;margin-bottom:10px">💡 먼저 <b>입출금</b> 버튼으로 예수금을 채운 다음 <b>+ 신규매수</b>로 종목을 사보세요</div>'
+    ? '<div style="font-size:11px;color:#93c5fd;background:#3182f61a;border:1px solid #3182f633;border-radius:8px;padding:8px 12px;margin-bottom:10px">💡 먼저 <b>입출금</b> 버튼으로 예수금을 채운 다음 <b>+ 신규매수</b>로 종목을 사보세요</div>'
     : '';
   const hdrRight = '<div style="text-align:right">'
     +'<div style="font-weight:800;font-size:17px;color:'+acc.color+'">'+(total?won(total):"₩0")+'</div>'
@@ -958,10 +960,10 @@ function buildAccountSection(acc) {
       if (editMode) return '<tr data-id="'+item.id+'" data-acc="'+acc.id+'" data-usd="'+rowIsUS+'">'
         +'<td style="min-width:110px">'+(isMixed&&!hasTrades?marketPicker(item):'')
         +'<input class="inp inp-l" style="font-weight:600;font-size:12px;margin-bottom:3px" data-f="t" data-id="'+item.id+'" data-acc="'+acc.id+'" value="'+item.t+'"'+(hasTrades?' disabled':'')+'/>'
-        +'<input class="inp inp-l" style="font-size:10px;color:#94a3b8" data-f="n" data-id="'+item.id+'" data-acc="'+acc.id+'" value="'+(item.n||"")+'"/></td>'
+        +'<input class="inp inp-l" style="font-size:10px;color:#aeaeb2" data-f="n" data-id="'+item.id+'" data-acc="'+acc.id+'" value="'+(item.n||"")+'"/></td>'
         +(hasTrades
-          ? '<td class="r" style="font-size:11px;color:#64748b">🔒 '+item.q+'</td>'
-            +'<td class="r" style="font-size:11px;color:#64748b">🔒 '+(rowIsUS?usd(item.a):won(item.a))+'</td>'
+          ? '<td class="r" style="font-size:11px;color:#8e8e93">🔒 '+item.q+'</td>'
+            +'<td class="r" style="font-size:11px;color:#8e8e93">🔒 '+(rowIsUS?usd(item.a):won(item.a))+'</td>'
           : '<td class="r"><input class="inp inp-r" type="number" '+(rowIsCoin?'step="0.0001" ':'')+' data-f="q" data-id="'+item.id+'" data-acc="'+acc.id+'" value="'+(item.q||"")+'"/></td>'
             +'<td class="r"><input class="inp inp-r" type="number" data-f="a" data-id="'+item.id+'" data-acc="'+acc.id+'" value="'+(item.a||"")+'" placeholder="'+(rowIsUS?"USD":"KRW")+'"/></td>')
         +'<td class="r">'+priceStr+'</td>'
@@ -971,9 +973,9 @@ function buildAccountSection(acc) {
         +'<td><button class="del-btn" data-del="'+item.id+'" data-acc="'+acc.id+'">✕</button></td></tr>';
       const isGhost = (!item.q || item.q === 0);
       return '<tr class="ticker-row" data-trade-item="'+item.id+'" data-trade-acc="'+acc.id+'"'+(isGhost?' style="opacity:0.4"':'')+'>'
-        +'<td style="min-width:110px"><div class="ticker">'+(isMixed?MARKET_LABEL[rowMarket]+' ':'')+item.t+(isGhost?' <span style="font-size:9px;color:#64748b">(보유 0)</span>':'')+'</div><div class="subname">'+(item.n||"")+'</div></td>'
+        +'<td style="min-width:110px"><div class="ticker">'+(isMixed?MARKET_LABEL[rowMarket]+' ':'')+item.t+(isGhost?' <span style="font-size:9px;color:#8e8e93">(보유 0)</span>':'')+'</div><div class="subname">'+(item.n||"")+'</div></td>'
         +'<td class="r">'+item.q+'</td>'
-        +'<td class="r" style="color:#94a3b8">'+(rowIsUS?usd(item.a):won(item.a))+'</td>'
+        +'<td class="r" style="color:#aeaeb2">'+(rowIsUS?usd(item.a):won(item.a))+'</td>'
         +'<td class="r">'+priceStr+'</td>'
         +'<td class="r" style="font-weight:600">'+(rowIsUS?(val&&usdKrw?usd(val/usdKrw):"—"):(val?won(val):"₩0"))+'</td>'
         +'<td class="r '+gCls(profit)+'" style="font-weight:600">'+(rowIsUS?(profit&&usdKrw?((profit>=0?"+":"")+"$"+Math.abs(profit/usdKrw).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})):"—"):fProfit(profit))+'</td>'
@@ -982,11 +984,11 @@ function buildAccountSection(acc) {
   }
 
   const tradeHint = (!isCash && acc.items.length > 0 && !editMode)
-    ? '<div style="font-size:11px;color:#475569;margin-bottom:6px;text-align:right">💡 종목 탭하면 매수/매도</div>'
+    ? '<div style="font-size:11px;color:#636366;margin-bottom:6px;text-align:right">💡 종목 탭하면 매수/매도</div>'
     : '';
   const priceColLabel = isMixed
-    ? '<th class="r"><span style="cursor:pointer;border-bottom:1px dashed #475569" id="btn-toggle-usd">현재가'+(showUSD?"(USD/원)▾":"(원)▾")+'</span></th>'
-    : (isUS?'<th class="r"><span style="cursor:pointer;border-bottom:1px dashed #475569" id="btn-toggle-usd">'+(showUSD?"현재가(USD)▾":"현재가(원)▾")+'</span></th>':'<th class="r">현재가(원)</th>');
+    ? '<th class="r"><span style="cursor:pointer;border-bottom:1px dashed #636366" id="btn-toggle-usd">현재가'+(showUSD?"(USD/원)▾":"(원)▾")+'</span></th>'
+    : (isUS?'<th class="r"><span style="cursor:pointer;border-bottom:1px dashed #636366" id="btn-toggle-usd">'+(showUSD?"현재가(USD)▾":"현재가(원)▾")+'</span></th>':'<th class="r">현재가(원)</th>');
   const thead=isCash
     ?'<thead><tr><th style="text-align:left">항목</th><th class="r">금액</th>'+(editMode?'<th></th>':'')+'</tr></thead>'
     :'<thead><tr><th style="text-align:left">종목</th><th class="r">수량</th><th class="r">'+(isMixed?"평단":isUS?"평단(USD)":"평단(원)")+'</th>'
@@ -1025,18 +1027,18 @@ function buildGoals(tot) {
     let icon,col,bar;
     if(isAchieved){icon="✅";col="#10b981";bar="#10b981";}
     else if(isExpired){icon="⚠️";col="#f59e0b";bar="#f59e0b";}
-    else if(isCurrent){icon="🎯";col="#6366f1";bar="#6366f1";}
-    else{icon="";col="#475569";bar="#334155";}
+    else if(isCurrent){icon="🎯";col="#3182f6";bar="#3182f6";}
+    else{icon="";col="#636366";bar="#2c2c2e";}
     const ts=g.target>=1e8?(g.target/1e8).toFixed(g.target%1e8===0?0:1)+"억":(g.target/1e4).toFixed(0)+"만";
-    if(isFuture) return '<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;opacity:0.4"><span style="font-size:11px;color:#475569;width:36px">'+g.year+'</span><span style="font-size:12px;color:#475569;width:52px">'+ts+'</span><div style="flex:1;height:4px;background:#1e293b;border-radius:2px"></div></div>';
+    if(isFuture) return '<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;opacity:0.4"><span style="font-size:11px;color:#636366;width:36px">'+g.year+'</span><span style="font-size:12px;color:#636366;width:52px">'+ts+'</span><div style="flex:1;height:4px;background:#1c1c1e;border-radius:2px"></div></div>';
     return '<div style="margin-bottom:12px">'
-      +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px"><span>'+icon+'</span><span style="font-size:12px;color:#94a3b8;width:36px">'+g.year+'</span><span style="font-size:12px;font-weight:600;flex:1">'+ts+'</span><span style="font-size:12px;font-weight:700;color:'+col+'">'+pct+'%</span>'+(isExpired&&!isAchieved?'<span style="font-size:10px;color:#f59e0b">기간종료</span>':"")+'</div>'
-      +'<div style="height:6px;background:#1e293b;border-radius:3px;overflow:hidden"><div style="height:100%;width:'+pct+'%;background:'+bar+';border-radius:3px;transition:width 0.5s"></div></div>'
-      +(isCurrent||isExpired?'<div style="font-size:10px;color:#475569;margin-top:3px;text-align:right">'+(isExpired?'종료시 ':'현재 ')+won(val)+(isExpired&&!isAchieved?' · '+won(g.target-(g.snapshot||0))+" 미달":'')+'</div>':"")
+      +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px"><span>'+icon+'</span><span style="font-size:12px;color:#aeaeb2;width:36px">'+g.year+'</span><span style="font-size:12px;font-weight:600;flex:1">'+ts+'</span><span style="font-size:12px;font-weight:700;color:'+col+'">'+pct+'%</span>'+(isExpired&&!isAchieved?'<span style="font-size:10px;color:#f59e0b">기간종료</span>':"")+'</div>'
+      +'<div style="height:6px;background:#1c1c1e;border-radius:3px;overflow:hidden"><div style="height:100%;width:'+pct+'%;background:'+bar+';border-radius:3px;transition:width 0.5s"></div></div>'
+      +(isCurrent||isExpired?'<div style="font-size:10px;color:#636366;margin-top:3px;text-align:right">'+(isExpired?'종료시 ':'현재 ')+won(val)+(isExpired&&!isAchieved?' · '+won(g.target-(g.snapshot||0))+" 미달":'')+'</div>':"")
       +'</div>';
   }).join("");
   const editRows=editMode?goals.map(g=>'<div style="display:flex;gap:6px;margin-bottom:6px;align-items:center"><input class="inp inp-r" type="number" style="width:60px" data-gf="year" data-gid="'+g.id+'" value="'+g.year+'"/><input class="inp inp-r" type="number" style="flex:1" data-gf="target" data-gid="'+g.id+'" value="'+g.target+'"/><button class="del-btn" data-gdel="'+g.id+'">✕</button></div>').join("")+'<button class="add-btn" id="btn-add-goal">+ 목표 추가</button>':"";
-  return '<div class="card" style="border-top:3px solid #6366f1;margin-bottom:12px"><div class="card-hdr"><span class="card-title">📈 목표 달성 현황</span></div>'+(editMode?editRows:rows)+'</div>';
+  return '<div class="card" style="border-top:3px solid #3182f6;margin-bottom:12px"><div class="card-hdr"><span class="card-title">📈 목표 달성 현황</span></div>'+(editMode?editRows:rows)+'</div>';
 }
 
 // ─── 전체 현황 ───────────────────────────────────────────────
@@ -1045,7 +1047,7 @@ function buildOverview() {
   const pp=v=>tot>0?(v/tot*100).toFixed(1):"0.0";
   const segs=ST.accounts.map(a=>({l:a.name,v:accTotal(a),c:a.color})).filter(s=>s.v>0);
   const paths=buildDonutSVG(segs,tot,80,80,65,38,true);
-  const legend=segs.map(s=>'<div class="legend-item" data-label="'+s.l+'" style="display:flex;justify-content:space-between;margin-bottom:7px;align-items:center;transition:opacity 0.2s"><div style="display:flex;align-items:center;gap:6px"><div style="width:8px;height:8px;border-radius:2px;background:'+s.c+'"></div><span style="font-size:12px">'+s.l+'</span></div><div><span style="font-size:11px;font-weight:700;color:#94a3b8;margin-right:4px">'+pp(s.v)+'%</span><span style="font-size:12px;font-weight:600">'+won(s.v)+'</span></div></div>').join("");
+  const legend=segs.map(s=>'<div class="legend-item" data-label="'+s.l+'" style="display:flex;justify-content:space-between;margin-bottom:7px;align-items:center;transition:opacity 0.2s"><div style="display:flex;align-items:center;gap:6px"><div style="width:8px;height:8px;border-radius:2px;background:'+s.c+'"></div><span style="font-size:12px">'+s.l+'</span></div><div><span style="font-size:11px;font-weight:700;color:#aeaeb2;margin-right:4px">'+pp(s.v)+'%</span><span style="font-size:12px;font-weight:600">'+won(s.v)+'</span></div></div>').join("");
   const secItems=sectorMapToItems(calcSectorMap(ST.accounts));
   // 종목별 비중 헬퍼 — 계좌가 아니라 종목(item) 단위로 시장을 판정 (혼합계좌 대응)
   function buildTickerItems(marketFilterFn, colorFn) {
@@ -1078,24 +1080,24 @@ function buildOverview() {
     totalCashKrw += acc.type === "us" ? (acc.cash * (usdKrw||0)) : acc.cash;
   }
   const allItemsWithCash = totalCashKrw > 0
-    ? [...allItems, {l:"예수금", v: totalCashKrw, c: SECTOR_COLORS["현금/예금"]||"#475569"}].sort((a,b)=>b.v-a.v)
+    ? [...allItems, {l:"예수금", v: totalCashKrw, c: SECTOR_COLORS["현금/예금"]||"#636366"}].sort((a,b)=>b.v-a.v)
     : allItems;
 
   return buildGoals(tot)
     +'<div class="card-grad">'
-    +'<div style="font-size:12px;color:#64748b;margin-bottom:6px">총 평가 자산</div>'
+    +'<div style="font-size:12px;color:#8e8e93;margin-bottom:6px">총 평가 자산</div>'
     +'<div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap">'
     +'<div style="font-size:32px;font-weight:800;letter-spacing:-1px">'+(tot?won(tot):"₩0")+'</div>'
     +(gp!=null?'<div style="font-size:16px;font-weight:700;color:'+(gp>=0?'#ef4444':'#3b82f6')+'">'+fPct(gp)+'</div>':"")
     +'</div>'
     +(profit!=null?'<div style="font-size:13px;font-weight:600;color:'+(profit>=0?'#ef4444':'#3b82f6')+';margin-top:4px">'+fProfit(profit)+'</div>':"")
-    +'<div style="margin-top:8px;display:flex;gap:14px;flex-wrap:wrap">'+segs.map(s=>'<span style="font-size:11px;color:#64748b">'+s.l+' <b style="color:#94a3b8">'+pp(s.v)+'%</b></span>').join("")+'</div></div>'
+    +'<div style="margin-top:8px;display:flex;gap:14px;flex-wrap:wrap">'+segs.map(s=>'<span style="font-size:11px;color:#8e8e93">'+s.l+' <b style="color:#aeaeb2">'+pp(s.v)+'%</b></span>').join("")+'</div></div>'
     +buildOverviewDepositSection()
     +buildDonutCard(secItems,"섹터 비중")
     +'<div class="card"><div class="card-title" style="margin-bottom:12px">계좌별 비중</div>'
     +(segs.length
-      ?'<div style="display:flex;align-items:center;gap:20px;flex-wrap:wrap"><svg id="overview-donut" width="160" height="160" viewBox="0 0 160 160" style="flex-shrink:0">'+paths+'<text x="80" y="75" text-anchor="middle" fill="#94a3b8" font-size="9" class="donut-ct">탭하여</text><text x="80" y="88" text-anchor="middle" fill="#94a3b8" font-size="9" class="donut-cb">확인</text></svg><div style="flex:1;min-width:140px">'+legend+'</div></div>'
-      :'<div style="color:#475569;text-align:center;padding:16px;font-size:12px">자산을 입력해주세요</div>')
+      ?'<div style="display:flex;align-items:center;gap:20px;flex-wrap:wrap"><svg id="overview-donut" width="160" height="160" viewBox="0 0 160 160" style="flex-shrink:0">'+paths+'<text x="80" y="75" text-anchor="middle" fill="#aeaeb2" font-size="9" class="donut-ct">탭하여</text><text x="80" y="88" text-anchor="middle" fill="#aeaeb2" font-size="9" class="donut-cb">확인</text></svg><div style="flex:1;min-width:140px">'+legend+'</div></div>'
+      :'<div style="color:#636366;text-align:center;padding:16px;font-size:12px">자산을 입력해주세요</div>')
     +(allItemsWithCash.length >= 2 ? buildDonutCard(allItemsWithCash, '📦 전체 종목별 비중') : '');
 }
 
@@ -1137,44 +1139,44 @@ function buildDepositModal() {
     <div class="trade-modal">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
         <div class="modal-title" style="margin:0">${acc.name} ${isCashAcc?"관리":"예수금 관리"}</div>
-        <button id="dm-close" style="background:transparent;border:none;color:#64748b;font-size:20px;cursor:pointer">✕</button>
+        <button id="dm-close" style="background:transparent;border:none;color:#8e8e93;font-size:20px;cursor:pointer">✕</button>
       </div>
       ${!isCashAcc ? (isMixed ? `
-      <div style="background:#0f172a;border-radius:10px;padding:10px 12px;margin-bottom:14px">
+      <div style="background:#000000;border-radius:10px;padding:10px 12px;margin-bottom:14px">
         <div style="display:flex;justify-content:space-between;align-items:center">
-          <span style="font-size:12px;color:#64748b">원화예수금</span>
+          <span style="font-size:12px;color:#8e8e93">원화예수금</span>
           <span style="font-size:14px;font-weight:800">${won(acc.cashKrw||0)}</span>
         </div>
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;padding-top:6px;border-top:1px dashed #1e293b">
-          <span style="font-size:12px;color:#64748b">외화예수금</span>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;padding-top:6px;border-top:1px dashed #1c1c1e">
+          <span style="font-size:12px;color:#8e8e93">외화예수금</span>
           <div style="display:flex;align-items:center;gap:8px">
             <span style="font-size:14px;font-weight:800">${usd(acc.cashUsd||0)}</span>
-            <button id="dm-recalc" style="background:transparent;border:1px solid #334155;color:#64748b;border-radius:6px;padding:3px 8px;font-size:10px;cursor:pointer">⟳ 재계산</button>
+            <button id="dm-recalc" style="background:transparent;border:1px solid #2c2c2e;color:#8e8e93;border-radius:6px;padding:3px 8px;font-size:10px;cursor:pointer">⟳ 재계산</button>
           </div>
         </div>
       </div>
       <div class="trade-inp-group">
         <div class="trade-inp-label">어느 예수금인가요?</div>
         <div style="display:flex;gap:6px">
-          <button type="button" class="btn-sm" id="dm-ccy-krw" style="flex:1;${ccy==="krw"?"background:#6366f1;color:#fff;border-color:#6366f1":""}">🇰🇷 원화</button>
-          <button type="button" class="btn-sm" id="dm-ccy-usd" style="flex:1;${ccy==="usd"?"background:#6366f1;color:#fff;border-color:#6366f1":""}">🌎 외화(USD)</button>
+          <button type="button" class="btn-sm" id="dm-ccy-krw" style="flex:1;${ccy==="krw"?"background:#3182f6;color:#fff;border-color:#3182f6":""}">🇰🇷 원화</button>
+          <button type="button" class="btn-sm" id="dm-ccy-usd" style="flex:1;${ccy==="usd"?"background:#3182f6;color:#fff;border-color:#3182f6":""}">🌎 외화(USD)</button>
         </div>
       </div>` : `
-      <div style="background:#0f172a;border-radius:10px;padding:10px 12px;margin-bottom:14px">
+      <div style="background:#000000;border-radius:10px;padding:10px 12px;margin-bottom:14px">
         <div style="display:flex;justify-content:space-between;align-items:center">
-          <span style="font-size:12px;color:#64748b">현재 예수금</span>
+          <span style="font-size:12px;color:#8e8e93">현재 예수금</span>
           <div style="display:flex;align-items:center;gap:8px">
             <span style="font-size:14px;font-weight:800">${isUS?usd(curCash):won(curCash)}</span>
-            <button id="dm-recalc" style="background:transparent;border:1px solid #334155;color:#64748b;border-radius:6px;padding:3px 8px;font-size:10px;cursor:pointer">⟳ 재계산</button>
+            <button id="dm-recalc" style="background:transparent;border:1px solid #2c2c2e;color:#8e8e93;border-radius:6px;padding:3px 8px;font-size:10px;cursor:pointer">⟳ 재계산</button>
           </div>
         </div>
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;padding-top:6px;border-top:1px dashed #1e293b">
-          <span style="font-size:10px;color:#475569">기초 예수금${acc.openingCash?" ("+(isUS?usd(acc.openingCash):won(acc.openingCash))+")":""}<br/><span style="color:#334155">거래내역서 없는 IRP/연금저축용 · 순입금엔 안 잡혀요</span></span>
-          <button id="dm-set-opening" style="background:transparent;border:1px solid #334155;color:#64748b;border-radius:6px;padding:3px 8px;font-size:10px;cursor:pointer;white-space:nowrap">설정</button>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;padding-top:6px;border-top:1px dashed #1c1c1e">
+          <span style="font-size:10px;color:#636366">기초 예수금${acc.openingCash?" ("+(isUS?usd(acc.openingCash):won(acc.openingCash))+")":""}<br/><span style="color:#2c2c2e">거래내역서 없는 IRP/연금저축용 · 순입금엔 안 잡혀요</span></span>
+          <button id="dm-set-opening" style="background:transparent;border:1px solid #2c2c2e;color:#8e8e93;border-radius:6px;padding:3px 8px;font-size:10px;cursor:pointer;white-space:nowrap">설정</button>
         </div>
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;padding-top:6px;border-top:1px dashed #1e293b">
-          <span style="font-size:10px;color:#475569">예수금 직접 수정<br/><span style="color:#334155">재계산 없이 값만 덮어씀 · 환전 섞인 계좌처럼 재계산 부정확할 때</span></span>
-          <button id="dm-set-cash" style="background:transparent;border:1px solid #334155;color:#64748b;border-radius:6px;padding:3px 8px;font-size:10px;cursor:pointer;white-space:nowrap">수정</button>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;padding-top:6px;border-top:1px dashed #1c1c1e">
+          <span style="font-size:10px;color:#636366">예수금 직접 수정<br/><span style="color:#2c2c2e">재계산 없이 값만 덮어씀 · 환전 섞인 계좌처럼 재계산 부정확할 때</span></span>
+          <button id="dm-set-cash" style="background:transparent;border:1px solid #2c2c2e;color:#8e8e93;border-radius:6px;padding:3px 8px;font-size:10px;cursor:pointer;white-space:nowrap">수정</button>
         </div>
       </div>`) : ""}
       <div class="trade-tabs">
@@ -1191,9 +1193,9 @@ function buildDepositModal() {
         <div class="trade-inp-label">환율 (USD/KRW)</div>
         <input class="trade-inp" id="dm-rate" type="number" step="0.1" value="${usdKrw?Math.round(usdKrw):""}"/>
       </div>
-      <div id="dm-result" style="background:#0f172a;border-radius:10px;padding:10px 12px;margin-bottom:14px;display:none">
+      <div id="dm-result" style="background:#000000;border-radius:10px;padding:10px 12px;margin-bottom:14px;display:none">
         <div style="display:flex;justify-content:space-between">
-          <span style="font-size:12px;color:#64748b">${isIn?"입금":"출금"} USD</span>
+          <span style="font-size:12px;color:#8e8e93">${isIn?"입금":"출금"} USD</span>
           <span id="dm-usd-result" style="font-size:14px;font-weight:800;color:${isIn?"#10b981":"#ef4444"}"></span>
         </div>
       </div>` : `
@@ -1247,14 +1249,14 @@ function buildRebalanceModal() {
     const buyNative = rowIsUS ? buyKrw/(usdKrw||1) : buyKrw; // 매수 제안 금액을 종목 통화로 환산
     const price = px[r.item.t] || r.item.a || 0;
     const shares = price>0 ? Math.floor((buyNative/price)*10000)/10000 : 0;
-    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #1e293b">
+    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #1c1c1e">
       <div style="flex:1">
         <div style="font-weight:700;font-size:13px">${isMixed?({krx:"🇰🇷",us:"🌎",coin:"🪙"}[rowMarket]||"")+" ":""}${r.item.n||r.item.t}</div>
-        <div style="font-size:10px;color:#64748b">목표 <input class="inp" data-rb-tp="${r.item.id}" type="number" step="0.1" min="0" max="100" style="width:48px;padding:2px 4px;font-size:10px" value="${r.tp}"/>% · 현재 ${r.curPct.toFixed(1)}%</div>
+        <div style="font-size:10px;color:#8e8e93">목표 <input class="inp" data-rb-tp="${r.item.id}" type="number" step="0.1" min="0" max="100" style="width:48px;padding:2px 4px;font-size:10px" value="${r.tp}"/>% · 현재 ${r.curPct.toFixed(1)}%</div>
       </div>
       <div style="text-align:right">
-        <div style="font-weight:700;color:${buyNative>0.009?"#ef4444":"#475569"};font-size:13px">${buyNative>0.009?(rowIsUS?usd(buyNative):won(buyNative)):"—"}</div>
-        <div style="font-size:10px;color:#64748b">${shares>0?shares+(rowMarket==="coin"?"":"주"):""}</div>
+        <div style="font-weight:700;color:${buyNative>0.009?"#ef4444":"#636366"};font-size:13px">${buyNative>0.009?(rowIsUS?usd(buyNative):won(buyNative)):"—"}</div>
+        <div style="font-size:10px;color:#8e8e93">${shares>0?shares+(rowMarket==="coin"?"":"주"):""}</div>
       </div>
     </div>`;
   }).join("");
@@ -1263,21 +1265,21 @@ function buildRebalanceModal() {
   const warnHtml = Math.abs(tpSum-100) > 0.5
     ? `<div style="font-size:11px;color:#f59e0b;margin-bottom:8px">⚠ 목표비중 합계 ${tpSum.toFixed(1)}% (100%가 안 되면 남는 만큼은 계산에서 빠져요)</div>` : "";
   const scaleWarnHtml = scale < 1
-    ? `<div style="font-size:11px;color:#64748b;margin-bottom:8px">필요 금액(${isUS?usd(totalNeed/(usdKrw||1)):won(totalNeed)})이 투자금보다 많아서 비율대로 나눴어요</div>` : "";
+    ? `<div style="font-size:11px;color:#8e8e93;margin-bottom:8px">필요 금액(${isUS?usd(totalNeed/(usdKrw||1)):won(totalNeed)})이 투자금보다 많아서 비율대로 나눴어요</div>` : "";
 
   return `<div class="trade-modal-bg" id="rebalance-modal-bg">
     <div class="trade-modal">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
         <div style="font-size:16px;font-weight:800">🎯 ${acc.name} 리밸런싱</div>
-        <button id="rb-close" style="background:transparent;border:none;color:#64748b;font-size:20px;cursor:pointer">✕</button>
+        <button id="rb-close" style="background:transparent;border:none;color:#8e8e93;font-size:20px;cursor:pointer">✕</button>
       </div>
       <div class="trade-inp-group">
         <div class="trade-inp-label">이번에 투자할 금액 (${isUS?"USD":isMixed?"KRW, 원화+외화 예수금 합산":"KRW"}, 기본값=예수금)</div>
         <input class="trade-inp" id="rb-invest" type="number" step="0.01" value="${investRaw}"/>
       </div>
       ${warnHtml}${scaleWarnHtml}
-      <div style="margin-top:8px">${rowsHtml || '<div style="color:#64748b;font-size:12px;padding:12px 0">종목이 없어요</div>'}</div>
-      <div style="font-size:10px;color:#334155;margin-top:10px">목표비중 입력하면 자동 저장돼요 · 매수 제안은 참고용, 실제 매수는 종목 탭에서</div>
+      <div style="margin-top:8px">${rowsHtml || '<div style="color:#8e8e93;font-size:12px;padding:12px 0">종목이 없어요</div>'}</div>
+      <div style="font-size:10px;color:#2c2c2e;margin-top:10px">목표비중 입력하면 자동 저장돼요 · 매수 제안은 참고용, 실제 매수는 종목 탭에서</div>
     </div>
   </div>`;
 }
@@ -1304,7 +1306,7 @@ function buildTradeModal() {
         <div class="trade-inp-label">시장</div>
         <div style="display:flex;gap:6px">
           ${[["krx","🇰🇷 국내"],["us","🌎 해외"],["coin","🪙 코인"]].map(([m,label])=>
-            `<button type="button" class="btn-sm" data-tm-market="${m}" style="flex:1;${market===m?'background:#6366f1;color:#fff;border-color:#6366f1':''}">${label}</button>`
+            `<button type="button" class="btn-sm" data-tm-market="${m}" style="flex:1;${market===m?'background:#3182f6;color:#fff;border-color:#3182f6':''}">${label}</button>`
           ).join("")}
         </div>
        </div>` : "";
@@ -1314,20 +1316,20 @@ function buildTradeModal() {
        <div class="trade-inp-group">
         <div class="trade-inp-label">티커</div>
         <input class="trade-inp" id="tm-ticker" placeholder="예) AAPL, 005930" style="text-transform:uppercase"/>
-        <div id="tm-name-preview" style="font-size:11px;color:#6366f1;margin-top:4px;min-height:16px"></div>
+        <div id="tm-name-preview" style="font-size:11px;color:#3182f6;margin-top:4px;min-height:16px"></div>
        </div>
-       <div style="display:flex;align-items:center;justify-content:space-between;background:#0f172a;border-radius:8px;padding:10px 12px;margin-bottom:12px">
+       <div style="display:flex;align-items:center;justify-content:space-between;background:#000000;border-radius:8px;padding:10px 12px;margin-bottom:12px">
         <div>
           <div style="font-size:12px;font-weight:600">📋 이미 보유 중인 종목이에요</div>
-          <div style="font-size:10px;color:#64748b;margin-top:2px">과거 매매기록 없이 현재 수량·평단만 등록 (예수금 차감 안 됨)</div>
+          <div style="font-size:10px;color:#8e8e93;margin-top:2px">과거 매매기록 없이 현재 수량·평단만 등록 (예수금 차감 안 됨)</div>
         </div>
         <label style="display:flex;align-items:center;cursor:pointer;flex-shrink:0;margin-left:10px">
           <input type="checkbox" id="tm-carryover" style="width:20px;height:20px;cursor:pointer"/>
         </label>
        </div>`
     : `<div style="margin-bottom:14px">
-        <div style="font-size:16px;font-weight:800">${item.t} <span style="font-size:13px;font-weight:400;color:#94a3b8">${item.n||""}</span></div>
-        <div style="font-size:12px;color:#64748b;margin-top:3px">
+        <div style="font-size:16px;font-weight:800">${item.t} <span style="font-size:13px;font-weight:400;color:#aeaeb2">${item.n||""}</span></div>
+        <div style="font-size:12px;color:#8e8e93;margin-top:3px">
           보유 ${item.q||0}${isCoin?"":"주"} · 평단 ${isUS?usd(item.a):won(item.a)} · 현재가 ${isUS?(curPrice?usd(curPrice):"—"):(curPriceKrw?won(curPriceKrw):"—")}
         </div>
        </div>`;
@@ -1346,7 +1348,7 @@ function buildTradeModal() {
     <div class="trade-modal">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
         <div class="modal-title" style="margin:0">${isNew?"➕ 신규 매수":"거래 입력"}</div>
-        <button id="tm-close" style="background:transparent;border:none;color:#64748b;font-size:20px;cursor:pointer">✕</button>
+        <button id="tm-close" style="background:transparent;border:none;color:#8e8e93;font-size:20px;cursor:pointer">✕</button>
       </div>
       ${tickerSection}
       ${modeTabs}
@@ -1382,20 +1384,20 @@ function buildTradeModal() {
           📎 .md 파일 업로드
           <input type="file" accept=".md,.txt" id="tm-thesis-upload" style="display:none"/>
         </label>
-        <span id="tm-thesis-filename" style="font-size:11px;color:#64748b;margin-left:8px"></span>
+        <span id="tm-thesis-filename" style="font-size:11px;color:#8e8e93;margin-left:8px"></span>
       </div>
       <div class="trade-result" id="tm-result" style="display:none"></div>
       <button class="trade-btn" style="background:${isDividend?"#f59e0b":isBuy?"#ef4444":"#3b82f6"}" id="tm-confirm">${isDividend?"배당 확정":isBuy?"매수 확정":"매도 확정"}</button>
       ${!isNew && item?.trades?.length ? `
       <div style="margin-top:16px">
-        <div style="font-size:12px;font-weight:700;color:#64748b;margin-bottom:8px">거래 히스토리</div>
+        <div style="font-size:12px;font-weight:700;color:#8e8e93;margin-bottom:8px">거래 히스토리</div>
         ${[...item.trades].reverse().map(tr=>`
           <div class="history-row">
             <div style="display:flex;align-items:center;gap:8px">
               <span class="history-badge ${tr.type==="buy"?"badge-buy":tr.type==="sell"?"badge-sell":""}" style="${tr.type==="dividend"?"background:#f59e0b20;color:#f59e0b":""}">${tr.type==="buy"?"매수":tr.type==="sell"?"매도":"배당"}</span>
-              <span style="color:#64748b">${tr.date}</span>
-              ${tr.memo?`<span style="color:#475569;font-size:10px">${tr.memo}</span>`:""}
-              ${tr.thesis?`<button class="btn-sm" data-thesis-view="${tr.id}" style="padding:2px 6px;font-size:10px;color:#6366f1;border-color:#6366f1">📝 근거</button>`:""}
+              <span style="color:#8e8e93">${tr.date}</span>
+              ${tr.memo?`<span style="color:#636366;font-size:10px">${tr.memo}</span>`:""}
+              ${tr.thesis?`<button class="btn-sm" data-thesis-view="${tr.id}" style="padding:2px 6px;font-size:10px;color:#3182f6;border-color:#3182f6">📝 근거</button>`:""}
             </div>
             <div style="display:flex;align-items:center;gap:8px">
               <div style="text-align:right">
@@ -1415,26 +1417,26 @@ function buildModal() {
   if (!showModal) return "";
   const typeButtons=Object.entries(ACCOUNT_TYPES).map(([k,v])=>'<div class="type-btn'+(modalType===k?" sel":"")+'" data-modal-type="'+k+'"><div class="icon">'+v.icon+'</div><div class="label">'+v.label+'</div><div class="desc">'+v.desc+'</div></div>').join("");
   const colorDots=COLORS.map(col=>'<div class="color-dot'+(modalColor===col?" sel":"")+'" style="background:'+col+'" data-modal-color="'+col+'"></div>').join("");
-  return '<div class="modal-bg" id="modal-bg"><div class="modal"><div class="modal-title">➕ 계좌 추가</div><div style="font-size:12px;color:#64748b;margin-bottom:8px">어떤 자산을 관리할 계좌인가요?</div><div class="type-grid">'+typeButtons+'</div><div style="font-size:12px;color:#64748b;margin-bottom:8px">계좌 색상</div><div class="color-row">'+colorDots+'</div><div style="font-size:12px;color:#64748b;margin-bottom:6px">계좌 이름</div><input class="inp inp-l" id="modal-name" style="font-size:13px;margin-bottom:16px" placeholder="예) 토스증권, 미래에셋 ISA"/><div style="display:flex;gap:8px"><button class="btn" id="modal-cancel" style="flex:1">취소</button><button class="btn on" id="modal-confirm" style="flex:1">추가</button></div></div></div>';
+  return '<div class="modal-bg" id="modal-bg"><div class="modal"><div class="modal-title">➕ 계좌 추가</div><div style="font-size:12px;color:#8e8e93;margin-bottom:8px">어떤 자산을 관리할 계좌인가요?</div><div class="type-grid">'+typeButtons+'</div><div style="font-size:12px;color:#8e8e93;margin-bottom:8px">계좌 색상</div><div class="color-row">'+colorDots+'</div><div style="font-size:12px;color:#8e8e93;margin-bottom:6px">계좌 이름</div><input class="inp inp-l" id="modal-name" style="font-size:13px;margin-bottom:16px" placeholder="예) 토스증권, 미래에셋 ISA"/><div style="display:flex;gap:8px"><button class="btn" id="modal-cancel" style="flex:1">취소</button><button class="btn on" id="modal-confirm" style="flex:1">추가</button></div></div></div>';
 }
 
 // ─── 페이지 빌드 ─────────────────────────────────────────────
 function buildPage() {
   const subStr=loading?"⟳ 갱신 중...":(lastUp?lastUp.toLocaleTimeString("ko-KR")+" 기준":"—");
   const rateStr=usdKrw?"USD/KRW ₩"+Math.round(usdKrw).toLocaleString():"환율 로딩 중...";
-  const tabHtml=['<button class="tab'+(tab==="overview"?" on":"")+'" data-tab="overview"'+(editMode?' draggable="true" data-drag="overview"':'')+'>'+( editMode?'<span style="font-size:9px;color:#64748b;margin-right:3px">⠿</span>':'')+'전체</button>']
-    .concat(ST.accounts.map(a=>'<button class="tab'+(tab===a.id?" on":"")+'" data-tab="'+a.id+'" style="'+(tab===a.id?"background:"+a.color+";color:#fff":"")+';"'+(editMode?' draggable="true" data-drag="'+a.id+'"':'')+'>'+( editMode?'<span style="font-size:9px;color:#64748b;margin-right:3px">⠿</span>':'')+a.name+'</button>')).join("");
+  const tabHtml=['<button class="tab'+(tab==="overview"?" on":"")+'" data-tab="overview"'+(editMode?' draggable="true" data-drag="overview"':'')+'>'+( editMode?'<span style="font-size:9px;color:#8e8e93;margin-right:3px">⠿</span>':'')+'전체</button>']
+    .concat(ST.accounts.map(a=>'<button class="tab'+(tab===a.id?" on":"")+'" data-tab="'+a.id+'" style="'+(tab===a.id?"background:"+a.color+";color:#fff":"")+';"'+(editMode?' draggable="true" data-drag="'+a.id+'"':'')+'>'+( editMode?'<span style="font-size:9px;color:#8e8e93;margin-right:3px">⠿</span>':'')+a.name+'</button>')).join("");
   const activeAcc=ST.accounts.find(a=>a.id===tab);
   const profileUI=editMode
-    ?'<div style="margin-bottom:10px">'+getProfiles().map(p=>'<div style="display:flex;gap:6px;align-items:center;margin-bottom:6px"><div style="width:8px;height:8px;border-radius:50%;background:'+(curProfile===p?'#6366f1':'#475569')+';flex-shrink:0"></div><input class="inp inp-l" style="flex:1;font-size:12px" data-profile-rename="'+p+'" value="'+p+'"/>'+(getProfiles().length>1?'<button class="del-btn" data-profile-del="'+p+'">✕</button>':"")+'</div>').join("")+'<button class="add-btn" id="btn-add-profile" style="margin-top:4px">+ 프로필 추가</button></div>'
-    :'<div style="display:flex;gap:4px;margin-bottom:10px;overflow-x:auto;padding-bottom:2px">'+getProfiles().map(p=>'<button style="background:'+(curProfile===p?'#6366f1':'#0f172a')+';border:1px solid '+(curProfile===p?'#6366f1':'#334155')+';color:'+(curProfile===p?'#fff':'#94a3b8')+';padding:5px 12px;border-radius:20px;font-size:12px;font-weight:'+(curProfile===p?'700':'400')+';white-space:nowrap;cursor:pointer;flex-shrink:0" data-profile="'+p+'">👤 '+p+'</button>').join("")+'<button style="background:transparent;border:1px dashed #334155;color:#6366f1;padding:5px 10px;border-radius:20px;font-size:12px;cursor:pointer;flex-shrink:0" id="btn-add-profile">+</button></div>';
+    ?'<div style="margin-bottom:10px">'+getProfiles().map(p=>'<div style="display:flex;gap:6px;align-items:center;margin-bottom:6px"><div style="width:8px;height:8px;border-radius:50%;background:'+(curProfile===p?'#3182f6':'#636366')+';flex-shrink:0"></div><input class="inp inp-l" style="flex:1;font-size:12px" data-profile-rename="'+p+'" value="'+p+'"/>'+(getProfiles().length>1?'<button class="del-btn" data-profile-del="'+p+'">✕</button>':"")+'</div>').join("")+'<button class="add-btn" id="btn-add-profile" style="margin-top:4px">+ 프로필 추가</button></div>'
+    :'<div style="display:flex;gap:4px;margin-bottom:10px;overflow-x:auto;padding-bottom:2px">'+getProfiles().map(p=>'<button style="background:'+(curProfile===p?'#3182f6':'#000000')+';border:1px solid '+(curProfile===p?'#3182f6':'#2c2c2e')+';color:'+(curProfile===p?'#fff':'#aeaeb2')+';padding:5px 12px;border-radius:20px;font-size:12px;font-weight:'+(curProfile===p?'700':'400')+';white-space:nowrap;cursor:pointer;flex-shrink:0" data-profile="'+p+'">👤 '+p+'</button>').join("")+'<button style="background:transparent;border:1px dashed #2c2c2e;color:#3182f6;padding:5px 10px;border-radius:20px;font-size:12px;cursor:pointer;flex-shrink:0" id="btn-add-profile">+</button></div>';
 
   return (loading?'<div class="loading-bar"><div class="loading-bar-inner"></div></div>':"")
     +'<div class="hdr"><div><div class="hdr-title">📊 자산 대시보드</div><div class="hdr-sub">'+subStr+'</div><div class="hdr-rate">'+rateStr+'</div>'
-    +'<div style="font-size:10px;color:#334155;margin-top:2px;display:flex;align-items:center;gap:6px" title="이 키를 아는 사람은 누구든 클라우드 복원으로 내 자산 데이터를 볼 수 있어요. 화면 공유·캡처 시 주의하세요.">'
+    +'<div style="font-size:10px;color:#2c2c2e;margin-top:2px;display:flex;align-items:center;gap:6px" title="이 키를 아는 사람은 누구든 클라우드 복원으로 내 자산 데이터를 볼 수 있어요. 화면 공유·캡처 시 주의하세요.">'
     +'<span'+(uidRevealed?' style="user-select:all"':'')+'>🔑 '+(uidRevealed?CLOUD_UID:"••••••••••••")+'</span>'
-    +'<button id="btn-uid-toggle" style="background:transparent;border:none;color:#475569;font-size:10px;cursor:pointer;padding:0;text-decoration:underline">'+(uidRevealed?"숨기기":"보기")+'</button>'
-    +'<button id="btn-uid-copy" style="background:transparent;border:none;color:#475569;font-size:10px;cursor:pointer;padding:0;text-decoration:underline">복사</button>'
+    +'<button id="btn-uid-toggle" style="background:transparent;border:none;color:#636366;font-size:10px;cursor:pointer;padding:0;text-decoration:underline">'+(uidRevealed?"숨기기":"보기")+'</button>'
+    +'<button id="btn-uid-copy" style="background:transparent;border:none;color:#636366;font-size:10px;cursor:pointer;padding:0;text-decoration:underline">복사</button>'
     +'</div></div>'
     +'<div class="hdr-btns"><button class="btn" id="btn-tutorial" title="사용법 튜토리얼">❓</button><button class="btn" id="btn-refresh">↻</button><button class="btn'+(editMode?" on":"")+'" id="btn-edit">'+(editMode?"✓":"✏")+'</button></div></div>'
     +profileUI
@@ -1442,10 +1444,10 @@ function buildPage() {
     +'<button class="btn-sm" id="btn-backup">💾 백업</button>'
     +'<label class="btn-sm">📂 복원<input type="file" accept=".json" id="inp-restore" style="display:none"/></label>'
     +'<button class="btn-sm" id="btn-cloud-save" style="color:#10b981;border-color:#10b981">'+(cloudStatus==="saving"?"⟳ 저장 중...": cloudStatus==="saved"?"✅ 저장됨":cloudStatus==="error"?"❌ 실패":"☁️ 클라우드 저장")+'</button>'
-    +'<button class="btn-sm" id="btn-cloud-load" style="color:#6366f1;border-color:#6366f1">☁️ 복원</button>'
-    +(editMode?'<button class="btn-sm" id="btn-add-acc" style="color:#6366f1;border-color:#6366f1">➕ 계좌 추가</button>':"")
+    +'<button class="btn-sm" id="btn-cloud-load" style="color:#3182f6;border-color:#3182f6">☁️ 복원</button>'
+    +(editMode?'<button class="btn-sm" id="btn-add-acc" style="color:#3182f6;border-color:#3182f6">➕ 계좌 추가</button>':"")
     +(editMode&&ST.accounts.filter(a=>a.type!=="cash").length>=2?'<button class="btn-sm" id="btn-merge-acc" style="color:#8b5cf6;border-color:#8b5cf6">🔀 계좌 합치기</button>':"")+'</div>'
-    +(!uidAcknowledged ? '<div style="font-size:10px;color:#64748b;margin:-6px 0 10px">⚠️ 위 🔑 키가 클라우드 데이터의 유일한 복구 수단이에요. 다른 기기에서 복원하려면 꼭 저장해두세요. ("보기"나 "복사"를 누르면 이 안내는 사라져요)</div>' : '')
+    +(!uidAcknowledged ? '<div style="font-size:10px;color:#8e8e93;margin:-6px 0 10px">⚠️ 위 🔑 키가 클라우드 데이터의 유일한 복구 수단이에요. 다른 기기에서 복원하려면 꼭 저장해두세요. ("보기"나 "복사"를 누르면 이 안내는 사라져요)</div>' : '')
     +'<div class="tabs">'+tabHtml+'</div>'
     +(tab==="overview"?buildOverview():"")
     +(activeAcc?buildAccountSection(activeAcc):"")
@@ -1473,8 +1475,8 @@ function showDonutPopup(seg, svg) {
   legend.style.visibility="hidden"; flex.style.position="relative";
   const popup=document.createElement("div");
   popup.className="donut-popup";
-  popup.style.cssText="position:absolute;background:#0f172a;border:1px solid #6366f1;border-radius:10px;padding:12px 14px;box-shadow:0 0 12px rgba(99,102,241,0.3);pointer-events:none";
-  popup.innerHTML='<div style="font-size:11px;color:#94a3b8;margin-bottom:4px">'+seg.dataset.label+'</div><div style="font-size:16px;font-weight:800">'+won(Number(seg.dataset.val))+'</div><div style="font-size:14px;font-weight:700;color:#6366f1;margin-top:3px">'+seg.dataset.pct+'%</div>';
+  popup.style.cssText="position:absolute;background:#000000;border:1px solid #3182f6;border-radius:10px;padding:12px 14px;box-shadow:0 0 12px rgba(99,102,241,0.3);pointer-events:none";
+  popup.innerHTML='<div style="font-size:11px;color:#aeaeb2;margin-bottom:4px">'+seg.dataset.label+'</div><div style="font-size:16px;font-weight:800">'+won(Number(seg.dataset.val))+'</div><div style="font-size:14px;font-weight:700;color:#3182f6;margin-top:3px">'+seg.dataset.pct+'%</div>';
   flex.style.position="relative";
   const lr=legend.getBoundingClientRect(), fr=flex.getBoundingClientRect();
   popup.style.top=(lr.top-fr.top)+"px"; popup.style.left=(lr.left-fr.left)+"px"; popup.style.width=lr.width+"px";
@@ -1501,10 +1503,10 @@ function showSectorPopup(seg, svg) {
   legend.style.visibility="hidden"; flex.style.position="relative";
   const popup=document.createElement("div");
   popup.className="donut-popup";
-  popup.style.cssText="position:absolute;background:#0f172a;border:1px solid #6366f1;border-radius:10px;padding:10px 12px;box-shadow:0 0 12px rgba(99,102,241,0.3);pointer-events:none;overflow-y:auto;max-height:160px";
-  popup.innerHTML='<div style="font-size:11px;font-weight:700;color:#6366f1;margin-bottom:8px">'+sectorName+'</div>'
-    +items.map(item=>'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;gap:8px"><span style="font-size:12px;font-weight:600;flex-shrink:0">'+item.t+'</span><span style="font-size:10px;color:#94a3b8;flex-shrink:0">'+(sectorTotal?(item.v/sectorTotal*100).toFixed(1):"0.0")+'%</span><span style="font-size:11px;font-weight:600">'+won(item.v)+'</span></div>').join("")
-    +(items.length===0?'<div style="font-size:11px;color:#475569">종목 없음</div>':"");
+  popup.style.cssText="position:absolute;background:#000000;border:1px solid #3182f6;border-radius:10px;padding:10px 12px;box-shadow:0 0 12px rgba(99,102,241,0.3);pointer-events:none;overflow-y:auto;max-height:160px";
+  popup.innerHTML='<div style="font-size:11px;font-weight:700;color:#3182f6;margin-bottom:8px">'+sectorName+'</div>'
+    +items.map(item=>'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;gap:8px"><span style="font-size:12px;font-weight:600;flex-shrink:0">'+item.t+'</span><span style="font-size:10px;color:#aeaeb2;flex-shrink:0">'+(sectorTotal?(item.v/sectorTotal*100).toFixed(1):"0.0")+'%</span><span style="font-size:11px;font-weight:600">'+won(item.v)+'</span></div>').join("")
+    +(items.length===0?'<div style="font-size:11px;color:#636366">종목 없음</div>':"");
   const lr=legend.getBoundingClientRect(), fr=flex.getBoundingClientRect();
   popup.style.top=(lr.top-fr.top)+"px"; popup.style.left=(lr.left-fr.left)+"px"; popup.style.width=lr.width+"px";
   flex.appendChild(popup);
@@ -1682,11 +1684,11 @@ function buildMergeModal() {
   const selected = mergeModal.selectedIds||[];
   const rows = candidates.map(acc=>{
     const on = selected.includes(acc.id);
-    return `<div data-merge-pick="${acc.id}" style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;margin-bottom:6px;cursor:pointer;background:${on?"#6366f11a":"#0f172a"};border:1px solid ${on?"#6366f1":"#334155"}">
-      <div style="width:18px;height:18px;border-radius:5px;border:2px solid ${on?"#6366f1":"#334155"};background:${on?"#6366f1":"transparent"};flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px">${on?"✓":""}</div>
+    return `<div data-merge-pick="${acc.id}" style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;margin-bottom:6px;cursor:pointer;background:${on?"#3182f61a":"#000000"};border:1px solid ${on?"#3182f6":"#2c2c2e"}">
+      <div style="width:18px;height:18px;border-radius:5px;border:2px solid ${on?"#3182f6":"#2c2c2e"};background:${on?"#3182f6":"transparent"};flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px">${on?"✓":""}</div>
       <div style="flex:1">
         <div style="font-weight:600;font-size:13px">${acc.name}</div>
-        <div style="font-size:10px;color:#64748b">${ACCOUNT_TYPES[acc.type]?.label||acc.type} · 종목 ${acc.items.filter(i=>i.t).length}개</div>
+        <div style="font-size:10px;color:#8e8e93">${ACCOUNT_TYPES[acc.type]?.label||acc.type} · 종목 ${acc.items.filter(i=>i.t).length}개</div>
       </div>
     </div>`;
   }).join("");
@@ -1694,9 +1696,9 @@ function buildMergeModal() {
     <div class="trade-modal">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
         <div style="font-size:16px;font-weight:800">🔀 계좌 합치기</div>
-        <button id="merge-close" style="background:transparent;border:none;color:#64748b;font-size:20px;cursor:pointer">✕</button>
+        <button id="merge-close" style="background:transparent;border:none;color:#8e8e93;font-size:20px;cursor:pointer">✕</button>
       </div>
-      <div style="font-size:11px;color:#64748b;margin-bottom:12px">합칠 계좌 2개 이상을 골라주세요. 원화/외화 예수금이 분리된 혼합계좌 하나로 합쳐지고, 보유 종목·거래내역은 그대로 옮겨져요. 합치기 전에 자동으로 백업 파일이 다운로드돼요.</div>
+      <div style="font-size:11px;color:#8e8e93;margin-bottom:12px">합칠 계좌 2개 이상을 골라주세요. 원화/외화 예수금이 분리된 혼합계좌 하나로 합쳐지고, 보유 종목·거래내역은 그대로 옮겨져요. 합치기 전에 자동으로 백업 파일이 다운로드돼요.</div>
       <div>${rows}</div>
       <div class="trade-inp-group" style="margin-top:10px">
         <div class="trade-inp-label">합쳐진 계좌 이름</div>
@@ -2084,18 +2086,18 @@ function bindTradeModalEvents() {
       const newAvg   = curQty > 0 ? (curQty*curAvg + qty*price) / newQty : price;
       const total    = qty * price;
       resEl.innerHTML =
-        '<div class="trade-result-row"><span style="color:#64748b">매수 금액</span><span style="font-weight:700">'+(isUS?usd(total):won(total))+'</span></div>'
-        +(item?'<div class="trade-result-row"><span style="color:#64748b">변경 후 수량</span><span style="font-weight:700">'+newQty+(isCoin?"":"주")+'</span></div>'
-             +'<div class="trade-result-row"><span style="color:#64748b">변경 후 평단</span><span style="font-weight:700">'+(isUS?usd(newAvg):won(newAvg))+'</span></div>':"");
+        '<div class="trade-result-row"><span style="color:#8e8e93">매수 금액</span><span style="font-weight:700">'+(isUS?usd(total):won(total))+'</span></div>'
+        +(item?'<div class="trade-result-row"><span style="color:#8e8e93">변경 후 수량</span><span style="font-weight:700">'+newQty+(isCoin?"":"주")+'</span></div>'
+             +'<div class="trade-result-row"><span style="color:#8e8e93">변경 후 평단</span><span style="font-weight:700">'+(isUS?usd(newAvg):won(newAvg))+'</span></div>':"");
     } else {
       const item  = acc?.items.find(x=>x.id===itemId);
       const avg   = item?.a || 0;
       const pnl   = (price - avg) * qty;
       const pnlPct= avg > 0 ? ((price-avg)/avg)*100 : 0;
       resEl.innerHTML =
-        '<div class="trade-result-row"><span style="color:#64748b">매도 금액</span><span style="font-weight:700">'+(isUS?usd(qty*price):won(qty*price))+'</span></div>'
-        +'<div class="trade-result-row"><span style="color:#64748b">실현 손익</span><span style="font-weight:700;color:'+(pnl>=0?"#ef4444":"#3b82f6")+'">'+(pnl>=0?"+":"")+(isUS?usd(pnl):won(pnl))+" ("+fPct(pnlPct)+")"+'</span></div>'
-        +'<div class="trade-result-row"><span style="color:#64748b">변경 후 수량</span><span style="font-weight:700">'+((item?.q||0)-qty)+(isCoin?"":"주")+'</span></div>';
+        '<div class="trade-result-row"><span style="color:#8e8e93">매도 금액</span><span style="font-weight:700">'+(isUS?usd(qty*price):won(qty*price))+'</span></div>'
+        +'<div class="trade-result-row"><span style="color:#8e8e93">실현 손익</span><span style="font-weight:700;color:'+(pnl>=0?"#ef4444":"#3b82f6")+'">'+(pnl>=0?"+":"")+(isUS?usd(pnl):won(pnl))+" ("+fPct(pnlPct)+")"+'</span></div>'
+        +'<div class="trade-result-row"><span style="color:#8e8e93">변경 후 수량</span><span style="font-weight:700">'+((item?.q||0)-qty)+(isCoin?"":"주")+'</span></div>';
     }
   }
   qEl?.addEventListener("input", updateResult);
@@ -2225,7 +2227,7 @@ function bindTradeModalEvents() {
 // ─── 렌더 ────────────────────────────────────────────────────
 function render() {
   try { document.getElementById("app").innerHTML=buildPage(); bindEvents(); }
-  catch(e) { document.getElementById("app").innerHTML='<div style="padding:20px;color:#ef4444;font-size:13px">오류: '+e.message+'<br><pre style="font-size:10px;color:#94a3b8;white-space:pre-wrap">'+e.stack+'</pre></div>'; }
+  catch(e) { document.getElementById("app").innerHTML='<div style="padding:20px;color:#ef4444;font-size:13px">오류: '+e.message+'<br><pre style="font-size:10px;color:#aeaeb2;white-space:pre-wrap">'+e.stack+'</pre></div>'; }
 }
 
 // ─── 이벤트 ──────────────────────────────────────────────────
