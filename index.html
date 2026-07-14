@@ -203,11 +203,12 @@ async function cloudLoad() {
 }
 
 const ACCOUNT_TYPES = {
-  us:    { label:"해외주식",     icon:"🌎", desc:"달러 평단 입력" },
-  krx:   { label:"국내주식/ETF", icon:"🇰🇷", desc:"원화 평단 입력" },
+  mixed: { label:"혼합(원화+달러)", icon:"🔀", desc:"한 계좌에 국내+해외 종목 (일반 위탁계좌)" },
+  krx:   { label:"국내주식/ETF", icon:"🇰🇷", desc:"국내 상장 종목만 (ISA·IRP·연금저축 등)" },
   coin:  { label:"코인",         icon:"🪙", desc:"원화 평단 입력" },
-  mixed: { label:"혼합(원화+달러)", icon:"🔀", desc:"한 계좌에 국내+해외 종목" },
   cash:  { label:"현금/예금",    icon:"💰", desc:"항목별 금액 입력" },
+  // us(해외주식 단독)는 새로 만들 땐 안 보여주고(전부 혼합계좌로 유도), 예전에 만든 계좌 표시용으로만 남겨둠
+  us:    { label:"해외주식",     icon:"🌎", desc:"달러 평단 입력", creatable:false },
 };
 
 // ─── 튜토리얼 (설명 읽기형) ───────────────────────────────────
@@ -312,13 +313,14 @@ let previewNameCache = {}; // {ticker: name} - 신규매수 미리보기에서 �
 let rebalanceModal = null; // {accId, investAmount}
 let tab        = "overview";
 let showModal  = false;
-let modalType  = "us";
+let modalType  = "mixed";
 let modalColor = COLORS[0];
 let showUSD    = false;
 let tradeModal = null; // {accId, itemId, mode:"buy"|"sell"}
 let thesisViewModal = null; // {text: string}
 let mergeModal = null; // {selectedIds: string[], name: string}
 let tutorialStep = null; // null이면 닫힘, 아니면 0부터 시작하는 현재 단계 인덱스
+let transferModal = null; // {fromId, fromItemId, toId, toItemId, ccy}
 let uidRevealed = false; // 클라우드 키(UID)를 화면에 평문으로 노출할지 여부 (기본 마스킹)
 let uidAcknowledged = localStorage.getItem("asset_uid_ack") === "1"; // 사용자가 키를 한 번이라도 보거나 복사했는지 (백업 안내 문구 숨김 조건)
 function markUidAcknowledged() { if (!uidAcknowledged) { uidAcknowledged = true; localStorage.setItem("asset_uid_ack","1"); } }
@@ -431,6 +433,12 @@ function adjustCash(acc, ccy, delta) {
   } else {
     acc.cash = (acc.cash||0) + delta;
   }
+}
+// 계좌가 어떤 통화의 예수금을 가질 수 있는지 (환전 없는 이체만 지원하므로 이걸로 호환 여부를 판단)
+function acctCcys(acc) {
+  if (acc.type === "mixed") return ["krw","usd"];
+  if (acc.type === "us") return ["usd"];
+  return ["krw"]; // krx/coin/cash
 }
 function accTotal(acc) {
   const itemsVal = acc.items.reduce((s,x)=>s+itemVal(x,acc.type),0);
@@ -933,7 +941,7 @@ function buildAccountSection(acc) {
 
   const MARKET_LABEL = {krx:"🇰🇷국내", us:"🌎해외", coin:"🪙코인"};
   const marketPicker = item => '<div style="display:flex;gap:3px;margin-bottom:3px">'
-    +['krx','us','coin'].map(m=>'<button type="button" class="btn-sm" data-market-pick="'+item.id+'" data-market-val="'+m+'" data-acc="'+acc.id+'" style="padding:2px 6px;font-size:9px;flex:none;'+(itemMarket(item,type)===m?'background:'+acc.color+';color:#fff;border-color:'+acc.color:'')+'">'+MARKET_LABEL[m]+'</button>').join("")
+    +['krx','us'].map(m=>'<button type="button" class="btn-sm" data-market-pick="'+item.id+'" data-market-val="'+m+'" data-acc="'+acc.id+'" style="padding:2px 6px;font-size:9px;flex:none;'+(itemMarket(item,type)===m?'background:'+acc.color+';color:#fff;border-color:'+acc.color:'')+'">'+MARKET_LABEL[m]+'</button>').join("")
     +'</div>';
 
   let rows="";
@@ -1305,7 +1313,7 @@ function buildTradeModal() {
   const marketPickerHtml = (isNew && isMixedAcc) ? `<div class="trade-inp-group">
         <div class="trade-inp-label">시장</div>
         <div style="display:flex;gap:6px">
-          ${[["krx","🇰🇷 국내"],["us","🌎 해외"],["coin","🪙 코인"]].map(([m,label])=>
+          ${[["krx","🇰🇷 국내"],["us","🌎 해외"]].map(([m,label])=>
             `<button type="button" class="btn-sm" data-tm-market="${m}" style="flex:1;${market===m?'background:#3182f6;color:#fff;border-color:#3182f6':''}">${label}</button>`
           ).join("")}
         </div>
@@ -1415,7 +1423,7 @@ function buildTradeModal() {
 // ─── 모달 ────────────────────────────────────────────────────
 function buildModal() {
   if (!showModal) return "";
-  const typeButtons=Object.entries(ACCOUNT_TYPES).map(([k,v])=>'<div class="type-btn'+(modalType===k?" sel":"")+'" data-modal-type="'+k+'"><div class="icon">'+v.icon+'</div><div class="label">'+v.label+'</div><div class="desc">'+v.desc+'</div></div>').join("");
+  const typeButtons=Object.entries(ACCOUNT_TYPES).filter(([,v])=>v.creatable!==false).map(([k,v])=>'<div class="type-btn'+(modalType===k?" sel":"")+'" data-modal-type="'+k+'"><div class="icon">'+v.icon+'</div><div class="label">'+v.label+'</div><div class="desc">'+v.desc+'</div></div>').join("");
   const colorDots=COLORS.map(col=>'<div class="color-dot'+(modalColor===col?" sel":"")+'" style="background:'+col+'" data-modal-color="'+col+'"></div>').join("");
   return '<div class="modal-bg" id="modal-bg"><div class="modal"><div class="modal-title">➕ 계좌 추가</div><div style="font-size:12px;color:#8e8e93;margin-bottom:8px">어떤 자산을 관리할 계좌인가요?</div><div class="type-grid">'+typeButtons+'</div><div style="font-size:12px;color:#8e8e93;margin-bottom:8px">계좌 색상</div><div class="color-row">'+colorDots+'</div><div style="font-size:12px;color:#8e8e93;margin-bottom:6px">계좌 이름</div><input class="inp inp-l" id="modal-name" style="font-size:13px;margin-bottom:16px" placeholder="예) 토스증권, 미래에셋 ISA"/><div style="display:flex;gap:8px"><button class="btn" id="modal-cancel" style="flex:1">취소</button><button class="btn on" id="modal-confirm" style="flex:1">추가</button></div></div></div>';
 }
@@ -1445,8 +1453,9 @@ function buildPage() {
     +'<label class="btn-sm">📂 복원<input type="file" accept=".json" id="inp-restore" style="display:none"/></label>'
     +'<button class="btn-sm" id="btn-cloud-save" style="color:#10b981;border-color:#10b981">'+(cloudStatus==="saving"?"⟳ 저장 중...": cloudStatus==="saved"?"✅ 저장됨":cloudStatus==="error"?"❌ 실패":"☁️ 클라우드 저장")+'</button>'
     +'<button class="btn-sm" id="btn-cloud-load" style="color:#3182f6;border-color:#3182f6">☁️ 복원</button>'
+    +(ST.accounts.length>=2?'<button class="btn-sm" id="btn-transfer" style="color:#10b981;border-color:#10b981">🔁 이체</button>':"")
     +(editMode?'<button class="btn-sm" id="btn-add-acc" style="color:#3182f6;border-color:#3182f6">➕ 계좌 추가</button>':"")
-    +(editMode&&ST.accounts.filter(a=>a.type!=="cash").length>=2?'<button class="btn-sm" id="btn-merge-acc" style="color:#8b5cf6;border-color:#8b5cf6">🔀 계좌 합치기</button>':"")+'</div>'
+    +(editMode&&ST.accounts.filter(a=>a.type!=="cash"&&a.type!=="coin").length>=2?'<button class="btn-sm" id="btn-merge-acc" style="color:#8b5cf6;border-color:#8b5cf6">🔀 계좌 합치기</button>':"")+'</div>'
     +(!uidAcknowledged ? '<div style="font-size:10px;color:#8e8e93;margin:-6px 0 10px">⚠️ 위 🔑 키가 클라우드 데이터의 유일한 복구 수단이에요. 다른 기기에서 복원하려면 꼭 저장해두세요. ("보기"나 "복사"를 누르면 이 안내는 사라져요)</div>' : '')
     +'<div class="tabs">'+tabHtml+'</div>'
     +(tab==="overview"?buildOverview():"")
@@ -1458,7 +1467,8 @@ function buildPage() {
     +buildRebalanceModal()
     +buildThesisViewModal()
     +buildMergeModal()
-    +buildTutorialModal();
+    +buildTutorialModal()
+    +buildTransferModal();
 }
 
 // ─── 팝업 ────────────────────────────────────────────────────
@@ -1680,7 +1690,7 @@ function deleteDeposit(accId, depositId) {
 // ─── 계좌 병합 (US/KRX/코인 계좌 → 하나의 혼합계좌) ─────────────
 function buildMergeModal() {
   if (!mergeModal) return "";
-  const candidates = ST.accounts.filter(a=>a.type!=="cash");
+  const candidates = ST.accounts.filter(a=>a.type!=="cash"&&a.type!=="coin"); // 혼합계좌엔 코인을 못 담으니 코인계좌는 합치기 대상에서 제외
   const selected = mergeModal.selectedIds||[];
   const rows = candidates.map(acc=>{
     const on = selected.includes(acc.id);
@@ -1787,6 +1797,166 @@ function mergeAccountsIntoMixed(accIds, name) {
   saveData();
   render();
   alert("✅ '"+name+"' 계좌로 합쳤어요. 문제가 있으면 방금 다운로드된 백업 파일로 복원할 수 있어요.");
+}
+
+// ─── 계좌간 이체 ─────────────────────────────────────────────
+function buildTransferModal() {
+  if (!transferModal) return "";
+  const accs = ST.accounts;
+  if (!transferModal.fromId || !accs.find(a=>a.id===transferModal.fromId)) transferModal.fromId = accs[0]?.id;
+  const fromAcc = accs.find(a=>a.id===transferModal.fromId);
+  if (!fromAcc) return "";
+  const fromCcys = acctCcys(fromAcc);
+  if (!transferModal.ccy || !fromCcys.includes(transferModal.ccy)) transferModal.ccy = fromCcys[0];
+  const ccy = transferModal.ccy;
+
+  const toCandidates = accs.filter(a=>a.id!==fromAcc.id);
+  if (!transferModal.toId || transferModal.toId===fromAcc.id || !toCandidates.find(a=>a.id===transferModal.toId)) {
+    transferModal.toId = toCandidates[0]?.id;
+  }
+  const toAcc = accs.find(a=>a.id===transferModal.toId);
+
+  const fromIsCash = fromAcc.type === "cash";
+  const toIsCash = toAcc && toAcc.type === "cash";
+
+  if (fromIsCash && (!transferModal.fromItemId || !fromAcc.items.find(i=>i.id===transferModal.fromItemId))) {
+    transferModal.fromItemId = fromAcc.items[0]?.id;
+  }
+  if (toIsCash && !transferModal.toItemId) {
+    transferModal.toItemId = toAcc.items[0]?.id || "__new__";
+  }
+
+  const fromItemOptions = fromIsCash ? (fromAcc.items||[]).map(it=>`<option value="${it.id}" ${it.id===transferModal.fromItemId?"selected":""}>${it.n} (${won(Number(it.a)||0)})</option>`).join("") : "";
+  const toItemOptions = toIsCash ? (toAcc.items||[]).map(it=>`<option value="${it.id}" ${it.id===transferModal.toItemId?"selected":""}>${it.n} (${won(Number(it.a)||0)})</option>`).join("")+'<option value="__new__" '+(transferModal.toItemId==="__new__"?"selected":"")+'>+ 새 항목 만들기</option>' : "";
+
+  const ccyOk = toAcc ? acctCcys(toAcc).includes(ccy) : false;
+  const balance = fromIsCash ? Number(fromAcc.items.find(i=>i.id===transferModal.fromItemId)?.a||0) : getCash(fromAcc, ccy);
+
+  return `<div class="trade-modal-bg" id="transfer-modal-bg">
+    <div class="trade-modal">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+        <div class="modal-title" style="margin:0">🔁 계좌간 이체</div>
+        <button id="transfer-close" style="background:transparent;border:none;color:#8e8e93;font-size:20px;cursor:pointer">✕</button>
+      </div>
+      <div class="trade-inp-group">
+        <div class="trade-inp-label">보내는 계좌</div>
+        <select class="trade-inp" id="tr-from">
+          ${accs.map(a=>`<option value="${a.id}" ${a.id===fromAcc.id?"selected":""}>${a.name}</option>`).join("")}
+        </select>
+      </div>
+      ${fromIsCash ? `<div class="trade-inp-group">
+        <div class="trade-inp-label">보내는 항목</div>
+        <select class="trade-inp" id="tr-from-item">${fromItemOptions}</select>
+      </div>` : ""}
+      ${fromCcys.length>1 ? `<div class="trade-inp-group">
+        <div class="trade-inp-label">통화</div>
+        <div style="display:flex;gap:6px">
+          <button type="button" class="btn-sm" id="tr-ccy-krw" style="flex:1;${ccy==="krw"?"background:#3182f6;color:#fff;border-color:#3182f6":""}">🇰🇷 원화</button>
+          <button type="button" class="btn-sm" id="tr-ccy-usd" style="flex:1;${ccy==="usd"?"background:#3182f6;color:#fff;border-color:#3182f6":""}">🌎 외화(USD)</button>
+        </div>
+      </div>` : ""}
+      <div style="font-size:11px;color:#8e8e93;margin:-6px 0 12px">현재 잔액: ${ccy==="usd"?usd(balance):won(balance)}</div>
+      <div class="trade-inp-group">
+        <div class="trade-inp-label">받는 계좌</div>
+        <select class="trade-inp" id="tr-to">
+          ${toCandidates.map(a=>`<option value="${a.id}" ${toAcc&&a.id===toAcc.id?"selected":""}>${a.name}</option>`).join("")}
+        </select>
+      </div>
+      ${toIsCash ? `<div class="trade-inp-group">
+        <div class="trade-inp-label">받는 항목</div>
+        <select class="trade-inp" id="tr-to-item">${toItemOptions}</select>
+      </div>
+      <div id="tr-to-new-name-group" style="display:${transferModal.toItemId==="__new__"?"block":"none"}" class="trade-inp-group">
+        <div class="trade-inp-label">새 항목 이름</div>
+        <input class="trade-inp" id="tr-to-new-name" placeholder="예) 비상금"/>
+      </div>` : ""}
+      ${!ccyOk ? `<div style="font-size:11px;color:#f59e0b;margin-bottom:10px">⚠ '${toAcc?.name||""}' 계좌는 ${ccy==="usd"?"외화(USD)":"원화"} 예수금이 없어서 이체할 수 없어요. 환전이 필요한 이체는 지원하지 않아요.</div>` : ""}
+      <div class="trade-inp-group">
+        <div class="trade-inp-label">금액 (${ccy==="usd"?"USD":"KRW"})</div>
+        <input class="trade-inp" id="tr-amount" type="number" step="0.01" placeholder="0"/>
+      </div>
+      <div class="trade-inp-group">
+        <div class="trade-inp-label">날짜</div>
+        <input class="trade-inp" id="tr-date" type="date" value="${new Date().toISOString().slice(0,10)}"/>
+      </div>
+      <div class="trade-inp-group">
+        <div class="trade-inp-label">메모 (선택)</div>
+        <input class="trade-inp" id="tr-memo" placeholder="예) 매수 자금 이동"/>
+      </div>
+      <button class="trade-btn buy" id="tr-confirm" ${(!ccyOk||!toAcc)?'disabled style="opacity:0.4"':""}>이체하기</button>
+    </div>
+  </div>`;
+}
+
+function makeTransferDepositRecord(acc, ccy, signedAmount, date, memo) {
+  const type = signedAmount >= 0 ? "cash-in" : "cash-out";
+  const id = "d"+Date.now()+Math.random().toString(36).slice(2,6);
+  if (acc.type === "mixed") return { id, year:new Date(date).getFullYear(), amount:signedAmount, ccy, memo, type, date };
+  if (acc.type === "us") return { id, year:new Date(date).getFullYear(), amount:Math.round(signedAmount*(usdKrw||1350)), usdAmount:Math.abs(signedAmount), memo, type, date };
+  return { id, year:new Date(date).getFullYear(), amount:signedAmount, memo, type, date };
+}
+
+function bindTransferModalEvents() {
+  if (!transferModal) return;
+  const $ = id => document.getElementById(id);
+  $("transfer-close")?.addEventListener("click",()=>{ transferModal=null; render(); });
+  $("transfer-modal-bg")?.addEventListener("click",e=>{ if(e.target.id==="transfer-modal-bg"){transferModal=null;render();} });
+
+  $("tr-from")?.addEventListener("change",e=>{ transferModal.fromId=e.target.value; transferModal.fromItemId=null; transferModal.ccy=null; if(transferModal.toId===transferModal.fromId) transferModal.toId=null; render(); });
+  $("tr-from-item")?.addEventListener("change",e=>{ transferModal.fromItemId=e.target.value; render(); });
+  $("tr-to")?.addEventListener("change",e=>{ transferModal.toId=e.target.value; transferModal.toItemId=null; render(); });
+  $("tr-to-item")?.addEventListener("change",e=>{ transferModal.toItemId=e.target.value; render(); });
+  $("tr-ccy-krw")?.addEventListener("click",()=>{ transferModal.ccy="krw"; render(); });
+  $("tr-ccy-usd")?.addEventListener("click",()=>{ transferModal.ccy="usd"; render(); });
+
+  $("tr-confirm")?.addEventListener("click",()=>{
+    const fromAcc = ST.accounts.find(a=>a.id===transferModal.fromId);
+    const toAcc = ST.accounts.find(a=>a.id===transferModal.toId);
+    const ccy = transferModal.ccy;
+    const amount = parseFloat($("tr-amount")?.value) || 0;
+    const date = $("tr-date")?.value || new Date().toISOString().slice(0,10);
+    const memo = $("tr-memo")?.value || "";
+    if (!fromAcc || !toAcc || fromAcc.id===toAcc.id) { alert("계좌를 다시 선택해주세요"); return; }
+    if (!acctCcys(toAcc).includes(ccy)) { alert("환전이 필요한 이체는 지원하지 않아요"); return; }
+    if (!amount || amount<=0) { alert("금액을 입력해주세요"); return; }
+
+    // 보내는 쪽 차감
+    if (fromAcc.type === "cash") {
+      const item = fromAcc.items.find(i=>i.id===transferModal.fromItemId);
+      if (!item) { alert("보내는 항목을 선택해주세요"); return; }
+      if ((Number(item.a)||0) < amount) { alert(item.n+" 잔액이 부족해요"); return; }
+      item.a = (Number(item.a)||0) - amount;
+    } else {
+      if (getCash(fromAcc, ccy) < amount) { alert("예수금이 부족해요"); return; }
+      adjustCash(fromAcc, ccy, -amount);
+      if (!fromAcc.deposits) fromAcc.deposits=[];
+      fromAcc.deposits.push(makeTransferDepositRecord(fromAcc, ccy, -amount, date, "이체 → "+toAcc.name+(memo?" · "+memo:"")));
+    }
+
+    // 받는 쪽 증가
+    if (toAcc.type === "cash") {
+      let item;
+      if (transferModal.toItemId === "__new__") {
+        const name = ($("tr-to-new-name")?.value||"").trim();
+        if (!name) { alert("새 항목 이름을 입력해주세요"); return; }
+        item = { id:"ca"+Date.now(), n:name, a:0 };
+        toAcc.items.push(item);
+      } else {
+        item = toAcc.items.find(i=>i.id===transferModal.toItemId);
+      }
+      if (!item) { alert("받는 항목을 선택해주세요"); return; }
+      item.a = (Number(item.a)||0) + amount;
+    } else {
+      adjustCash(toAcc, ccy, amount);
+      if (!toAcc.deposits) toAcc.deposits=[];
+      toAcc.deposits.push(makeTransferDepositRecord(toAcc, ccy, amount, date, "이체 ← "+fromAcc.name+(memo?" · "+memo:"")));
+    }
+
+    saveData();
+    transferModal = null;
+    render();
+    alert("✅ 이체 완료: "+fromAcc.name+" → "+toAcc.name);
+  });
 }
 
 // ─── 입금/출금 모달 이벤트 ───────────────────────────────────
@@ -2242,8 +2412,9 @@ function bindEvents() {
   $("btn-edit")?.addEventListener("click",()=>{editMode=!editMode;render();});
   $("btn-backup")?.addEventListener("click",backupData);
   $("inp-restore")?.addEventListener("change",e=>restoreData(e.target.files[0]));
-  $("btn-add-acc")?.addEventListener("click",()=>{showModal=true;modalType="us";modalColor=COLORS[ST.accounts.length%COLORS.length];render();});
+  $("btn-add-acc")?.addEventListener("click",()=>{showModal=true;modalType="mixed";modalColor=COLORS[ST.accounts.length%COLORS.length];render();});
   $("btn-merge-acc")?.addEventListener("click",()=>{mergeModal={selectedIds:[],name:""};render();});
+  $("btn-transfer")?.addEventListener("click",()=>{transferModal={};render();});
   $("btn-toggle-usd")?.addEventListener("click",()=>{showUSD=!showUSD;render();});
 
   // 클라우드 키(UID) 표시/복사
@@ -2438,6 +2609,7 @@ function bindEvents() {
   if (tradeModal) bindTradeModalEvents();
   if (mergeModal) bindMergeModalEvents();
   if (tutorialStep != null) bindTutorialEvents();
+  if (transferModal) bindTransferModalEvents();
 }
 
 // ─── 모달 ESC 닫기 ───────────────────────────────────────────
@@ -2447,6 +2619,7 @@ document.addEventListener("keydown", e=>{
   else if (tradeModal) { tradeModal=null; render(); }
   else if (depositModal) { depositModal=null; render(); }
   else if (mergeModal) { mergeModal=null; render(); }
+  else if (transferModal) { transferModal=null; render(); }
   else if (thesisViewModal) { thesisViewModal=null; render(); }
   else if (showModal) { showModal=false; render(); }
   else if (tutorialStep != null) { tutorialStep=null; markTutorialSeen(); render(); }
