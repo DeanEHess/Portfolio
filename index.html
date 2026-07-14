@@ -370,6 +370,7 @@ let tab        = "overview";
 let showModal  = false;
 let modalType  = "mixed";
 let modalColor = COLORS[0];
+let modalAlreadyInvested = false; // 계좌 추가 시 "이미 투자 중이신가요?" 답변
 let showUSD    = false;
 let tradeModal = null; // {accId, itemId, mode:"buy"|"sell"}
 let thesisViewModal = null; // {text: string}
@@ -995,7 +996,9 @@ function buildAccountSection(acc) {
   // 처음 여는 계좌(예수금 0, 보유 종목 없음)에는 매수 전에 입출금부터 해야 한다는 걸 안내
   const cashEmpty = isMixed ? ((acc.cashKrw||0)+(acc.cashUsd||0)) <= 0 : (acc.cash||0) <= 0;
   const emptyCashHint = (!isCash && !editMode && cashEmpty && acc.items.length === 0)
-    ? '<div style="font-size:11px;color:#93c5fd;background:#3182f61a;border:1px solid #3182f633;border-radius:8px;padding:8px 12px;margin-bottom:10px">💡 먼저 <b>입출금</b> 버튼으로 예수금을 채운 다음 <b>+ 신규매수</b>로 종목을 사보세요</div>'
+    ? (acc.alreadyInvested
+        ? '<div style="font-size:11px;color:#93c5fd;background:#3182f61a;border:1px solid #3182f633;border-radius:8px;padding:8px 12px;margin-bottom:10px">💡 이미 투자 중인 계좌시군요! <b>+ 신규매수</b> → <b>이미 보유 중인 종목이에요</b> 체크 → 수량·평단만 입력해서 빠르게 등록하세요. 그다음 남은 현금은 <b>입출금</b>으로 넣으면 돼요. (선택) 정확한 연도별 순입금을 남기고 싶으면 입출금에서 과거 날짜로 나눠서 여러 번 입력할 수도 있어요 — 나중에 언제든 추가·수정 가능해요.</div>'
+        : '<div style="font-size:11px;color:#93c5fd;background:#3182f61a;border:1px solid #3182f633;border-radius:8px;padding:8px 12px;margin-bottom:10px">💡 먼저 <b>입출금</b> 버튼으로 예수금을 채운 다음 <b>+ 신규매수</b>로 종목을 사보세요</div>')
     : '';
   const hdrRight = '<div style="text-align:right">'
     +'<div style="font-weight:800;font-size:17px;color:'+acc.color+'">'+(total?won(total):"₩0")+'</div>'
@@ -1491,7 +1494,12 @@ function buildModal() {
   if (!showModal) return "";
   const typeButtons=Object.entries(ACCOUNT_TYPES).filter(([,v])=>v.creatable!==false).map(([k,v])=>'<div class="type-btn'+(modalType===k?" sel":"")+'" data-modal-type="'+k+'"><div class="icon">'+v.icon+'</div><div class="label">'+v.label+'</div><div class="desc">'+v.desc+'</div></div>').join("");
   const colorDots=COLORS.map(col=>'<div class="color-dot'+(modalColor===col?" sel":"")+'" style="background:'+col+'" data-modal-color="'+col+'"></div>').join("");
-  return '<div class="modal-bg" id="modal-bg"><div class="modal"><div class="modal-title">➕ 계좌 추가</div><div style="font-size:12px;color:#8e8e93;margin-bottom:8px">어떤 자산을 관리할 계좌인가요?</div><div class="type-grid">'+typeButtons+'</div><div style="font-size:12px;color:#8e8e93;margin-bottom:8px">계좌 색상</div><div class="color-row">'+colorDots+'</div><div style="font-size:12px;color:#8e8e93;margin-bottom:6px">계좌 이름</div><input class="inp inp-l" id="modal-name" style="font-size:13px;margin-bottom:16px" placeholder="예) 토스증권, 미래에셋 ISA"/><div style="display:flex;gap:8px"><button class="btn" id="modal-cancel" style="flex:1">취소</button><button class="btn on" id="modal-confirm" style="flex:1">추가</button></div></div></div>';
+  return '<div class="modal-bg" id="modal-bg"><div class="modal"><div class="modal-title">➕ 계좌 추가</div><div style="font-size:12px;color:#8e8e93;margin-bottom:8px">어떤 자산을 관리할 계좌인가요?</div><div class="type-grid">'+typeButtons+'</div><div style="font-size:12px;color:#8e8e93;margin-bottom:8px">계좌 색상</div><div class="color-row">'+colorDots+'</div><div style="font-size:12px;color:#8e8e93;margin-bottom:6px">계좌 이름</div><input class="inp inp-l" id="modal-name" style="font-size:13px;margin-bottom:16px" placeholder="예) 토스증권, 미래에셋 ISA"/>'
+    +'<div style="display:flex;align-items:center;justify-content:space-between;background:#000000;border-radius:8px;padding:10px 12px;margin-bottom:16px">'
+    +'<div><div style="font-size:12px;font-weight:600">이미 투자 중인 계좌인가요?</div><div style="font-size:10px;color:#8e8e93;margin-top:2px">이미 보유 중인 종목·예수금이 있으면 체크 — 등록 순서를 맞게 안내해드려요</div></div>'
+    +'<label style="display:flex;align-items:center;cursor:pointer;flex-shrink:0;margin-left:10px"><input type="checkbox" id="modal-already-invested" '+(modalAlreadyInvested?"checked":"")+' style="width:20px;height:20px;cursor:pointer"/></label>'
+    +'</div>'
+    +'<div style="display:flex;gap:8px"><button class="btn" id="modal-cancel" style="flex:1">취소</button><button class="btn on" id="modal-confirm" style="flex:1">추가</button></div></div></div>';
 }
 
 // ─── 페이지 빌드 ─────────────────────────────────────────────
@@ -2483,7 +2491,7 @@ function bindEvents() {
   $("btn-edit")?.addEventListener("click",()=>{editMode=!editMode;render();});
   $("btn-backup")?.addEventListener("click",()=>{ dataMenuOpen=false; backupData(); render(); });
   $("inp-restore")?.addEventListener("change",e=>{ dataMenuOpen=false; restoreData(e.target.files[0]); });
-  $("btn-add-acc")?.addEventListener("click",()=>{showModal=true;modalType="mixed";modalColor=COLORS[ST.accounts.length%COLORS.length];render();});
+  $("btn-add-acc")?.addEventListener("click",()=>{showModal=true;modalType="mixed";modalColor=COLORS[ST.accounts.length%COLORS.length];modalAlreadyInvested=false;render();});
   $("btn-merge-acc")?.addEventListener("click",()=>{mergeModal={selectedIds:[],name:""};render();});
   $("btn-data-menu")?.addEventListener("click",()=>{ dataMenuOpen=!dataMenuOpen; render(); });
   $("data-menu-bg")?.addEventListener("click",()=>{ dataMenuOpen=false; render(); });
@@ -2525,9 +2533,10 @@ function bindEvents() {
   // 모달
   document.querySelectorAll("[data-modal-type]").forEach(b=>b.addEventListener("click",()=>{modalType=b.dataset.modalType;render();}));
   document.querySelectorAll("[data-modal-color]").forEach(b=>b.addEventListener("click",()=>{modalColor=b.dataset.modalColor;render();}));
+  $("modal-already-invested")?.addEventListener("change",e=>{modalAlreadyInvested=e.target.checked;});
   $("modal-cancel")?.addEventListener("click",()=>{showModal=false;render();});
   $("modal-bg")?.addEventListener("click",e=>{if(e.target.id==="modal-bg"){showModal=false;render();}});
-  $("modal-confirm")?.addEventListener("click",()=>{ const name=($("modal-name")?.value||"").trim()||ACCOUNT_TYPES[modalType].label; const id="a"+Date.now(); const acc={id,name,type:modalType,color:modalColor,items:modalType==="cash"?[{id:"ca"+Date.now(),n:"현금",a:0}]:[]}; if(modalType==="mixed"){acc.cashKrw=0;acc.cashUsd=0;} ST.accounts.push(acc); tab=id; showModal=false; render(); });
+  $("modal-confirm")?.addEventListener("click",()=>{ const name=($("modal-name")?.value||"").trim()||ACCOUNT_TYPES[modalType].label; const id="a"+Date.now(); const acc={id,name,type:modalType,color:modalColor,items:modalType==="cash"?[{id:"ca"+Date.now(),n:"현금",a:0}]:[],alreadyInvested:!!$("modal-already-invested")?.checked}; if(modalType==="mixed"){acc.cashKrw=0;acc.cashUsd=0;} ST.accounts.push(acc); tab=id; showModal=false; render(); });
 
   // 탭
   document.querySelectorAll("[data-tab]").forEach(b=>b.addEventListener("click",()=>{tab=b.dataset.tab;render();}));
