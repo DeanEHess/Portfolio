@@ -362,6 +362,7 @@ let px         = {};
 let sectorCache= JSON.parse(localStorage.getItem("sector_cache")||"{}");
 let loading    = false;
 let lastUp     = null;
+let fetchError = false; // 시세/환율 갱신 요청이 타임아웃되거나 실패했는지
 let editMode   = false;
 let previewNameCache = {}; // {ticker: name} - 신규매수 미리보기에서 조회된 이름 캐시 (세션 내 재사용)
 let rebalanceModal = null; // {accId, investAmount}
@@ -572,6 +573,11 @@ function sectorMapToItems(map) {
 }
 
 // ─── API ─────────────────────────────────────────────────────
+function fetchWithTimeout(url, ms=12000) {
+  const controller = new AbortController();
+  const timer = setTimeout(()=>controller.abort(), ms);
+  return fetch(url, {signal:controller.signal}).finally(()=>clearTimeout(timer));
+}
 async function fetchAll() {
   if (loading) return;
   loading=true; render();
@@ -584,7 +590,7 @@ async function fetchAll() {
   const coinIds     = coinTickers.map(t=>GECKO_ID[t.toUpperCase()]).filter(Boolean);
   try {
     const params=new URLSearchParams({type:"all",us:usTickers.join(","),krx:krxCodes.join(","),coins:coinIds.join(",")});
-    const d=await fetch(WORKER+"?"+params).then(r=>r.json());
+    const d=await fetchWithTimeout(WORKER+"?"+params).then(r=>r.json());
     if (d.fx) usdKrw=d.fx;
     Object.assign(px,d.us||{});
     Object.assign(px,d.krx||{});
@@ -605,8 +611,9 @@ async function fetchAll() {
       }
     }
     saveData();
-  } catch {}
-  loading=false; lastUp=new Date(); render();
+    fetchError=false; lastUp=new Date();
+  } catch { fetchError=true; }
+  loading=false; render();
   fetchMissingSectors();
 }
 async function fetchMissingSectors() {
@@ -614,7 +621,7 @@ async function fetchMissingSectors() {
   const missing=[...new Set(allTickers)].filter(t=>!sectorCache[t]&&!sectorCache[t.toUpperCase()]&&!SECTOR_DB[t]&&!SECTOR_DB[t.toUpperCase()]);
   if (!missing.length) return;
   try {
-    const d=await fetch(WORKER+"?type=sector&symbols="+missing.join(",")).then(r=>r.json());
+    const d=await fetchWithTimeout(WORKER+"?type=sector&symbols="+missing.join(",")).then(r=>r.json());
     for (const [sym,sec] of Object.entries(d)) sectorCache[sym.toUpperCase()]=sec;
     localStorage.setItem("sector_cache",JSON.stringify(sectorCache));
     render();
@@ -1487,7 +1494,7 @@ function buildModal() {
 
 // ─── 페이지 빌드 ─────────────────────────────────────────────
 function buildPage() {
-  const subStr=loading?"⟳ 갱신 중...":(lastUp?lastUp.toLocaleTimeString("ko-KR")+" 기준":"—");
+  const subStr=loading?"⟳ 갱신 중...":fetchError?"⚠️ 갱신 실패 · ↻ 눌러 재시도":(lastUp?lastUp.toLocaleTimeString("ko-KR")+" 기준":"—");
   const rateStr=usdKrw?"USD/KRW ₩"+Math.round(usdKrw).toLocaleString():"환율 로딩 중...";
   const tabHtml=['<button class="tab'+(tab==="overview"?" on":"")+'" data-tab="overview"'+(editMode?' draggable="true" data-drag="overview"':'')+'>'+( editMode?'<span style="font-size:9px;color:#8e8e93;margin-right:3px">⠿</span>':'')+'전체</button>']
     .concat(ST.accounts.map(a=>'<button class="tab'+(tab===a.id?" on":"")+'" data-tab="'+a.id+'" style="'+(tab===a.id?"background:"+a.color+";color:#fff":"")+';"'+(editMode?' draggable="true" data-drag="'+a.id+'"':'')+'>'+( editMode?'<span style="font-size:9px;color:#8e8e93;margin-right:3px">⠿</span>':'')+a.name+'</button>')).join("");
@@ -1497,7 +1504,7 @@ function buildPage() {
     :'<div style="display:flex;gap:4px;margin-bottom:10px;overflow-x:auto;padding-bottom:2px">'+getProfiles().map(p=>'<button style="background:'+(curProfile===p?'#3182f6':'#000000')+';border:1px solid '+(curProfile===p?'#3182f6':'#2c2c2e')+';color:'+(curProfile===p?'#fff':'#aeaeb2')+';padding:5px 12px;border-radius:20px;font-size:12px;font-weight:'+(curProfile===p?'700':'400')+';white-space:nowrap;cursor:pointer;flex-shrink:0" data-profile="'+p+'">👤 '+p+'</button>').join("")+'<button style="background:transparent;border:1px dashed #2c2c2e;color:#3182f6;padding:5px 10px;border-radius:20px;font-size:12px;cursor:pointer;flex-shrink:0" id="btn-add-profile">+</button></div>';
 
   return (loading?'<div class="loading-bar"><div class="loading-bar-inner"></div></div>':"")
-    +'<div class="hdr"><div><div class="hdr-title">📊 자산 대시보드</div><div class="hdr-sub">'+subStr+'</div><div class="hdr-rate">'+rateStr+'</div>'
+    +'<div class="hdr"><div><div class="hdr-title">📊 자산 대시보드</div><div class="hdr-sub"'+(fetchError&&!loading?' style="color:#f59e0b"':'')+'>'+subStr+'</div><div class="hdr-rate">'+rateStr+'</div>'
     +'<div style="font-size:10px;color:#2c2c2e;margin-top:2px;display:flex;align-items:center;gap:6px" title="이 키가 있어야만 클라우드 백업을 열어볼 수 있어요(종단간 암호화). 키를 잃어버리면 개발자도 복구해줄 수 없으니 꼭 안전한 곳에 저장하세요.">'
     +'<span'+(uidRevealed?' style="user-select:all"':'')+'>🔑 '+(uidRevealed?cloudToken():"••••••••••••")+'</span>'
     +'<button id="btn-uid-toggle" style="background:transparent;border:none;color:#636366;font-size:10px;cursor:pointer;padding:0;text-decoration:underline">'+(uidRevealed?"숨기기":"보기")+'</button>'
@@ -2695,6 +2702,10 @@ try { if (!localStorage.getItem(TUTORIAL_SEEN_KEY)) tutorialStep = 0; } catch {}
 render();
 fetchAll();
 setInterval(fetchAll,60000);
+// 모바일에서 백그라운드로 갔다가 돌아왔을 때, 직전 시세 갱신이 실패/미완료 상태였다면 자동 재시도
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden && !loading && (fetchError || !usdKrw)) fetchAll();
+});
 // 암호화 도입 전 평문으로 저장됐을 수 있는 기존 클라우드 백업을 암호화본으로 즉시 교체
 cloudSave(true);
 </script>
