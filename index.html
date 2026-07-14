@@ -613,8 +613,16 @@ async function fetchAll() {
     saveData();
     fetchError=false; lastUp=new Date();
   } catch { fetchError=true; }
+  if (!usdKrw) await fetchFxFallback();
   loading=false; render();
   fetchMissingSectors();
+}
+// Worker 응답에 fx가 빠졌을 때(자체 오류든 일시적 문제든) 대비한 별도 무료 환율 API 보강 조회
+async function fetchFxFallback() {
+  try {
+    const d=await fetchWithTimeout("https://open.er-api.com/v6/latest/USD", 8000).then(r=>r.json());
+    if (d?.rates?.KRW) usdKrw=d.rates.KRW;
+  } catch {}
 }
 async function fetchMissingSectors() {
   const allTickers=ST.accounts.flatMap(a=>a.items.filter(it=>{const m=itemMarket(it,a.type); return m==="us"||m==="krx";}).map(x=>x.t).filter(Boolean));
