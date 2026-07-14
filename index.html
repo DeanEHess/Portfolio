@@ -767,6 +767,7 @@ function eventsToHtml(events, isUS, isCoin) {
       return `<div class="history-row">
         <div style="display:flex;align-items:center;gap:8px">
           <span class="history-badge" style="background:${isIn?"#10b98120":"#f59e0b20"};color:${isIn?"#10b981":"#f59e0b"}">${isIn?"입금":"출금"}</span>
+          ${ev.historicalOnly?'<span class="history-badge" style="background:#8e8e9320;color:#8e8e93">과거기록</span>':""}
           <span style="color:#8e8e93">${ev.date}</span>
           ${ev.memo?`<span style="color:#636366;font-size:10px">${ev.memo}</span>`:""}
           <button data-deposit-edit-memo="${ev.id}" data-deposit-acc="${ev.accId}" style="background:transparent;border:none;color:#636366;font-size:11px;cursor:pointer;padding:0">✏️</button>
@@ -809,7 +810,7 @@ function buildAccountHistorySection(acc) {
       const krwVal = isMixed ? (dCcy==="usd" ? Math.abs(d.amount)*(usdKrw||0) : Math.abs(d.amount)) : Math.abs(d.amount);
       events.push({
         date: d.date||("연도:"+d.year), kind: d.type, amount: d.amount, memo: d.memo,
-        id: d.id, accId: acc.id, usdAmount: d.usdAmount, ccy: dCcy, krwVal,
+        id: d.id, accId: acc.id, usdAmount: d.usdAmount, ccy: dCcy, krwVal, historicalOnly: d.historicalOnly,
         sortKey: (d.date||d.year+"-01-01") + "_" + (d.id||"")
       });
     } else if (d.type === "fx-convert") {
@@ -1323,6 +1324,16 @@ function buildDepositModal() {
         <div class="trade-inp-label">메모 (선택)</div>
         <input class="trade-inp" id="dm-memo" placeholder="예) 월급날 입금, 생활비 출금"/>
       </div>
+      ${!isCashAcc ? `
+      <div style="display:flex;align-items:center;justify-content:space-between;background:#000000;border-radius:8px;padding:10px 12px;margin-bottom:16px">
+        <div>
+          <div style="font-size:12px;font-weight:600">과거 기록용이에요</div>
+          <div style="font-size:10px;color:#8e8e93;margin-top:2px">순입금 통계에만 반영, 현재 예수금은 그대로 유지</div>
+        </div>
+        <label style="display:flex;align-items:center;cursor:pointer;flex-shrink:0;margin-left:10px">
+          <input type="checkbox" id="dm-historical-only" style="width:20px;height:20px;cursor:pointer"/>
+        </label>
+      </div>` : ""}
       <button class="trade-btn ${isIn?"buy":"sell"}" id="dm-confirm">${isIn?"입금 확정":"출금 확정"}</button>
     </div>
   </div>`;
@@ -1697,6 +1708,7 @@ function recalcAccountCash(accId) {
     const recalcOne = ccy => {
       let cash = 0;
       for (const d of (acc.deposits||[])) {
+        if (d.historicalOnly) continue;
         if (d.type === "fx-convert") {
           if (d.fromCcy === ccy) cash -= d.fromAmount;
           else if (d.toCcy === ccy) cash += d.toAmount;
@@ -1728,6 +1740,7 @@ function recalcAccountCash(accId) {
   // 1) 입출금 내역 합산 (us는 저장된 KRW를 당시 환율 몰라서 amount/rate 저장 안했으므로 USD 환산분을 별도 추적 필요)
   //    cash-in/out의 amount는 KRW 기준으로 저장되어 있으므로, USD 계좌는 usdAmount 필드가 있으면 그걸 쓰고 없으면 현재환율로 근사
   for (const d of (acc.deposits||[])) {
+    if (d.historicalOnly) continue;
     if (d.type === "cash-in") {
       cash += (d.usdAmount != null) ? d.usdAmount : (isUS ? (d.amount/(usdKrw||1350)) : d.amount);
     } else if (d.type === "cash-out") {
@@ -1801,7 +1814,9 @@ function deleteDeposit(accId, depositId) {
   const dep = acc.deposits.find(d=>d.id===depositId);
   if (!dep) return;
 
-  if (acc.type === "mixed") {
+  if (dep.historicalOnly) {
+    // 과거 기록용(현재 예수금에 영향 안 줬던 기록) - 삭제 시에도 예수금 건드리지 않음
+  } else if (acc.type === "mixed") {
     if (dep.type === "fx-convert") {
       adjustCash(acc, dep.fromCcy, dep.fromAmount);
       adjustCash(acc, dep.toCcy, -dep.toAmount);
@@ -2323,16 +2338,17 @@ function bindDepositModalEvents() {
     // ─ 투자 계좌(us/krx/coin/혼합): 예수금 증감 ─
     const amount = (isUS) ? krw / rate : krw; // USD 또는 KRW
     const depCcy = isMixed ? ccy : (isUS ? "usd" : "krw");
+    const historicalOnly = !isCashAcc && !!$("dm-historical-only")?.checked;
 
     if (!acc.deposits) acc.deposits = [];
 
     if (isIn) {
-      adjustCash(acc, depCcy, amount);
-      acc.deposits.push({ id:"d"+Date.now(), year:new Date(date).getFullYear(), amount: isMixed ? amount : krw, usdAmount: (!isMixed && isUS) ? amount : undefined, ccy: isMixed ? ccy : undefined, memo, type:"cash-in", date });
+      if (!historicalOnly) adjustCash(acc, depCcy, amount);
+      acc.deposits.push({ id:"d"+Date.now(), year:new Date(date).getFullYear(), amount: isMixed ? amount : krw, usdAmount: (!isMixed && isUS) ? amount : undefined, ccy: isMixed ? ccy : undefined, memo, type:"cash-in", date, historicalOnly: historicalOnly || undefined });
     } else {
-      if (amount > getCash(acc, depCcy)) { alert("예수금보다 많이 출금할 수 없어요"); return; }
-      adjustCash(acc, depCcy, -amount);
-      acc.deposits.push({ id:"d"+Date.now(), year:new Date(date).getFullYear(), amount: isMixed ? -amount : -krw, usdAmount: (!isMixed && isUS) ? amount : undefined, ccy: isMixed ? ccy : undefined, memo, type:"cash-out", date });
+      if (!historicalOnly && amount > getCash(acc, depCcy)) { alert("예수금보다 많이 출금할 수 없어요"); return; }
+      if (!historicalOnly) adjustCash(acc, depCcy, -amount);
+      acc.deposits.push({ id:"d"+Date.now(), year:new Date(date).getFullYear(), amount: isMixed ? -amount : -krw, usdAmount: (!isMixed && isUS) ? amount : undefined, ccy: isMixed ? ccy : undefined, memo, type:"cash-out", date, historicalOnly: historicalOnly || undefined });
     }
 
     saveData();
@@ -2554,6 +2570,7 @@ function bindTradeModalEvents() {
         // 이월 잔고: 거래 이력 없이 수량/평단만 등록, 예수금 영향 없음
         if (!item) {
           item = {id:"i"+Date.now(), t:ticker, n:US_DB[ticker]||KRX_DB[ticker]||previewNameCache[ticker]||"", q:0, a:0, trades:[]};
+          if (isMixedAcc) item.market = market;
           acc.items.push(item);
         }
         if (item.trades && item.trades.length) {
@@ -2828,7 +2845,10 @@ function bindEvents() {
   // 환전/입출금 기록 삭제
   document.querySelectorAll("[data-deposit-del]").forEach(b=>b.addEventListener("click",e=>{
     e.stopPropagation();
-    if(!confirm("이 입출금 기록을 삭제할까요?\n예수금이 자동으로 되돌려져요.")) return;
+    const acc = ST.accounts.find(a=>a.id===b.dataset.depositAcc);
+    const dep = acc?.deposits?.find(d=>d.id===b.dataset.depositDel);
+    const msg = dep?.historicalOnly ? "이 입출금 기록을 삭제할까요?\n과거 기록용이라 예수금엔 영향 없어요." : "이 입출금 기록을 삭제할까요?\n예수금이 자동으로 되돌려져요.";
+    if(!confirm(msg)) return;
     deleteDeposit(b.dataset.depositAcc, b.dataset.depositDel);
   }));
 
