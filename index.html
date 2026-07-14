@@ -355,9 +355,10 @@ function saveDataLocalOnly() {
 }
 function saveData() {
   saveDataLocalOnly();
-  // 자동 클라우드 저장 (5초 디바운스) — 실제 사용자 조작(거래/입출금/계좌 편집 등)에서만 호출됨
+  // 자동 클라우드 저장 (60초 디바운스) — 실제 사용자 조작(거래/입출금/계좌 편집 등)에서만 호출됨.
+  // 연속 조작이 여러 번 일어나도 디바운스 안에 들어오면 KV write 1번으로 뭉쳐짐 — write 절약
   clearTimeout(_autoSaveTimer);
-  _autoSaveTimer = setTimeout(()=>{ cloudSave(true); }, 5000);
+  _autoSaveTimer = setTimeout(()=>{ cloudSave(true); }, 60000);
 }
 
 // ─── 앱 상태 ─────────────────────────────────────────────────
