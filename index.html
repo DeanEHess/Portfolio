@@ -146,7 +146,15 @@ const WORKER = "https://asset-proxy.omyakryl0541.workers.dev";
 const COLORS  = ["#3182f6","#f59e0b","#10b981","#3b82f6","#f43f5e","#a855f7","#06b6d4","#84cc16","#f97316","#ec4899"];
 const SK      = "asset_v7";
 
-// ─── 클라우드 UID ─────────────────────────────────────────────
+// ─── 클라우드 UID + 종단간 암호화 키 ───────────────────────────
+// uid: 서버(Worker/KV)에 그대로 전송되는 조회용 식별자
+// encKey: 절대 서버로 전송되지 않는 암호화 전용 비밀키 — 이게 있어야만 클라우드에 저장된 내용을 복호화할 수 있음
+//         (uid만 알아내도 서버 운영자를 포함해 아무도 평문 내용을 볼 수 없게 하기 위함)
+function b64encode(bytes) { return btoa(String.fromCharCode(...new Uint8Array(bytes))); }
+function b64decode(str) { return Uint8Array.from(atob(str), c=>c.charCodeAt(0)); }
+function b64urlEncode(bytes) { return b64encode(bytes).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,""); }
+function b64urlDecode(str) { return b64decode(str.replace(/-/g,"+").replace(/_/g,"/").padEnd(str.length+(4-str.length%4)%4,"=")); }
+
 function getOrCreateUid() {
   let uid = localStorage.getItem("asset_uid");
   if (!uid) {
@@ -155,17 +163,43 @@ function getOrCreateUid() {
   }
   return uid;
 }
-const CLOUD_UID = getOrCreateUid();
+function getOrCreateEncKey() {
+  let key = localStorage.getItem("asset_enc_key");
+  if (!key) {
+    key = b64urlEncode(crypto.getRandomValues(new Uint8Array(32)));
+    localStorage.setItem("asset_enc_key", key);
+  }
+  return key;
+}
+let CLOUD_UID = getOrCreateUid();
+let CLOUD_ENC_KEY = getOrCreateEncKey();
+function cloudToken() { return CLOUD_UID + "." + CLOUD_ENC_KEY; }
 let cloudStatus = "";
+
+async function importEncKey(encKeyB64url) {
+  return crypto.subtle.importKey("raw", b64urlDecode(encKeyB64url), {name:"AES-GCM"}, false, ["encrypt","decrypt"]);
+}
+async function encryptForCloud(obj, encKeyB64url) {
+  const key = await importEncKey(encKeyB64url);
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const data = await crypto.subtle.encrypt({name:"AES-GCM", iv}, key, new TextEncoder().encode(JSON.stringify(obj)));
+  return { v:1, iv:b64encode(iv), data:b64encode(data) };
+}
+async function decryptFromCloud(payload, encKeyB64url) {
+  const key = await importEncKey(encKeyB64url);
+  const plainBuf = await crypto.subtle.decrypt({name:"AES-GCM", iv:b64decode(payload.iv)}, key, b64decode(payload.data));
+  return JSON.parse(new TextDecoder().decode(plainBuf));
+}
 
 async function cloudSave(silent=false) {
   if (!silent) { cloudStatus = "saving"; render(); }
   try {
     ST._savedAt = Date.now();
+    const encrypted = await encryptForCloud(ST, CLOUD_ENC_KEY);
     const r = await fetch(WORKER + "?type=kv-save&uid=" + CLOUD_UID, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(ST),
+      body: JSON.stringify(encrypted),
     });
     const d = await r.json();
     if (!silent) {
@@ -179,13 +213,25 @@ async function cloudSave(silent=false) {
 }
 
 async function cloudLoad() {
-  const uid = prompt("복원할 백업 키를 입력하세요:\n(현재 내 키: " + CLOUD_UID + ")");
-  if (!uid) return;
+  const token = prompt("복원할 백업 키를 입력하세요:\n(현재 내 키: " + cloudToken() + ")");
+  if (!token) return;
+  const trimmed = token.trim();
+  const dotIdx = trimmed.indexOf(".");
+  const uid = dotIdx === -1 ? trimmed : trimmed.slice(0, dotIdx);
+  const encKey = dotIdx === -1 ? null : trimmed.slice(dotIdx+1);
   cloudStatus = "loading"; render();
   try {
-    const r = await fetch(WORKER + "?type=kv-load&uid=" + uid.trim());
+    const r = await fetch(WORKER + "?type=kv-load&uid=" + uid);
     if (r.status === 404) { alert("해당 키로 저장된 데이터가 없어요"); cloudStatus = ""; render(); return; }
-    const d = await r.json();
+    const raw = await r.json();
+    // raw.iv/raw.data가 있으면 암호화된 백업, 없으면 암호화 도입 전 저장된 평문 백업(하위호환)
+    let d;
+    if (raw.iv && raw.data) {
+      if (!encKey) throw new Error("이 백업은 암호화되어 있어요. 전체 키(점 뒤 부분 포함)를 입력해주세요");
+      d = await decryptFromCloud(raw, encKey);
+    } else {
+      d = raw;
+    }
     if (!d.accounts) throw new Error("잘못된 데이터");
     // 로컬 데이터가 클라우드보다 최신이면 경고
     if (ST._savedAt && d._savedAt && ST._savedAt > d._savedAt) {
@@ -196,7 +242,9 @@ async function cloudLoad() {
       }
     }
     Object.assign(ST, d);
-    localStorage.setItem("asset_uid", uid.trim());
+    localStorage.setItem("asset_uid", uid);
+    CLOUD_UID = uid;
+    if (encKey) { localStorage.setItem("asset_enc_key", encKey); CLOUD_ENC_KEY = encKey; }
     saveData(); cloudStatus = ""; render(); fetchAll();
     alert("✅ 복원 완료!");
   } catch(e) { alert("❌ 복원 실패: " + e.message); cloudStatus = ""; render(); }
@@ -1441,8 +1489,8 @@ function buildPage() {
 
   return (loading?'<div class="loading-bar"><div class="loading-bar-inner"></div></div>':"")
     +'<div class="hdr"><div><div class="hdr-title">📊 자산 대시보드</div><div class="hdr-sub">'+subStr+'</div><div class="hdr-rate">'+rateStr+'</div>'
-    +'<div style="font-size:10px;color:#2c2c2e;margin-top:2px;display:flex;align-items:center;gap:6px" title="이 키를 아는 사람은 누구든 클라우드 복원으로 내 자산 데이터를 볼 수 있어요. 화면 공유·캡처 시 주의하세요.">'
-    +'<span'+(uidRevealed?' style="user-select:all"':'')+'>🔑 '+(uidRevealed?CLOUD_UID:"••••••••••••")+'</span>'
+    +'<div style="font-size:10px;color:#2c2c2e;margin-top:2px;display:flex;align-items:center;gap:6px" title="이 키가 있어야만 클라우드 백업을 열어볼 수 있어요(종단간 암호화). 키를 잃어버리면 개발자도 복구해줄 수 없으니 꼭 안전한 곳에 저장하세요.">'
+    +'<span'+(uidRevealed?' style="user-select:all"':'')+'>🔑 '+(uidRevealed?cloudToken():"••••••••••••")+'</span>'
     +'<button id="btn-uid-toggle" style="background:transparent;border:none;color:#636366;font-size:10px;cursor:pointer;padding:0;text-decoration:underline">'+(uidRevealed?"숨기기":"보기")+'</button>'
     +'<button id="btn-uid-copy" style="background:transparent;border:none;color:#636366;font-size:10px;cursor:pointer;padding:0;text-decoration:underline">복사</button>'
     +'</div></div>'
@@ -1456,7 +1504,7 @@ function buildPage() {
     +(ST.accounts.length>=2?'<button class="btn-sm" id="btn-transfer" style="color:#10b981;border-color:#10b981">🔁 이체</button>':"")
     +(editMode?'<button class="btn-sm" id="btn-add-acc" style="color:#3182f6;border-color:#3182f6">➕ 계좌 추가</button>':"")
     +(editMode&&ST.accounts.filter(a=>a.type!=="cash"&&a.type!=="coin").length>=2?'<button class="btn-sm" id="btn-merge-acc" style="color:#8b5cf6;border-color:#8b5cf6">🔀 계좌 합치기</button>':"")+'</div>'
-    +(!uidAcknowledged ? '<div style="font-size:10px;color:#8e8e93;margin:-6px 0 10px">⚠️ 위 🔑 키가 클라우드 데이터의 유일한 복구 수단이에요. 다른 기기에서 복원하려면 꼭 저장해두세요. ("보기"나 "복사"를 누르면 이 안내는 사라져요)</div>' : '')
+    +(!uidAcknowledged ? '<div style="font-size:10px;color:#8e8e93;margin:-6px 0 10px">⚠️ 위 🔑 키(암호화 키 포함)가 클라우드 데이터의 유일한 복구 수단이에요. 이 키가 없으면 개발자를 포함해 아무도 클라우드 백업 내용을 복구할 수 없어요. 다른 기기에서 복원하려면 꼭 저장해두세요. ("보기"나 "복사"를 누르면 이 안내는 사라져요)</div>' : '')
     +'<div class="tabs">'+tabHtml+'</div>'
     +(tab==="overview"?buildOverview():"")
     +(activeAcc?buildAccountSection(activeAcc):"")
@@ -2428,7 +2476,7 @@ function bindEvents() {
     const fallbackCopy=()=>{
       try {
         const ta=document.createElement("textarea");
-        ta.value=CLOUD_UID; ta.style.position="fixed"; ta.style.opacity="0";
+        ta.value=cloudToken(); ta.style.position="fixed"; ta.style.opacity="0";
         document.body.appendChild(ta); ta.focus(); ta.select();
         const ok=document.execCommand("copy");
         document.body.removeChild(ta);
@@ -2437,7 +2485,7 @@ function bindEvents() {
     };
     if (navigator.clipboard?.writeText) {
       const withTimeout = (p, ms) => Promise.race([p, new Promise((_,rej)=>setTimeout(()=>rej(new Error("timeout")),ms))]);
-      withTimeout(navigator.clipboard.writeText(CLOUD_UID), 1000).then(()=>flash("복사됨!")).catch(fallbackCopy);
+      withTimeout(navigator.clipboard.writeText(cloudToken()), 1000).then(()=>flash("복사됨!")).catch(fallbackCopy);
     } else {
       fallbackCopy();
     }
@@ -2630,6 +2678,8 @@ try { if (!localStorage.getItem(TUTORIAL_SEEN_KEY)) tutorialStep = 0; } catch {}
 render();
 fetchAll();
 setInterval(fetchAll,60000);
+// 암호화 도입 전 평문으로 저장됐을 수 있는 기존 클라우드 백업을 암호화본으로 즉시 교체
+cloudSave(true);
 </script>
 </body>
 </html>
