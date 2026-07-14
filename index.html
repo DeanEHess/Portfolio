@@ -600,14 +600,34 @@ async function fetchAll() {
   const krxCodes    = [...new Set(allItems.filter(x=>x.market==="krx").map(x=>x.it.t).filter(isValidTicker))];
   const coinTickers = [...new Set(allItems.filter(x=>x.market==="coin").map(x=>x.it.t).filter(isValidTicker))];
   const coinIds     = coinTickers.map(t=>GECKO_ID[t.toUpperCase()]).filter(Boolean);
+
+  // Cloudflare Worker는 1회 호출(invocation)당 외부 fetch(subrequest) 개수에 상한이 있어서,
+  // 야후 배치(v7)가 막혀 전 종목이 개별 조회(v8)로 넘어가면 티커가 많을 때 뒷부분이 잘려 누락될 수 있음.
+  // 그래서 티커 목록을 청크로 나눠 별도 호출로 쪼개고(각 호출마다 새 subrequest 한도를 받음) 병렬로 합침.
+  const CHUNK = 25;
+  const chunkArr = (arr,n) => { const out=[]; for(let i=0;i<arr.length;i+=n) out.push(arr.slice(i,i+n)); return out; };
+  const usChunks  = chunkArr(usTickers, CHUNK);
+  const krxChunks = chunkArr(krxCodes, CHUNK);
+
   try {
-    const params=new URLSearchParams({type:"all",us:usTickers.join(","),krx:krxCodes.join(","),coins:coinIds.join(",")});
-    const d=await fetchWithTimeout(WORKER+"?"+params).then(r=>r.json());
-    if (d.fx) usdKrw=d.fx;
-    Object.assign(px,d.us||{});
-    Object.assign(px,d.krx||{});
-    coinTickers.forEach(t=>{ const id=GECKO_ID[t.toUpperCase()]; if(id&&d.coins?.[id]?.krw) px[t]=d.coins[id].krw; });
-    for (const [sym,sec] of Object.entries(d.sectors||{})) sectorCache[sym]=SECTOR_EN[sec]||sec;
+    const [fxRes, usResArr, krxResArr, coinRes] = await Promise.all([
+      fetchWithTimeout(WORKER+"?type=fx").then(r=>r.json()).catch(()=>({})),
+      Promise.all(usChunks.map(g=>fetchWithTimeout(WORKER+"?type=us&symbols="+g.join(",")).then(r=>r.json()).catch(()=>({prices:{},sectors:{},names:{}})))),
+      Promise.all(krxChunks.map(g=>fetchWithTimeout(WORKER+"?type=krx&codes="+g.join(",")).then(r=>r.json()).catch(()=>({prices:{},names:{}})))),
+      coinIds.length ? fetchWithTimeout(WORKER+"?type=coins&ids="+coinIds.join(",")).then(r=>r.json()).catch(()=>({})) : Promise.resolve({}),
+    ]);
+
+    if (fxRes.rate) usdKrw = fxRes.rate;
+
+    const usAll = {prices:{}, sectors:{}, names:{}};
+    for (const r of usResArr) { Object.assign(usAll.prices, r.prices||{}); Object.assign(usAll.sectors, r.sectors||{}); Object.assign(usAll.names, r.names||{}); }
+    const krxAll = {prices:{}, names:{}};
+    for (const r of krxResArr) { Object.assign(krxAll.prices, r.prices||{}); Object.assign(krxAll.names, r.names||{}); }
+
+    Object.assign(px, usAll.prices);
+    Object.assign(px, krxAll.prices);
+    coinTickers.forEach(t=>{ const id=GECKO_ID[t.toUpperCase()]; if(id&&coinRes?.[id]?.krw) px[t]=coinRes[id].krw; });
+    for (const [sym,sec] of Object.entries(usAll.sectors)) sectorCache[sym]=SECTOR_EN[sec]||sec;
     localStorage.setItem("sector_cache",JSON.stringify(sectorCache));
     // Worker에서 받은 종목명으로 자동 업데이트 (이름 없는 종목만, US/KRX 둘 다) — 종목 단위 market 기준
     for (const acc of ST.accounts) {
@@ -615,7 +635,7 @@ async function fetchAll() {
         if (!item.t) continue;
         const market = itemMarket(item, acc.type);
         if (market !== "us" && market !== "krx") continue;
-        const nameMap = market === "us" ? d.names : d.krxNames;
+        const nameMap = market === "us" ? usAll.names : krxAll.names;
         const fetchedName = nameMap?.[item.t];
         if (fetchedName && !item.n) {
           item.n = fetchedName;
