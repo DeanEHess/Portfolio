@@ -1012,7 +1012,7 @@ function buildAccountSection(acc) {
   const cashRow = isCash ? "" : isMixed
     ? (editMode
         ? '<div style="display:flex;flex-direction:column;gap:6px;background:#000000;border-radius:8px;padding:8px 12px;margin-bottom:10px">'
-          +'<div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:12px;color:#8e8e93">💵 원화예수금<span style="color:#636366">(기록 안 남음)</span></span><input class="inp inp-r" type="number" style="width:120px" data-cash-edit-krw="'+acc.id+'" value="'+(acc.cashKrw||0)+'"/></div>'
+          +'<div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:12px;color:#8e8e93">💵 원화예수금</span><input class="inp inp-r" type="number" style="width:120px" data-cash-edit-krw="'+acc.id+'" value="'+(acc.cashKrw||0)+'"/></div>'
           +'<div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:12px;color:#8e8e93">💵 외화(USD)예수금</span><input class="inp inp-r" type="number" step="0.01" style="width:120px" data-cash-edit-usd="'+acc.id+'" value="'+(acc.cashUsd||0)+'"/></div>'
           +'</div>'
         : '<div style="display:flex;flex-direction:column;gap:4px;background:#000000;border-radius:8px;padding:8px 12px;margin-bottom:10px">'
@@ -1021,7 +1021,7 @@ function buildAccountSection(acc) {
           +'</div>')
     : (editMode
         ? '<div style="display:flex;justify-content:space-between;align-items:center;background:#000000;border-radius:8px;padding:8px 12px;margin-bottom:10px">'
-          +'<span style="font-size:12px;color:#8e8e93">💵 예수금 직접 수정<span style="color:#636366">(기록 안 남음)</span></span>'
+          +'<span style="font-size:12px;color:#8e8e93">💵 예수금 직접 수정'+(isUS?'<span style="color:#636366">(기록 안 남음)</span>':'')+'</span>'
           +'<input class="inp inp-r" type="number" step="0.01" style="width:120px" data-cash-edit="'+acc.id+'" value="'+(acc.cash||0)+'" placeholder="'+(isUS?"USD":"KRW")+'"/>'
           +'</div>'
         : '<div style="display:flex;justify-content:space-between;align-items:center;background:#000000;border-radius:8px;padding:8px 12px;margin-bottom:10px">'
@@ -1491,12 +1491,12 @@ function buildTradeModal() {
         <input class="trade-inp" id="tm-qty" type="number" step="${isCoin?"0.0001":"1"}" min="0.0001" ${maxQty?"max="+maxQty:""} placeholder="0"/>
       </div>
       <div class="trade-inp-group">
-        <div class="trade-inp-label">단가 (${isUS?"USD":isCoin?"KRW":"KRW"})</div>
-        <input class="trade-inp" id="tm-price" type="number" step="0.01" placeholder="${curPrice?(isUS?curPrice.toFixed(2):Math.round(curPriceKrw)):"0"}"/>
+        <div class="trade-inp-label">총 매매금액 (${isUS?"USD":"KRW"}, 수수료 포함 실제 체결 총액)</div>
+        <input class="trade-inp" id="tm-total-amount" type="number" step="0.01" placeholder="0"/>
       </div>
       <div class="trade-inp-group">
-        <div class="trade-inp-label">실제 체결 총액 (선택, 앱에 찍힌 총액 그대로)</div>
-        <input class="trade-inp" id="tm-total-amount" type="number" step="0.01" placeholder="비워두면 단가×수량으로 계산"/>
+        <div class="trade-inp-label">단가 (선택, 비워두면 총 매매금액÷수량으로 자동 계산)</div>
+        <input class="trade-inp" id="tm-price" type="number" step="0.01" placeholder="${curPrice?(isUS?curPrice.toFixed(2):Math.round(curPriceKrw)):"0"}"/>
       </div>`}
       <div class="trade-inp-group">
         <div class="trade-inp-label">날짜</div>
@@ -2156,7 +2156,18 @@ function bindExchangeModalEvents() {
 
   $("ex-dir-krw2usd")?.addEventListener("click",()=>{ exchangeModal.direction="krw2usd"; exchangeModal.amount=null; render(); });
   $("ex-dir-usd2krw")?.addEventListener("click",()=>{ exchangeModal.direction="usd2krw"; exchangeModal.amount=null; render(); });
-  $("ex-amount")?.addEventListener("input",e=>{ exchangeModal.amount=e.target.value; render(); });
+  $("ex-amount")?.addEventListener("input",e=>{
+    exchangeModal.amount=e.target.value;
+    render();
+    setTimeout(()=>{
+      const el=$("ex-amount");
+      if(el){
+        el.focus();
+        const len = el.value.length;
+        try{ el.type="text"; el.setSelectionRange(len, len); el.type="number"; }catch{}
+      }
+    }, 30);
+  });
 
   $("ex-confirm")?.addEventListener("click",()=>{
     const acc = ST.accounts.find(a=>a.id===exchangeModal.accId);
@@ -2510,7 +2521,7 @@ function bindTradeModalEvents() {
     const divAmount = parseFloat($("tm-dividend-amount")?.value) || 0;
     const date  = $("tm-date")?.value || new Date().toISOString().slice(0,10);
     const memoBase  = $("tm-memo")?.value || "";
-    const memo = (!isDiv && totalInput > 0) ? (memoBase ? memoBase+" · " : "")+"체결총액 "+totalInput+" 기준(단가 입력값 "+rawPrice+")" : memoBase;
+    const memo = (!isDiv && totalInput > 0) ? (memoBase ? memoBase+" · " : "")+"체결총액 "+totalInput+" 기준"+(rawPrice>0?"(단가 입력값 "+rawPrice+")":"") : memoBase;
     const thesis = $("tm-thesis")?.value.trim() || "";
 
     // 배당 처리 (신규 종목에서는 배당 불가)
@@ -2704,8 +2715,30 @@ function bindEvents() {
   // 계좌 CRUD
   document.querySelectorAll("[data-acc-del]").forEach(b=>b.addEventListener("click",()=>{ if(!confirm("'"+ST.accounts.find(a=>a.id===b.dataset.accDel)?.name+"' 계좌를 삭제할까요?")) return; const i=ST.accounts.findIndex(a=>a.id===b.dataset.accDel); if(i>-1) ST.accounts.splice(i,1); tab="overview"; render(); }));
   document.querySelectorAll("[data-acc-name]").forEach(inp=>inp.addEventListener("input",e=>{ const acc=ST.accounts.find(a=>a.id===inp.dataset.accName); if(acc){acc.name=e.target.value;saveData();} }));
-  document.querySelectorAll("[data-cash-edit]").forEach(inp=>inp.addEventListener("input",e=>{ const acc=ST.accounts.find(a=>a.id===inp.dataset.cashEdit); if(acc){acc.cash=Number(e.target.value)||0; saveData();} }));
-  document.querySelectorAll("[data-cash-edit-krw]").forEach(inp=>inp.addEventListener("input",e=>{ const acc=ST.accounts.find(a=>a.id===inp.dataset.cashEditKrw); if(acc){acc.cashKrw=Number(e.target.value)||0; saveData();} }));
+  document.querySelectorAll("[data-cash-edit]").forEach(inp=>inp.addEventListener("change",e=>{
+    const acc=ST.accounts.find(a=>a.id===inp.dataset.cashEdit);
+    if(!acc) return;
+    const newVal = Number(e.target.value)||0;
+    const delta = newVal - (acc.cash||0);
+    acc.cash = newVal;
+    if (acc.type!=="us" && delta!==0) {
+      if (!acc.deposits) acc.deposits = [];
+      acc.deposits.push({ id:"d"+Date.now(), year:new Date().getFullYear(), amount:delta, memo:"예수금 직접 수정", type: delta>=0?"cash-in":"cash-out", date:new Date().toISOString().slice(0,10) });
+    }
+    saveData(); render();
+  }));
+  document.querySelectorAll("[data-cash-edit-krw]").forEach(inp=>inp.addEventListener("change",e=>{
+    const acc=ST.accounts.find(a=>a.id===inp.dataset.cashEditKrw);
+    if(!acc) return;
+    const newVal = Number(e.target.value)||0;
+    const delta = newVal - (acc.cashKrw||0);
+    acc.cashKrw = newVal;
+    if (delta!==0) {
+      if (!acc.deposits) acc.deposits = [];
+      acc.deposits.push({ id:"d"+Date.now(), year:new Date().getFullYear(), amount:delta, ccy:"krw", memo:"예수금 직접 수정", type: delta>=0?"cash-in":"cash-out", date:new Date().toISOString().slice(0,10) });
+    }
+    saveData(); render();
+  }));
   document.querySelectorAll("[data-cash-edit-usd]").forEach(inp=>inp.addEventListener("input",e=>{ const acc=ST.accounts.find(a=>a.id===inp.dataset.cashEditUsd); if(acc){acc.cashUsd=Number(e.target.value)||0; saveData();} }));
   document.querySelectorAll("[data-acc-color]").forEach(dot=>dot.addEventListener("click",()=>{ const acc=ST.accounts.find(a=>a.id===dot.dataset.accColor); if(acc){acc.color=dot.dataset.color;saveData();render();} }));
 
