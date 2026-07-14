@@ -99,6 +99,9 @@
     .color-dot.sel { border-color:var(--white); }
     #tip { position:fixed; bottom:80px; left:50%; transform:translateX(-50%); background:var(--card); border:1px solid var(--border); border-radius:12px; padding:10px 16px; font-size:13px; color:var(--text); z-index:999; text-align:center; min-width:180px; box-shadow:var(--shadow-modal); display:none; }
     .trade-modal-bg { position:fixed; inset:0; background:var(--overlay-strong); z-index:200; display:flex; align-items:flex-end; justify-content:center; }
+    .tutorial-dim { position:fixed; background:var(--overlay-strong); z-index:250; cursor:pointer; transition:top .2s,left .2s,width .2s,height .2s; }
+    #tutorial-ring { position:fixed; z-index:251; border-radius:10px; box-shadow:0 0 0 3px #3182f6, 0 0 24px 4px rgba(49,130,246,0.6); pointer-events:none; transition:top .2s,left .2s,width .2s,height .2s; }
+    #tutorial-bubble { position:fixed; z-index:252; background:var(--card); border:1px solid var(--border); border-radius:14px; padding:16px; box-shadow:var(--shadow-modal); }
     .trade-modal { background:var(--card); border-radius:20px 20px 0 0; padding:20px 18px 32px; width:100%; max-width:600px; border:1px solid var(--border); max-height:85vh; overflow-y:auto; animation:sheet-slide-up 0.25s ease-out; }
     .trade-tabs { display:flex; gap:6px; margin-bottom:16px; }
     .trade-tab { flex:1; padding:9px; border-radius:14px; font-size:13px; font-weight:700; border:none; cursor:pointer; }
@@ -267,14 +270,21 @@ const ACCOUNT_TYPES = {
 
 // ─── 튜토리얼 (설명 읽기형) ───────────────────────────────────
 const TUTORIAL_SEEN_KEY = "tutorial_seen_v1";
+// target: 이 단계에서 강조 표시할 실제 DOM 요소의 CSS 셀렉터를 반환하는 함수(없으면 null 반환 → 중앙 팝업으로 폴백)
+// need: 이 단계에 들어갈 때 강제로 맞춰줄 앱 상태({tab, editMode})를 반환하는 함수(선택)
 const TUTORIAL_STEPS = [
-  { title:"👋 환영합니다", body:"이 대시보드는 여러 증권사·계좌의 국내주식·해외주식·코인·현금을 한곳에서 관리하고, 목표 비중대로 리밸런싱하는 걸 도와줘요. 6단계로 짧게 사용법을 안내할게요. 언제든 오른쪽 위 '그만두기'로 중단할 수 있어요." },
-  { title:"1️⃣ 계좌 추가하기", body:"먼저 오른쪽 위 ✏️ 편집 버튼을 눌러 편집 모드로 들어가세요. '➕ 계좌 추가' 버튼이 나타나면, 어떤 자산을 관리할 계좌인지 고르고(해외주식/국내주식/코인/혼합/현금) 이름을 입력해 계좌를 만들 수 있어요. 같은 증권사에 원화·달러가 섞여 있다면 '혼합' 타입을 추천해요." },
-  { title:"2️⃣ 입출금(예수금) 등록", body:"계좌를 만들었으면 종목을 사기 전에 먼저 '입출금' 버튼으로 예수금을 채워주세요. 실제로 증권사에 넣은 돈만큼 입금을 기록하면, 매수할 때 예수금에서 자동으로 차감돼요." },
-  { title:"3️⃣ 신규 매수 등록", body:"'+ 신규매수' 버튼으로 실제로 산 종목의 티커(예: AAPL, 005930)·수량·단가를 입력하면 자동으로 예수금이 차감되고 평단이 계산돼요. 이미 보유 중이던 종목은 '이월 잔고' 체크박스로 예수금 차감 없이 수량만 등록할 수도 있어요." },
-  { title:"4️⃣ 리밸런싱 목표 비중", body:"각 계좌의 '🎯 리밸런싱' 버튼을 누르면 보유 종목별로 '목표 비중(%)'을 입력할 수 있어요. 입력해두면, 다음에 투자할 금액을 넣었을 때 목표 비중에 맞춰 어떤 종목을 얼마나 더 사면 좋을지 자동으로 계산해줘요." },
-  { title:"5️⃣ 목표 금액 설정", body:"전체 화면(overview)에서 편집 모드로 연도별 목표 자산 금액을 설정할 수 있어요. 지금 자산이 목표의 몇 %에 도달했는지 진행률로 보여줘서 동기부여가 돼요." },
-  { title:"🎉 준비 끝!", body:"이제 직접 계좌를 추가하고 종목을 등록해보세요. 이 튜토리얼은 언제든 헤더의 '❓ 튜토리얼' 버튼으로 다시 볼 수 있어요." },
+  { title:"👋 환영합니다", body:"이 대시보드는 여러 증권사·계좌의 국내주식·해외주식·코인·현금을 한곳에서 관리하고, 목표 비중대로 리밸런싱하는 걸 도와줘요. 6단계로 짧게 사용법을 안내할게요. 실제 버튼을 하이라이트해서 보여줄 테니 그대로 따라 눌러보세요. 언제든 '그만두기'로 중단할 수 있어요.", target:()=>null },
+  { title:"1️⃣ 계좌 추가하기", body:"편집 버튼을 눌러 편집 모드로 들어가세요. '➕ 계좌 추가' 버튼이 나타나면, 어떤 자산을 관리할 계좌인지 고르고(해외주식/국내주식/코인/혼합/현금) 이름을 입력해 계좌를 만들 수 있어요. 같은 증권사에 원화·달러가 섞여 있다면 '혼합' 타입을 추천해요.",
+    target:()=> editMode ? "#btn-add-acc" : "#btn-edit" },
+  { title:"2️⃣ 입출금(예수금) 등록", body:"계좌를 만들었으면 종목을 사기 전에 먼저 '입출금' 버튼으로 예수금을 채워주세요. 실제로 증권사에 넣은 돈만큼 입금을 기록하면, 매수할 때 예수금에서 자동으로 차감돼요. (아직 계좌가 없다면 이전 단계에서 먼저 만들어주세요)",
+    target:()=> "[data-deposit-acc]", need:()=>({tab:"firstAccount"}) },
+  { title:"3️⃣ 신규 매수 등록", body:"'+ 신규매수' 버튼으로 실제로 산 종목의 티커(예: AAPL, 005930)·수량·단가를 입력하면 자동으로 예수금이 차감되고 평단이 계산돼요. 이미 보유 중이던 종목은 '이월 잔고' 체크박스로 예수금 차감 없이 수량만 등록할 수도 있어요. 매수/매도할 땐 '투자 근거'를 꼭 입력해야 해요 — 직접 타이핑해도 되고, 미리 써둔 .md나 .txt 메모 파일을 업로드하면 내용이 자동으로 채워져요.",
+    target:()=> "[data-new-trade]", need:()=>({tab:"firstAccount"}) },
+  { title:"4️⃣ 리밸런싱 목표 비중", body:"'🎯 리밸런싱' 버튼을 누르면 보유 종목별로 '목표 비중(%)'을 입력할 수 있어요. 입력해두면, 다음에 투자할 금액을 넣었을 때 목표 비중에 맞춰 어떤 종목을 얼마나 더 사면 좋을지 자동으로 계산해줘요.",
+    target:()=> "[data-rebalance-acc]", need:()=>({tab:"firstAccount"}) },
+  { title:"5️⃣ 목표 금액 설정", body:"전체 화면에서 편집 모드로 연도별 목표 자산 금액을 설정할 수 있어요. 지금 자산이 목표의 몇 %에 도달했는지 진행률로 보여줘서 동기부여가 돼요.",
+    target:()=> "#btn-add-goal", need:()=>({tab:"overview", editMode:true}) },
+  { title:"🎉 준비 끝!", body:"이제 직접 계좌를 추가하고 종목을 등록해보세요. 이 튜토리얼은 언제든 헤더의 '❓ 튜토리얼' 버튼으로 다시 볼 수 있어요.", target:()=>null },
 ];
 
 const US_DB = { NVO:"Novo Nordisk",TQQQ:"ProShares UltraPro QQQ",JEPQ:"JPMorgan Nasdaq Eq Premium",QLD:"ProShares Ultra QQQ",SGOV:"iShares 0-3M Treasury",QQQ:"Invesco QQQ",SPY:"SPDR S&P500",VOO:"Vanguard S&P500",VTI:"Vanguard Total Market",NVDA:"NVIDIA",AAPL:"Apple",MSFT:"Microsoft",GOOGL:"Alphabet",AMZN:"Amazon",META:"Meta",TSLA:"Tesla",SOXL:"Direxion Semi 3X",UPRO:"ProShares UltraPro S&P500",TLT:"iShares 20Y Treasury",GLD:"SPDR Gold",GLDM:"SPDR Gold MiniShares",PLTR:"Palantir",AMD:"AMD",JEPI:"JPMorgan Equity Premium",SCHD:"Schwab US Dividend",EQIX:"Equinix",MCD:"McDonald's",RTX:"RTX Corp",URA:"Global X Uranium",EQT:"EQT Corp" };
@@ -341,7 +351,7 @@ function migrateOldData(old) {
 function loadData() {
   try {
     const raw = localStorage.getItem(profileKey(curProfile)) || localStorage.getItem(SK);
-    if (raw) { const d=JSON.parse(raw); if(!d.goals) d.goals=JSON.parse(JSON.stringify(DEFAULT_DATA.goals)); if(!d.deposits) d.deposits=[]; if(!d.snapshots) d.snapshots=[]; d.accounts.forEach(a=>{if(!a.deposits)a.deposits=[];if(a.cash==null)a.cash=0;}); return d; }
+    if (raw) { const d=JSON.parse(raw); if(!d.goals) d.goals=JSON.parse(JSON.stringify(DEFAULT_DATA.goals)); if(!d.deposits) d.deposits=[]; if(!d.snapshots) d.snapshots=[]; d.accounts.forEach(a=>{if(!a.deposits)a.deposits=[];if(a.cash==null)a.cash=0; if(a.type==="mixed"&&Array.isArray(a.items)) a.items.forEach(it=>{if(!it.market) it.market=/^\d{5,6}$/.test(it.t||"")?"krx":"us";});}); return d; }
     const oldRaw = localStorage.getItem("asset_v6") || localStorage.getItem("asset_v5");
     if (oldRaw) { const m=migrateOldData(JSON.parse(oldRaw)); localStorage.setItem(profileKey(curProfile),JSON.stringify(m)); return m; }
     return JSON.parse(JSON.stringify(DEFAULT_DATA));
@@ -431,18 +441,28 @@ function buildTutorialModal() {
   if (!step) return "";
   const total = TUTORIAL_STEPS.length;
   const dots = TUTORIAL_STEPS.map((_,i)=>'<div style="width:6px;height:6px;border-radius:50%;background:'+(i===tutorialStep?"#3182f6":"#2c2c2e")+'"></div>').join("");
-  return `<div class="trade-modal-bg" id="tutorial-modal-bg">
-    <div class="trade-modal"${modalAnimStyle('tutorial')}>
+  const content = prefix => `
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
         <div style="display:flex;gap:4px">${dots}</div>
-        <button id="tutorial-quit" style="background:transparent;border:none;color:#8e8e93;font-size:12px;cursor:pointer;text-decoration:underline">그만두기 ✕</button>
+        <button id="${prefix}-quit" style="background:transparent;border:none;color:#8e8e93;font-size:12px;cursor:pointer;text-decoration:underline">그만두기 ✕</button>
       </div>
       <div style="font-size:16px;font-weight:800;margin-bottom:10px">${step.title}</div>
       <div style="font-size:13px;line-height:1.7;color:#cbd5e1;margin-bottom:20px">${step.body}</div>
       <div style="display:flex;gap:8px">
-        ${tutorialStep>0?'<button class="btn" id="tutorial-prev" style="flex:1">이전</button>':''}
-        <button class="trade-btn buy" id="tutorial-next" style="flex:2">${tutorialStep<total-1?"다음":"완료"}</button>
-      </div>
+        ${tutorialStep>0?`<button class="btn" id="${prefix}-prev" style="flex:1">이전</button>`:''}
+        <button class="trade-btn buy" id="${prefix}-next" style="flex:2">${tutorialStep<total-1?"다음":"완료"}</button>
+      </div>`;
+  return `<div id="tutorial-overlay">
+    <div class="trade-modal-bg" id="tutorial-fallback-bg" style="display:none">
+      <div class="trade-modal"${modalAnimStyle('tutorial')}>${content('tf')}</div>
+    </div>
+    <div id="tutorial-spotlight" style="display:none">
+      <div class="tutorial-dim" id="tutorial-dim-top"></div>
+      <div class="tutorial-dim" id="tutorial-dim-bottom"></div>
+      <div class="tutorial-dim" id="tutorial-dim-left"></div>
+      <div class="tutorial-dim" id="tutorial-dim-right"></div>
+      <div id="tutorial-ring"></div>
+      <div id="tutorial-bubble">${content('ts')}</div>
     </div>
   </div>`;
 }
@@ -679,7 +699,7 @@ function backupData() {
 function restoreData(file) {
   if (!file) return;
   const reader=new FileReader();
-  reader.onload=e=>{ try { const d=JSON.parse(e.target.result); if(!d.accounts) throw new Error("올바른 백업 파일이 아니에요"); Object.assign(ST,d); saveData(); render(); fetchAll(); alert("✅ 복원 완료!"); } catch(err){alert("❌ 복원 실패: "+err.message);} };
+  reader.onload=e=>{ try { const d=JSON.parse(e.target.result); if(!d.accounts) throw new Error("올바른 백업 파일이 아니에요"); d.accounts.forEach(a=>{if(a.type==="mixed"&&Array.isArray(a.items)) a.items.forEach(it=>{if(!it.market) it.market=/^\d{5,6}$/.test(it.t||"")?"krx":"us";});}); Object.assign(ST,d); saveData(); render(); fetchAll(); alert("✅ 복원 완료!"); } catch(err){alert("❌ 복원 실패: "+err.message);} };
   reader.readAsText(file);
 }
 
@@ -1033,8 +1053,8 @@ function buildAccountSection(acc) {
   const cashRow = isCash ? "" : isMixed
     ? (editMode
         ? '<div style="display:flex;flex-direction:column;gap:6px;background:#000000;border-radius:8px;padding:8px 12px;margin-bottom:10px">'
-          +'<div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:12px;color:#8e8e93">💵 원화예수금</span><input class="inp inp-r" type="number" style="width:120px" data-cash-edit-krw="'+acc.id+'" value="'+(acc.cashKrw||0)+'"/></div>'
-          +'<div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:12px;color:#8e8e93">💵 외화(USD)예수금</span><input class="inp inp-r" type="number" step="0.01" style="width:120px" data-cash-edit-usd="'+acc.id+'" value="'+(acc.cashUsd||0)+'"/></div>'
+          +'<div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:12px;color:#8e8e93">💵 원화예수금<span style="color:#636366">(기록 안 남음)</span></span><input class="inp inp-r" type="number" style="width:120px" data-cash-edit-krw="'+acc.id+'" value="'+(acc.cashKrw||0)+'"/></div>'
+          +'<div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:12px;color:#8e8e93">💵 외화(USD)예수금<span style="color:#636366">(기록 안 남음)</span></span><input class="inp inp-r" type="number" step="0.01" style="width:120px" data-cash-edit-usd="'+acc.id+'" value="'+(acc.cashUsd||0)+'"/></div>'
           +'</div>'
         : '<div style="display:flex;flex-direction:column;gap:4px;background:#000000;border-radius:8px;padding:8px 12px;margin-bottom:10px">'
           +'<div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:12px;color:#8e8e93">💵 원화예수금</span><span style="font-size:13px;font-weight:700">'+won(acc.cashKrw||0)+'</span></div>'
@@ -1096,7 +1116,7 @@ function buildAccountSection(acc) {
         :(priceKrw?won(priceKrw):(loading?'<span class="cell-loading">···</span>':'<span class="price-na">—</span>'));
       const hasTrades = item.trades && item.trades.length > 0;
       if (editMode) return '<tr data-id="'+item.id+'" data-acc="'+acc.id+'" data-usd="'+rowIsUS+'">'
-        +'<td style="min-width:110px">'+(isMixed&&!hasTrades?marketPicker(item):'')
+        +'<td style="min-width:110px">'+(isMixed?marketPicker(item):'')
         +'<input class="inp inp-l" style="font-weight:600;font-size:12px;margin-bottom:3px" data-f="t" data-id="'+item.id+'" data-acc="'+acc.id+'" value="'+item.t+'"'+(hasTrades?' disabled':'')+'/>'
         +'<input class="inp inp-l" style="font-size:10px;color:#aeaeb2" data-f="n" data-id="'+item.id+'" data-acc="'+acc.id+'" value="'+(item.n||"")+'"/></td>'
         +(hasTrades
@@ -1538,7 +1558,7 @@ function buildTradeModal() {
         <input class="trade-inp" id="tm-memo" placeholder="예) IRP 회사분, 월급날 추매"/>
       </div>
       <div class="trade-inp-group">
-        <div class="trade-inp-label">투자 근거 / 노트 (선택)</div>
+        <div class="trade-inp-label">투자 근거 / 노트 ${isDividend?"(선택)":"(필수 입력사항)"}</div>
         <textarea class="trade-inp" id="tm-thesis" rows="4" style="resize:vertical;font-family:inherit" placeholder="마크다운으로 작성하거나 .md 파일을 업로드하세요"></textarea>
         <label class="btn-sm" style="display:inline-block;margin-top:6px;cursor:pointer">
           📎 .md 파일 업로드
@@ -1922,17 +1942,86 @@ function bindMergeModalEvents() {
 
 // ─── 튜토리얼 이벤트 ─────────────────────────────────────────
 function markTutorialSeen() { try { localStorage.setItem(TUTORIAL_SEEN_KEY, "1"); } catch {} }
+let _tutorialStepApplied = -1; // 같은 단계에서 need(강제 상태전환)를 반복 적용하지 않기 위한 가드
+// 단계 진입 시 필요한 앱 상태(편집모드/탭)를 한 번만 강제로 맞춰줌 — 사용자가 튜토리얼 도중 직접 바꾼 상태는 건드리지 않음
+function applyTutorialNeed() {
+  if (tutorialStep == null || tutorialStep === _tutorialStepApplied) return;
+  _tutorialStepApplied = tutorialStep;
+  const step = TUTORIAL_STEPS[tutorialStep];
+  const need = step?.need ? step.need() : null;
+  if (!need) return;
+  let changed = false;
+  if (need.tab === "firstAccount") {
+    const acc = ST.accounts.find(a=>a.type!=="cash") || ST.accounts[0];
+    if (acc && tab !== acc.id) { tab = acc.id; changed = true; }
+  } else if (need.tab === "overview" && tab !== "overview") { tab = "overview"; changed = true; }
+  if (need.editMode != null && editMode !== need.editMode) { editMode = need.editMode; changed = true; }
+  if (changed) render();
+}
+// 현재 단계의 target 셀렉터가 실제 DOM에 있으면 스팟라이트(하이라이트+말풍선)로, 없으면 중앙 팝업으로 폴백
+function positionTutorialSpotlight() {
+  if (tutorialStep == null) return;
+  const step = TUTORIAL_STEPS[tutorialStep];
+  const fb = document.getElementById("tutorial-fallback-bg");
+  const spot = document.getElementById("tutorial-spotlight");
+  if (!fb || !spot) return;
+  const sel = step?.target ? step.target() : null;
+  const targetEl = sel ? document.querySelector(sel) : null;
+  const rect = targetEl ? targetEl.getBoundingClientRect() : null;
+  if (!rect || (rect.width === 0 && rect.height === 0)) {
+    fb.style.display = "flex";
+    spot.style.display = "none";
+    return;
+  }
+  fb.style.display = "none";
+  spot.style.display = "block";
+  const pad = 6;
+  const top = Math.max(0, rect.top - pad), left = Math.max(0, rect.left - pad);
+  const right = rect.right + pad, bottom = rect.bottom + pad;
+  const vw = window.innerWidth, vh = window.innerHeight;
+  const set = (id, styles) => { const el=document.getElementById(id); if (el) Object.assign(el.style, styles); };
+  set("tutorial-dim-top",    { top:"0px", left:"0px", width:vw+"px", height:Math.max(0,top)+"px" });
+  set("tutorial-dim-bottom", { top:bottom+"px", left:"0px", width:vw+"px", height:Math.max(0,vh-bottom)+"px" });
+  set("tutorial-dim-left",   { top:top+"px", left:"0px", width:Math.max(0,left)+"px", height:Math.max(0,bottom-top)+"px" });
+  set("tutorial-dim-right",  { top:top+"px", left:right+"px", width:Math.max(0,vw-right)+"px", height:Math.max(0,bottom-top)+"px" });
+  set("tutorial-ring", { top:top+"px", left:left+"px", width:(right-left)+"px", height:(bottom-top)+"px" });
+  const bubble = document.getElementById("tutorial-bubble");
+  if (bubble) {
+    const bw = Math.min(320, vw-24);
+    bubble.style.width = bw+"px";
+    const spaceBelow = vh-bottom, spaceAbove = top;
+    let bTop;
+    if (spaceBelow >= 160 || spaceBelow >= spaceAbove) bTop = bottom+10;
+    else bTop = Math.max(8, top-10-bubble.offsetHeight);
+    bTop = Math.min(bTop, vh - bubble.offsetHeight - 8);
+    const bLeft = Math.min(Math.max(8, left), vw-bw-8);
+    bubble.style.top = Math.max(8,bTop)+"px";
+    bubble.style.left = bLeft+"px";
+  }
+}
 function bindTutorialEvents() {
   if (tutorialStep == null) return;
   const $ = id => document.getElementById(id);
-  $("tutorial-quit")?.addEventListener("click",()=>{ tutorialStep=null; markTutorialSeen(); render(); });
-  $("tutorial-modal-bg")?.addEventListener("click",e=>{ if(e.target.id==="tutorial-modal-bg"){tutorialStep=null;markTutorialSeen();render();} });
-  $("tutorial-prev")?.addEventListener("click",()=>{ tutorialStep=Math.max(0,tutorialStep-1); render(); });
-  $("tutorial-next")?.addEventListener("click",()=>{
-    if (tutorialStep >= TUTORIAL_STEPS.length-1) { tutorialStep=null; markTutorialSeen(); render(); return; }
+  const closeAndMark = () => { tutorialStep=null; markTutorialSeen(); render(); };
+  const goPrev = () => { tutorialStep=Math.max(0,tutorialStep-1); render(); };
+  const goNext = () => {
+    if (tutorialStep >= TUTORIAL_STEPS.length-1) { closeAndMark(); return; }
     tutorialStep++; render();
+  };
+  ["tf","ts"].forEach(prefix=>{
+    $(prefix+"-quit")?.addEventListener("click", closeAndMark);
+    $(prefix+"-prev")?.addEventListener("click", goPrev);
+    $(prefix+"-next")?.addEventListener("click", goNext);
   });
+  $("tutorial-fallback-bg")?.addEventListener("click",e=>{ if(e.target.id==="tutorial-fallback-bg") closeAndMark(); });
+  ["tutorial-dim-top","tutorial-dim-bottom","tutorial-dim-left","tutorial-dim-right"].forEach(id=>{
+    $(id)?.addEventListener("click", closeAndMark);
+  });
+  applyTutorialNeed();
+  positionTutorialSpotlight();
 }
+window.addEventListener("resize", ()=>{ if (tutorialStep!=null) positionTutorialSpotlight(); });
+window.addEventListener("scroll", ()=>{ if (tutorialStep!=null) positionTutorialSpotlight(); }, true);
 
 // 여러 US/KRX/코인(또는 이미 혼합) 계좌를 하나의 혼합계좌로 합침 — 보유 종목/거래내역/예수금 그대로 이관
 function mergeAccountsIntoMixed(accIds, name) {
@@ -2093,7 +2182,10 @@ function buildExchangeModal() {
       </div>
       <div style="font-size:11px;color:#8e8e93;margin:-6px 0 12px">현재 ${fromCcy==="usd"?"외화":"원화"}예수금: ${fromCcy==="usd"?usd(balance):won(balance)}${rate>0?' · 환율 ₩'+Math.round(rate).toLocaleString():''}</div>
       <div class="trade-inp-group">
-        <div class="trade-inp-label">보낼 금액 (${fromCcy==="usd"?"USD":"KRW"})</div>
+        <div class="trade-inp-label" style="display:flex;justify-content:space-between;align-items:center">
+          <span>보낼 금액 (${fromCcy==="usd"?"USD":"KRW"})</span>
+          <button type="button" class="btn-sm" id="ex-max" style="padding:2px 8px;font-size:10px">전액 환전</button>
+        </div>
         <input class="trade-inp" id="ex-amount" type="number" step="0.01" placeholder="0" value="${exchangeModal.amount||""}"/>
       </div>
       <div style="font-size:12px;color:#93c5fd;margin:-6px 0 12px">≈ ${toCcy==="usd"?usd(converted):won(converted)} 받음</div>
@@ -2191,6 +2283,13 @@ function bindExchangeModalEvents() {
 
   $("ex-dir-krw2usd")?.addEventListener("click",()=>{ exchangeModal.direction="krw2usd"; exchangeModal.amount=null; render(); });
   $("ex-dir-usd2krw")?.addEventListener("click",()=>{ exchangeModal.direction="usd2krw"; exchangeModal.amount=null; render(); });
+  $("ex-max")?.addEventListener("click",()=>{
+    const acc = ST.accounts.find(a=>a.id===exchangeModal.accId);
+    if (!acc) return;
+    const fromCcy = (exchangeModal.direction||"krw2usd")==="krw2usd" ? "krw" : "usd";
+    exchangeModal.amount = getCash(acc, fromCcy);
+    render();
+  });
   $("ex-amount")?.addEventListener("input",e=>{
     exchangeModal.amount=e.target.value;
     render();
@@ -2578,6 +2677,8 @@ function bindTradeModalEvents() {
 
     if (!qty || qty <= 0) { alert("수량을 입력해주세요"); return; }
     if (!price || price <= 0) { alert("단가를 입력해주세요"); return; }
+    const isCarryoverCheck = isNew && $("tm-carryover")?.checked;
+    if (!isCarryoverCheck && !thesis) { alert("투자 근거를 입력해주세요"); return; }
 
     if (isNew) {
       const ticker = $("tm-ticker")?.value.toUpperCase().trim();
@@ -2767,13 +2868,7 @@ function bindEvents() {
   document.querySelectorAll("[data-cash-edit-krw]").forEach(inp=>inp.addEventListener("change",e=>{
     const acc=ST.accounts.find(a=>a.id===inp.dataset.cashEditKrw);
     if(!acc) return;
-    const newVal = Number(e.target.value)||0;
-    const delta = newVal - (acc.cashKrw||0);
-    acc.cashKrw = newVal;
-    if (delta!==0) {
-      if (!acc.deposits) acc.deposits = [];
-      acc.deposits.push({ id:"d"+Date.now(), year:new Date().getFullYear(), amount:delta, ccy:"krw", memo:"예수금 직접 수정", type: delta>=0?"cash-in":"cash-out", date:new Date().toISOString().slice(0,10) });
-    }
+    acc.cashKrw = Number(e.target.value)||0;
     saveData(); render();
   }));
   document.querySelectorAll("[data-cash-edit-usd]").forEach(inp=>inp.addEventListener("input",e=>{ const acc=ST.accounts.find(a=>a.id===inp.dataset.cashEditUsd); if(acc){acc.cashUsd=Number(e.target.value)||0; saveData();} }));
