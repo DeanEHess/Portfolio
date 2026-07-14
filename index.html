@@ -348,9 +348,14 @@ function loadData() {
   } catch { return JSON.parse(JSON.stringify(DEFAULT_DATA)); }
 }
 let _autoSaveTimer = null;
-function saveData() {
+// 로컬 저장만 하고 클라우드 자동저장은 예약하지 않음 — fetchAll()처럼 사용자가 직접 바꾼 게
+// 아니라 백그라운드에서 주기적으로 도는 자동 갱신에서 써서 불필요한 KV write를 줄임
+function saveDataLocalOnly() {
   try { localStorage.setItem(SK,JSON.stringify(ST)); localStorage.setItem(profileKey(curProfile),JSON.stringify(ST)); } catch {}
-  // 자동 클라우드 저장 (5초 디바운스)
+}
+function saveData() {
+  saveDataLocalOnly();
+  // 자동 클라우드 저장 (5초 디바운스) — 실제 사용자 조작(거래/입출금/계좌 편집 등)에서만 호출됨
   clearTimeout(_autoSaveTimer);
   _autoSaveTimer = setTimeout(()=>{ cloudSave(true); }, 5000);
 }
@@ -377,6 +382,11 @@ let thesisViewModal = null; // {text: string}
 let mergeModal = null; // {selectedIds: string[], name: string}
 let tutorialStep = null; // null이면 닫힘, 아니면 0부터 시작하는 현재 단계 인덱스
 let transferModal = null; // {fromId, fromItemId, toId, toItemId, ccy}
+let exchangeModal = null; // {accId, direction:"krw2usd"|"usd2krw", amount}
+// 모달마다 "직전 렌더에서 이미 열려있었는지"를 기억해뒀다가, 이미 열려있던 채로 재렌더될 땐
+// 슬라이드업 진입 애니메이션을 억제함(입력값 바꿀 때마다 매번 재생돼서 튀어보이는 문제 방지)
+let _prevOpenModals = {};
+function modalAnimStyle(key) { return _prevOpenModals[key] ? ' style="animation:none"' : ''; }
 let uidRevealed = false; // 클라우드 키(UID)를 화면에 평문으로 노출할지 여부 (기본 마스킹)
 let dataMenuOpen = false; // 백업/복원/클라우드 드롭다운 메뉴 열림 여부
 let uidAcknowledged = localStorage.getItem("asset_uid_ack") === "1"; // 사용자가 키를 한 번이라도 보거나 복사했는지 (백업 안내 문구 숨김 조건)
@@ -402,7 +412,7 @@ function simpleMarkdownToHtml(md) {
 function buildThesisViewModal() {
   if (!thesisViewModal) return "";
   return `<div class="trade-modal-bg" id="thesis-modal-bg">
-    <div class="trade-modal">
+    <div class="trade-modal"${modalAnimStyle('thesis')}>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
         <div class="modal-title" style="margin:0">📝 투자 근거</div>
         <button id="thesis-close" style="background:transparent;border:none;color:#8e8e93;font-size:20px;cursor:pointer">✕</button>
@@ -421,7 +431,7 @@ function buildTutorialModal() {
   const total = TUTORIAL_STEPS.length;
   const dots = TUTORIAL_STEPS.map((_,i)=>'<div style="width:6px;height:6px;border-radius:50%;background:'+(i===tutorialStep?"#3182f6":"#2c2c2e")+'"></div>').join("");
   return `<div class="trade-modal-bg" id="tutorial-modal-bg">
-    <div class="trade-modal">
+    <div class="trade-modal"${modalAnimStyle('tutorial')}>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
         <div style="display:flex;gap:4px">${dots}</div>
         <button id="tutorial-quit" style="background:transparent;border:none;color:#8e8e93;font-size:12px;cursor:pointer;text-decoration:underline">그만두기 ✕</button>
@@ -611,7 +621,7 @@ async function fetchAll() {
         }
       }
     }
-    saveData();
+    saveDataLocalOnly();
     fetchError=false; lastUp=new Date();
   } catch { fetchError=true; }
   if (!usdKrw) await fetchFxFallback();
@@ -736,6 +746,20 @@ function eventsToHtml(events, isUS, isCoin) {
           <button class="del-btn" data-hist-trade-del="${ev.trId}" data-hist-trade-acc="${ev.accId}" data-hist-trade-item="${ev.itemId}" style="padding:3px 7px;font-size:10px">✕</button>
         </div>
       </div>`;
+    } else if (ev.kind === "fx-convert") {
+      const fromStr = ev.fromCcy === "usd" ? usd(ev.fromAmount) : won(ev.fromAmount);
+      const toStr = ev.toCcy === "usd" ? usd(ev.toAmount) : won(ev.toAmount);
+      return `<div class="history-row">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span class="history-badge" style="background:#f59e0b20;color:#f59e0b">환전</span>
+          <span style="color:#8e8e93">${ev.date}</span>
+          ${ev.memo?`<span style="color:#636366;font-size:10px">${ev.memo}</span>`:""}
+        </div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-weight:600">${fromStr} → ${toStr}</span>
+          <button class="del-btn" data-deposit-del="${ev.id}" data-deposit-acc="${ev.accId}" style="padding:3px 7px;font-size:10px">✕</button>
+        </div>
+      </div>`;
     } else {
       const isIn = ev.kind === "cash-in";
       const amtStr = ev.ccy === "usd" ? usd(Math.abs(ev.amount)) : won(Math.abs(ev.amount));
@@ -787,6 +811,13 @@ function buildAccountHistorySection(acc) {
         id: d.id, accId: acc.id, usdAmount: d.usdAmount, ccy: dCcy, krwVal,
         sortKey: (d.date||d.year+"-01-01") + "_" + (d.id||"")
       });
+    } else if (d.type === "fx-convert") {
+      const krwVal = d.fromCcy==="usd" ? d.fromAmount*(usdKrw||0) : d.fromAmount;
+      events.push({
+        date: d.date||("연도:"+d.year), kind: "fx-convert", memo: d.memo,
+        id: d.id, accId: acc.id, fromCcy: d.fromCcy, toCcy: d.toCcy, fromAmount: d.fromAmount, toAmount: d.toAmount, krwVal,
+        sortKey: (d.date||d.year+"-01-01") + "_" + (d.id||"")
+      });
     }
   }
 
@@ -801,6 +832,7 @@ function buildAccountHistorySection(acc) {
   else if (filter.kind === "sell")     filteredEvents = filteredEvents.filter(e=>e.kind==="sell");
   else if (filter.kind === "dividend") filteredEvents = filteredEvents.filter(e=>e.kind==="dividend");
   else if (filter.kind === "cash")     filteredEvents = filteredEvents.filter(e=>e.kind==="cash-in"||e.kind==="cash-out");
+  else if (filter.kind === "fx")       filteredEvents = filteredEvents.filter(e=>e.kind==="fx-convert");
   if (filter.year && filter.year !== "all") {
     filteredEvents = filteredEvents.filter(e=> (e.date||"").slice(0,4) === filter.year);
   }
@@ -812,8 +844,8 @@ function buildAccountHistorySection(acc) {
   const showAll = accHistoryExpanded[acc.id] === true;
   const visibleEvents = showAll ? filteredEvents : filteredEvents.slice(0, 5);
 
-  const filterTabs = ['all','buy','sell','dividend','cash'].map(k=>{
-    const labels = {all:"전체", buy:"매수", sell:"매도", dividend:"배당", cash:"입출금"};
+  const filterTabs = (isMixed ? ['all','buy','sell','dividend','cash','fx'] : ['all','buy','sell','dividend','cash']).map(k=>{
+    const labels = {all:"전체", buy:"매수", sell:"매도", dividend:"배당", cash:"입출금", fx:"환전"};
     const isOn = filter.kind === k;
     return '<button class="btn-sm" data-history-filter="'+acc.id+'" data-filter-kind="'+k+'" style="padding:4px 10px;font-size:11px;'+(isOn?'background:'+acc.color+';color:#fff;border-color:'+acc.color:'')+'">'+labels[k]+'</button>';
   }).join("");
@@ -871,9 +903,10 @@ function buildAccountHistorySection(acc) {
 }
 
 function buildDepositSection(deposits, accId) {
-  // 연도별 합산
+  // 연도별 합산 (환전은 실제 입출금이 아니라 순입금 집계에서 제외)
   const yearMap = {};
   for (const d of deposits) {
+    if (d.type === "fx-convert") continue;
     const y = d.year;
     yearMap[y] = (yearMap[y]||0) + (Number(d.amount)||0);
   }
@@ -917,7 +950,7 @@ function buildOverviewDepositSection() {
     if (acc.type === "cash") {
       dep = acc.items.reduce((s,x)=>s+(Number(x.a)||0), 0);
     } else {
-      dep = (acc.deposits||[]).reduce((s,d)=>s+(Number(d.amount)||0), 0);
+      dep = (acc.deposits||[]).reduce((s,d)=>d.type==="fx-convert"?s:s+(Number(d.amount)||0), 0);
     }
     const ev = accTotal(acc);
     if (dep === 0 && ev === 0) continue;
@@ -968,11 +1001,12 @@ function buildAccountSection(acc) {
 
   // 계좌 헤더 우측: 평가금액 / 수익금 / 수익률
   const depositBtnHtml = '<button class="btn-sm" style="flex:none;color:#10b981;border-color:#10b981;padding:6px 10px;font-size:12px;font-weight:700;white-space:nowrap" data-deposit-acc="'+acc.id+'">입출금</button>';
+  const exchangeBtnHtml = isMixed ? '<button class="btn-sm" style="flex:none;color:#f59e0b;border-color:#f59e0b;padding:6px 10px;font-size:12px;font-weight:700;white-space:nowrap" data-exchange-acc="'+acc.id+'">💱 환전</button>' : '';
   const transferBtnHtml = ST.accounts.length>=2 ? '<button class="btn-sm" style="flex:none;color:#06b6d4;border-color:#06b6d4;padding:6px 10px;font-size:12px;font-weight:700;white-space:nowrap" data-transfer-acc="'+acc.id+'">🔁 이체</button>' : '';
   const rebalanceBtnHtml = isCash ? '' : '<button class="btn-sm" style="flex:none;color:#8b5cf6;border-color:#8b5cf6;padding:6px 10px;font-size:12px;font-weight:700;white-space:nowrap" data-rebalance-acc="'+acc.id+'">🎯 리밸런싱</button>';
   const buyBtn = isCash
     ? depositBtnHtml + transferBtnHtml
-    : depositBtnHtml + transferBtnHtml + rebalanceBtnHtml
+    : depositBtnHtml + exchangeBtnHtml + transferBtnHtml + rebalanceBtnHtml
       +'<button class="btn-sm" style="flex:none;color:#ef4444;border-color:#ef4444;padding:6px 10px;font-size:12px;font-weight:700;white-space:nowrap" data-new-trade="'+acc.id+'">+ 신규매수</button>';
   const cashRow = isCash ? "" : isMixed
     ? (editMode
@@ -1213,7 +1247,7 @@ function buildDepositModal() {
       </div>` : "";
 
   return `<div class="trade-modal-bg" id="deposit-modal-bg">
-    <div class="trade-modal">
+    <div class="trade-modal"${modalAnimStyle('deposit')}>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
         <div class="modal-title" style="margin:0">${acc.name} ${isCashAcc?"관리":"예수금 관리"}</div>
         <button id="dm-close" style="background:transparent;border:none;color:#8e8e93;font-size:20px;cursor:pointer">✕</button>
@@ -1313,39 +1347,56 @@ function buildRebalanceModal() {
     const tp = Number(it.tp)||0;
     const targetVal = futureTotal * tp/100;
     const need = Math.max(0, targetVal - val);
-    return {item:it, val, curPct, tp, need};
+    const excess = Math.max(0, val - targetVal);
+    return {item:it, val, curPct, tp, targetVal, need, excess};
   });
 
+  // 목표比중과 가장 크게 벌어진(미달) 종목부터 순서대로 채우고, 남는 돈은 다음으로 벌어진 종목에 배분
+  // (기존엔 부족분을 전부 비율대로 쪼개 나눴는데, "제일 급한 종목부터 확실히 채우자"는 요청으로 순차 배분으로 변경)
+  const order = rows.map((r,i)=>i).sort((a,b)=> (rows[b].tp-rows[b].curPct) - (rows[a].tp-rows[a].curPct));
+  const buyAmount = new Array(rows.length).fill(0);
+  let remaining = investKrw;
+  for (const i of order) {
+    if (remaining <= 0) break;
+    const alloc = Math.min(rows[i].need, remaining);
+    buyAmount[i] = alloc;
+    remaining -= alloc;
+  }
   const totalNeed = rows.reduce((s,r)=>s+r.need,0);
-  const scale = totalNeed > investKrw && totalNeed>0 ? investKrw/totalNeed : 1;
+  const budgetShort = totalNeed > investKrw;
 
-  const rowsHtml = rows.map(r=>{
+  const rowsHtml = order.map(i=>{
+    const r = rows[i];
     const rowMarket = itemMarket(r.item, acc.type);
     const rowIsUS = rowMarket === "us"; // 혼합계좌는 종목마다 통화가 다를 수 있어 행 단위로 판정
-    const buyKrw = r.need*scale;
+    const buyKrw = buyAmount[i];
     const buyNative = rowIsUS ? buyKrw/(usdKrw||1) : buyKrw; // 매수 제안 금액을 종목 통화로 환산
     const price = px[r.item.t] || r.item.a || 0;
     const shares = price>0 ? Math.floor((buyNative/price)*10000)/10000 : 0;
+    const gapPct = r.tp - r.curPct; // 양수=미달, 음수=초과
+    const excessNative = rowIsUS ? r.excess/(usdKrw||1) : r.excess;
+    const statusHtml = buyNative>0.009
+      ? `<div style="font-weight:700;color:#ef4444;font-size:13px">${rowIsUS?usd(buyNative):won(buyNative)}</div><div style="font-size:10px;color:#8e8e93">${shares>0?shares+(rowMarket==="coin"?"":"주"):""}</div>`
+      : r.excess>0.009
+        ? `<div style="font-weight:700;color:#3b82f6;font-size:12px">+${excessNative>0.009?(rowIsUS?usd(excessNative):won(excessNative)):""} 초과</div>`
+        : (r.need>0.009 ? `<div style="font-size:11px;color:#f59e0b">예산 부족</div>` : `<div style="font-size:11px;color:#636366">목표 도달</div>`);
     return `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #1c1c1e">
       <div style="flex:1">
         <div style="font-weight:700;font-size:13px">${isMixed?({krx:"🇰🇷",us:"🌎",coin:"🪙"}[rowMarket]||"")+" ":""}${r.item.n||r.item.t}</div>
-        <div style="font-size:10px;color:#8e8e93">목표 <input class="inp" data-rb-tp="${r.item.id}" type="number" step="0.1" min="0" max="100" style="width:48px;padding:2px 4px;font-size:10px" value="${r.tp}"/>% · 현재 ${r.curPct.toFixed(1)}%</div>
+        <div style="font-size:10px;color:#8e8e93">목표 <input class="inp" data-rb-tp="${r.item.id}" type="number" step="0.1" min="0" max="100" style="width:48px;padding:2px 4px;font-size:10px" value="${r.tp}"/>% · 현재 ${r.curPct.toFixed(1)}% ${gapPct>0.05?`<span style="color:#ef4444">(${gapPct.toFixed(1)}%p 미달)</span>`:gapPct<-0.05?`<span style="color:#3b82f6">(${Math.abs(gapPct).toFixed(1)}%p 초과)</span>`:""}</div>
       </div>
-      <div style="text-align:right">
-        <div style="font-weight:700;color:${buyNative>0.009?"#ef4444":"#636366"};font-size:13px">${buyNative>0.009?(rowIsUS?usd(buyNative):won(buyNative)):"—"}</div>
-        <div style="font-size:10px;color:#8e8e93">${shares>0?shares+(rowMarket==="coin"?"":"주"):""}</div>
-      </div>
+      <div style="text-align:right">${statusHtml}</div>
     </div>`;
   }).join("");
 
   const tpSum = rows.reduce((s,r)=>s+r.tp,0);
   const warnHtml = Math.abs(tpSum-100) > 0.5
     ? `<div style="font-size:11px;color:#f59e0b;margin-bottom:8px">⚠ 목표비중 합계 ${tpSum.toFixed(1)}% (100%가 안 되면 남는 만큼은 계산에서 빠져요)</div>` : "";
-  const scaleWarnHtml = scale < 1
-    ? `<div style="font-size:11px;color:#8e8e93;margin-bottom:8px">필요 금액(${isUS?usd(totalNeed/(usdKrw||1)):won(totalNeed)})이 투자금보다 많아서 비율대로 나눴어요</div>` : "";
+  const scaleWarnHtml = budgetShort
+    ? `<div style="font-size:11px;color:#8e8e93;margin-bottom:8px">필요 금액(${isUS?usd(totalNeed/(usdKrw||1)):won(totalNeed)})이 투자금보다 많아서, 목표비중과 가장 크게 벌어진 종목부터 순서대로 채우고 나니 예산이 모자라요</div>` : "";
 
   return `<div class="trade-modal-bg" id="rebalance-modal-bg">
-    <div class="trade-modal">
+    <div class="trade-modal"${modalAnimStyle('rebalance')}>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
         <div style="font-size:16px;font-weight:800">🎯 ${acc.name} 리밸런싱</div>
         <button id="rb-close" style="background:transparent;border:none;color:#8e8e93;font-size:20px;cursor:pointer">✕</button>
@@ -1422,7 +1473,7 @@ function buildTradeModal() {
   const maxQty = (!isNew && !isBuy && !isDividend) ? (item?.q||0) : "";
 
   return `<div class="trade-modal-bg" id="trade-modal-bg">
-    <div class="trade-modal">
+    <div class="trade-modal"${modalAnimStyle('trade')}>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
         <div class="modal-title" style="margin:0">${isNew?"➕ 신규 매수":"거래 입력"}</div>
         <button id="tm-close" style="background:transparent;border:none;color:#8e8e93;font-size:20px;cursor:pointer">✕</button>
@@ -1494,7 +1545,7 @@ function buildModal() {
   if (!showModal) return "";
   const typeButtons=Object.entries(ACCOUNT_TYPES).filter(([,v])=>v.creatable!==false).map(([k,v])=>'<div class="type-btn'+(modalType===k?" sel":"")+'" data-modal-type="'+k+'"><div class="icon">'+v.icon+'</div><div class="label">'+v.label+'</div><div class="desc">'+v.desc+'</div></div>').join("");
   const colorDots=COLORS.map(col=>'<div class="color-dot'+(modalColor===col?" sel":"")+'" style="background:'+col+'" data-modal-color="'+col+'"></div>').join("");
-  return '<div class="modal-bg" id="modal-bg"><div class="modal"><div class="modal-title">➕ 계좌 추가</div><div style="font-size:12px;color:#8e8e93;margin-bottom:8px">어떤 자산을 관리할 계좌인가요?</div><div class="type-grid">'+typeButtons+'</div><div style="font-size:12px;color:#8e8e93;margin-bottom:8px">계좌 색상</div><div class="color-row">'+colorDots+'</div><div style="font-size:12px;color:#8e8e93;margin-bottom:6px">계좌 이름</div><input class="inp inp-l" id="modal-name" style="font-size:13px;margin-bottom:16px" placeholder="예) 토스증권, 미래에셋 ISA"/>'
+  return '<div class="modal-bg" id="modal-bg"><div class="modal"'+modalAnimStyle('accountAdd')+'><div class="modal-title">➕ 계좌 추가</div><div style="font-size:12px;color:#8e8e93;margin-bottom:8px">어떤 자산을 관리할 계좌인가요?</div><div class="type-grid">'+typeButtons+'</div><div style="font-size:12px;color:#8e8e93;margin-bottom:8px">계좌 색상</div><div class="color-row">'+colorDots+'</div><div style="font-size:12px;color:#8e8e93;margin-bottom:6px">계좌 이름</div><input class="inp inp-l" id="modal-name" style="font-size:13px;margin-bottom:16px" placeholder="예) 토스증권, 미래에셋 ISA"/>'
     +'<div style="display:flex;align-items:center;justify-content:space-between;background:#000000;border-radius:8px;padding:10px 12px;margin-bottom:16px">'
     +'<div><div style="font-size:12px;font-weight:600">이미 투자 중인 계좌인가요?</div><div style="font-size:10px;color:#8e8e93;margin-top:2px">이미 보유 중인 종목·예수금이 있으면 체크 — 등록 순서를 맞게 안내해드려요</div></div>'
     +'<label style="display:flex;align-items:center;cursor:pointer;flex-shrink:0;margin-left:10px"><input type="checkbox" id="modal-already-invested" '+(modalAlreadyInvested?"checked":"")+' style="width:20px;height:20px;cursor:pointer"/></label>'
@@ -1547,7 +1598,8 @@ function buildPage() {
     +buildThesisViewModal()
     +buildMergeModal()
     +buildTutorialModal()
-    +buildTransferModal();
+    +buildTransferModal()
+    +buildExchangeModal();
 }
 
 // ─── 팝업 ────────────────────────────────────────────────────
@@ -1644,6 +1696,11 @@ function recalcAccountCash(accId) {
     const recalcOne = ccy => {
       let cash = 0;
       for (const d of (acc.deposits||[])) {
+        if (d.type === "fx-convert") {
+          if (d.fromCcy === ccy) cash -= d.fromAmount;
+          else if (d.toCcy === ccy) cash += d.toAmount;
+          continue;
+        }
         if ((d.ccy||"krw") !== ccy) continue;
         if (d.type === "cash-in") cash += d.amount;
         else if (d.type === "cash-out") cash -= Math.abs(d.amount);
@@ -1744,9 +1801,14 @@ function deleteDeposit(accId, depositId) {
   if (!dep) return;
 
   if (acc.type === "mixed") {
-    const ccy = dep.ccy || "krw";
-    if (dep.type === "cash-in") adjustCash(acc, ccy, -Math.abs(dep.amount));
-    else if (dep.type === "cash-out") adjustCash(acc, ccy, Math.abs(dep.amount));
+    if (dep.type === "fx-convert") {
+      adjustCash(acc, dep.fromCcy, dep.fromAmount);
+      adjustCash(acc, dep.toCcy, -dep.toAmount);
+    } else {
+      const ccy = dep.ccy || "krw";
+      if (dep.type === "cash-in") adjustCash(acc, ccy, -Math.abs(dep.amount));
+      else if (dep.type === "cash-out") adjustCash(acc, ccy, Math.abs(dep.amount));
+    }
   } else {
     const isUS = acc.type === "us";
     // 역산 기준: usdAmount 있으면 그걸로, 없으면 KRW amount를 현재 환율로 근사(USD 계좌만)
@@ -1782,7 +1844,7 @@ function buildMergeModal() {
     </div>`;
   }).join("");
   return `<div class="trade-modal-bg" id="merge-modal-bg">
-    <div class="trade-modal">
+    <div class="trade-modal"${modalAnimStyle('merge')}>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
         <div style="font-size:16px;font-weight:800">🔀 계좌 합치기</div>
         <button id="merge-close" style="background:transparent;border:none;color:#8e8e93;font-size:20px;cursor:pointer">✕</button>
@@ -1912,7 +1974,7 @@ function buildTransferModal() {
   const balance = fromIsCash ? Number(fromAcc.items.find(i=>i.id===transferModal.fromItemId)?.a||0) : getCash(fromAcc, ccy);
 
   return `<div class="trade-modal-bg" id="transfer-modal-bg">
-    <div class="trade-modal">
+    <div class="trade-modal"${modalAnimStyle('transfer')}>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
         <div class="modal-title" style="margin:0">🔁 계좌간 이체</div>
         <button id="transfer-close" style="background:transparent;border:none;color:#8e8e93;font-size:20px;cursor:pointer">✕</button>
@@ -1963,6 +2025,53 @@ function buildTransferModal() {
         <input class="trade-inp" id="tr-memo" placeholder="예) 매수 자금 이동"/>
       </div>
       <button class="trade-btn buy" id="tr-confirm" ${(!ccyOk||!toAcc)?'disabled style="opacity:0.4"':""}>이체하기</button>
+    </div>
+  </div>`;
+}
+
+function buildExchangeModal() {
+  if (!exchangeModal) return "";
+  const acc = ST.accounts.find(a=>a.id===exchangeModal.accId);
+  if (!acc || acc.type !== "mixed") return "";
+  const direction = exchangeModal.direction || "krw2usd";
+  const fromCcy = direction === "krw2usd" ? "krw" : "usd";
+  const toCcy = direction === "krw2usd" ? "usd" : "krw";
+  const rate = usdKrw || 0;
+  const balance = getCash(acc, fromCcy);
+  const amount = Number(exchangeModal.amount) || 0;
+  const converted = rate>0 ? (direction==="krw2usd" ? amount/rate : amount*rate) : 0;
+  const insufficient = amount > balance;
+
+  return `<div class="trade-modal-bg" id="exchange-modal-bg">
+    <div class="trade-modal"${modalAnimStyle('exchange')}>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+        <div class="modal-title" style="margin:0">💱 ${acc.name} 환전</div>
+        <button id="exchange-close" style="background:transparent;border:none;color:#8e8e93;font-size:20px;cursor:pointer">✕</button>
+      </div>
+      <div class="trade-inp-group">
+        <div class="trade-inp-label">방향</div>
+        <div style="display:flex;gap:6px">
+          <button type="button" class="btn-sm" id="ex-dir-krw2usd" style="flex:1;${direction==="krw2usd"?"background:#f59e0b;color:#fff;border-color:#f59e0b":""}">🇰🇷 원화 → 🌎 달러</button>
+          <button type="button" class="btn-sm" id="ex-dir-usd2krw" style="flex:1;${direction==="usd2krw"?"background:#f59e0b;color:#fff;border-color:#f59e0b":""}">🌎 달러 → 🇰🇷 원화</button>
+        </div>
+      </div>
+      <div style="font-size:11px;color:#8e8e93;margin:-6px 0 12px">현재 ${fromCcy==="usd"?"외화":"원화"}예수금: ${fromCcy==="usd"?usd(balance):won(balance)}${rate>0?' · 환율 ₩'+Math.round(rate).toLocaleString():''}</div>
+      <div class="trade-inp-group">
+        <div class="trade-inp-label">보낼 금액 (${fromCcy==="usd"?"USD":"KRW"})</div>
+        <input class="trade-inp" id="ex-amount" type="number" step="0.01" placeholder="0" value="${exchangeModal.amount||""}"/>
+      </div>
+      <div style="font-size:12px;color:#93c5fd;margin:-6px 0 12px">≈ ${toCcy==="usd"?usd(converted):won(converted)} 받음</div>
+      ${insufficient ? `<div style="font-size:11px;color:#f59e0b;margin-bottom:10px">⚠ 보유한 ${fromCcy==="usd"?"외화":"원화"}예수금(${fromCcy==="usd"?usd(balance):won(balance)})보다 많아요.</div>` : ""}
+      ${rate<=0 ? `<div style="font-size:11px;color:#f59e0b;margin-bottom:10px">⚠ 환율을 아직 못 불러왔어요. 새로고침 후 다시 시도해주세요.</div>` : ""}
+      <div class="trade-inp-group">
+        <div class="trade-inp-label">날짜</div>
+        <input class="trade-inp" id="ex-date" type="date" value="${new Date().toISOString().slice(0,10)}"/>
+      </div>
+      <div class="trade-inp-group">
+        <div class="trade-inp-label">메모 (선택)</div>
+        <input class="trade-inp" id="ex-memo" placeholder="예) 해외주식 매수용 환전"/>
+      </div>
+      <button class="trade-btn buy" id="ex-confirm" ${(amount<=0||insufficient||rate<=0)?'disabled style="opacity:0.4"':""}>환전하기</button>
     </div>
   </div>`;
 }
@@ -2035,6 +2144,43 @@ function bindTransferModalEvents() {
     transferModal = null;
     render();
     alert("✅ 이체 완료: "+fromAcc.name+" → "+toAcc.name);
+  });
+}
+
+function bindExchangeModalEvents() {
+  if (!exchangeModal) return;
+  const $ = id => document.getElementById(id);
+  $("exchange-close")?.addEventListener("click",()=>{ exchangeModal=null; render(); });
+  $("exchange-modal-bg")?.addEventListener("click",e=>{ if(e.target.id==="exchange-modal-bg"){exchangeModal=null;render();} });
+
+  $("ex-dir-krw2usd")?.addEventListener("click",()=>{ exchangeModal.direction="krw2usd"; exchangeModal.amount=null; render(); });
+  $("ex-dir-usd2krw")?.addEventListener("click",()=>{ exchangeModal.direction="usd2krw"; exchangeModal.amount=null; render(); });
+  $("ex-amount")?.addEventListener("input",e=>{ exchangeModal.amount=e.target.value; render(); });
+
+  $("ex-confirm")?.addEventListener("click",()=>{
+    const acc = ST.accounts.find(a=>a.id===exchangeModal.accId);
+    if (!acc) return;
+    const direction = exchangeModal.direction || "krw2usd";
+    const fromCcy = direction === "krw2usd" ? "krw" : "usd";
+    const toCcy = direction === "krw2usd" ? "usd" : "krw";
+    const rate = usdKrw || 0;
+    const amount = parseFloat($("ex-amount")?.value) || 0;
+    const date = $("ex-date")?.value || new Date().toISOString().slice(0,10);
+    const memo = $("ex-memo")?.value || "";
+    if (!amount || amount<=0) { alert("금액을 입력해주세요"); return; }
+    if (rate<=0) { alert("환율을 아직 못 불러왔어요"); return; }
+    if (getCash(acc, fromCcy) < amount) { alert("예수금이 부족해요"); return; }
+
+    const toAmount = direction==="krw2usd" ? Math.round((amount/rate)*100)/100 : Math.round(amount*rate);
+    adjustCash(acc, fromCcy, -amount);
+    adjustCash(acc, toCcy, toAmount);
+    if (!acc.deposits) acc.deposits=[];
+    acc.deposits.push({ id:"d"+Date.now()+Math.random().toString(36).slice(2,6), type:"fx-convert", date, year:new Date(date).getFullYear(), memo, fromCcy, toCcy, fromAmount:amount, toAmount, rate });
+
+    saveData();
+    exchangeModal = null;
+    render();
+    alert("✅ 환전 완료: "+(fromCcy==="usd"?usd(amount):won(amount))+" → "+(toCcy==="usd"?usd(toAmount):won(toAmount)));
   });
 }
 
@@ -2477,6 +2623,12 @@ function bindTradeModalEvents() {
 function render() {
   try { document.getElementById("app").innerHTML=buildPage(); bindEvents(); }
   catch(e) { document.getElementById("app").innerHTML='<div style="padding:20px;color:#ef4444;font-size:13px">오류: '+e.message+'<br><pre style="font-size:10px;color:#aeaeb2;white-space:pre-wrap">'+e.stack+'</pre></div>'; }
+  // 이번 렌더에서 반영된 모달 열림 상태를 스냅샷 — 다음 렌더에서 modalAnimStyle()이 참조함
+  _prevOpenModals = {
+    trade: !!tradeModal, deposit: !!depositModal, transfer: !!transferModal, exchange: !!exchangeModal,
+    rebalance: !!rebalanceModal, merge: !!mergeModal, thesis: !!thesisViewModal,
+    tutorial: tutorialStep != null, accountAdd: !!showModal,
+  };
 }
 
 // ─── 이벤트 ──────────────────────────────────────────────────
@@ -2496,6 +2648,7 @@ function bindEvents() {
   $("btn-data-menu")?.addEventListener("click",()=>{ dataMenuOpen=!dataMenuOpen; render(); });
   $("data-menu-bg")?.addEventListener("click",()=>{ dataMenuOpen=false; render(); });
   document.querySelectorAll("[data-transfer-acc]").forEach(el=>el.addEventListener("click",()=>{ transferModal={fromId:el.dataset.transferAcc}; render(); }));
+  document.querySelectorAll("[data-exchange-acc]").forEach(el=>el.addEventListener("click",()=>{ exchangeModal={accId:el.dataset.exchangeAcc, direction:"krw2usd"}; render(); }));
   $("btn-toggle-usd")?.addEventListener("click",()=>{showUSD=!showUSD;render();});
 
   // 클라우드 키(UID) 표시/복사
@@ -2692,6 +2845,7 @@ function bindEvents() {
   if (mergeModal) bindMergeModalEvents();
   if (tutorialStep != null) bindTutorialEvents();
   if (transferModal) bindTransferModalEvents();
+  if (exchangeModal) bindExchangeModalEvents();
 }
 
 // ─── 모달 ESC 닫기 ───────────────────────────────────────────
@@ -2702,6 +2856,7 @@ document.addEventListener("keydown", e=>{
   else if (depositModal) { depositModal=null; render(); }
   else if (mergeModal) { mergeModal=null; render(); }
   else if (transferModal) { transferModal=null; render(); }
+  else if (exchangeModal) { exchangeModal=null; render(); }
   else if (thesisViewModal) { thesisViewModal=null; render(); }
   else if (showModal) { showModal=false; render(); }
   else if (tutorialStep != null) { tutorialStep=null; markTutorialSeen(); render(); }
