@@ -331,7 +331,7 @@ function makeDefaultAccounts() {
   ];
 }
 const DEFAULT_DATA = {
-  accounts: makeDefaultAccounts(),
+  accounts: [], // 처음엔 비워두고, 편집 모드의 "+ 계좌 추가"로 직접 만들게 함 (샘플 계좌를 기본값처럼 보여주지 않기 위함)
   goals: [], // 처음엔 비워두고, 편집 모드의 "+ 목표 추가"로 직접 설정하게 함 (특정 개인의 목표값을 기본값처럼 보여주지 않기 위함)
   deposits: [],
   snapshots: [], // [{month:"2026-07", total: 12345678}]
