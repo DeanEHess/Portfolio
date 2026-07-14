@@ -1257,6 +1257,7 @@ function buildOverview() {
 
 // ─── 입금/출금 모달 ───────────────────────────────────────────
 let depositModal = null; // {accId, mode:"in"|"out"}
+let openingCashModal = null; // {accId}
 
 function buildDepositModal() {
   if (!depositModal) return "";
@@ -1307,6 +1308,10 @@ function buildDepositModal() {
             <button id="dm-recalc" style="background:transparent;border:1px solid #2c2c2e;color:#8e8e93;border-radius:6px;padding:3px 8px;font-size:10px;cursor:pointer">⟳ 재계산</button>
           </div>
         </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;padding-top:6px;border-top:1px dashed #1c1c1e">
+          <span style="font-size:10px;color:#636366">기초 예수금${(acc.openingCashKrw||acc.openingCashUsd)?" ("+won(acc.openingCashKrw||0)+" / "+usd(acc.openingCashUsd||0)+")":""}<br/><span style="color:#2c2c2e">과거 기록 없이 지금 잔액부터 시작 · 재계산 시 이 값부터 계산</span></span>
+          <button id="dm-set-opening" style="background:transparent;border:1px solid #2c2c2e;color:#8e8e93;border-radius:6px;padding:3px 8px;font-size:10px;cursor:pointer;white-space:nowrap">${(acc.openingCashKrw||acc.openingCashUsd)?"재설정":"설정"}</button>
+        </div>
       </div>
       <div class="trade-inp-group">
         <div class="trade-inp-label">어느 예수금인가요?</div>
@@ -1324,12 +1329,8 @@ function buildDepositModal() {
           </div>
         </div>
         <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;padding-top:6px;border-top:1px dashed #1c1c1e">
-          <span style="font-size:10px;color:#636366">기초 예수금${acc.openingCash?" ("+(isUS?usd(acc.openingCash):won(acc.openingCash))+")":""}<br/><span style="color:#2c2c2e">거래내역서 없는 IRP/연금저축용 · 순입금엔 안 잡혀요</span></span>
-          <button id="dm-set-opening" style="background:transparent;border:1px solid #2c2c2e;color:#8e8e93;border-radius:6px;padding:3px 8px;font-size:10px;cursor:pointer;white-space:nowrap">설정</button>
-        </div>
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;padding-top:6px;border-top:1px dashed #1c1c1e">
-          <span style="font-size:10px;color:#636366">예수금 직접 수정<br/><span style="color:#2c2c2e">재계산 없이 값만 덮어씀 · 환전 섞인 계좌처럼 재계산 부정확할 때</span></span>
-          <button id="dm-set-cash" style="background:transparent;border:1px solid #2c2c2e;color:#8e8e93;border-radius:6px;padding:3px 8px;font-size:10px;cursor:pointer;white-space:nowrap">수정</button>
+          <span style="font-size:10px;color:#636366">기초 예수금${acc.openingCash?" ("+(isUS?usd(acc.openingCash):won(acc.openingCash))+")":""}<br/><span style="color:#2c2c2e">과거 기록 없이 지금 잔액부터 시작 · 재계산 시 이 값부터 계산</span></span>
+          <button id="dm-set-opening" style="background:transparent;border:1px solid #2c2c2e;color:#8e8e93;border-radius:6px;padding:3px 8px;font-size:10px;cursor:pointer;white-space:nowrap">${acc.openingCash?"재설정":"설정"}</button>
         </div>
       </div>`) : ""}
       <div class="trade-tabs">
@@ -1375,6 +1376,49 @@ function buildDepositModal() {
         </label>
       </div>` : ""}
       <button class="trade-btn ${isIn?"buy":"sell"}" id="dm-confirm">${isIn?"입금 확정":"출금 확정"}</button>
+    </div>
+  </div>`;
+}
+
+// ─── 기초 예수금 설정 모달 ───────────────────────────────────
+function buildOpeningCashModal() {
+  if (!openingCashModal) return "";
+  const acc = ST.accounts.find(a=>a.id===openingCashModal.accId);
+  if (!acc) return "";
+  const isMixed = acc.type === "mixed";
+  const isUS = acc.type === "us";
+  const dateVal = acc.openingCashDate || new Date().toISOString().slice(0,10);
+
+  const fields = isMixed
+    ? `<div class="trade-inp-group">
+        <div class="trade-inp-label">기초 원화예수금 (KRW)</div>
+        <input class="trade-inp" id="oc-krw" type="number" placeholder="0" value="${acc.openingCashKrw||""}"/>
+      </div>
+      <div class="trade-inp-group">
+        <div class="trade-inp-label">기초 외화예수금 (USD)</div>
+        <input class="trade-inp" id="oc-usd" type="number" step="0.01" placeholder="0" value="${acc.openingCashUsd||""}"/>
+      </div>`
+    : `<div class="trade-inp-group">
+        <div class="trade-inp-label">기초 예수금 (${isUS?"USD":"KRW"})</div>
+        <input class="trade-inp" id="oc-amount" type="number" ${isUS?'step="0.01"':''} placeholder="0" value="${acc.openingCash||""}"/>
+      </div>`;
+
+  return `<div class="trade-modal-bg" id="opening-cash-modal-bg">
+    <div class="trade-modal"${modalAnimStyle('opening-cash')}>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+        <div class="modal-title" style="margin:0">🧮 기초 예수금 설정</div>
+        <button id="oc-close" style="background:transparent;border:none;color:#8e8e93;font-size:20px;cursor:pointer">✕</button>
+      </div>
+      <div style="font-size:11px;color:#8e8e93;line-height:1.6;margin-bottom:14px">과거 입출금·거래를 하나하나 기록하지 않아도, 특정 날짜 기준 실제 예수금을 입력하면 재계산 시 이 값부터 시작해요. 이 날짜 이전의 입출금·거래는 이미 이 금액에 포함된 걸로 보고 재계산에서 제외돼요(순입금 통계에는 계속 그대로 반영돼요). 나중에 기록이 어긋나면 여기서 오늘 날짜와 실제 잔액을 다시 입력해서 언제든 교정할 수 있어요.</div>
+      ${fields}
+      <div class="trade-inp-group">
+        <div class="trade-inp-label">기준일</div>
+        <input class="trade-inp" id="oc-date" type="date" value="${dateVal}"/>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn" id="oc-clear" style="flex:1">기초 예수금 해제</button>
+        <button class="trade-btn buy" id="oc-save" style="flex:2">저장하고 재계산</button>
+      </div>
     </div>
   </div>`;
 }
@@ -1647,6 +1691,7 @@ function buildPage() {
     +buildModal()
     +buildTradeModal()
     +buildDepositModal()
+    +buildOpeningCashModal()
     +buildRebalanceModal()
     +buildThesisViewModal()
     +buildMergeModal()
@@ -1744,12 +1789,17 @@ function recalcAccountCash(accId) {
   const isUS = acc.type === "us";
   const isMixed = acc.type === "mixed";
 
+  // 기초 예수금 기준일 — 이 날짜 이전의 입출금·거래는 이미 기초 예수금에 흡수된 것으로 간주하고 건너뜀
+  // (기준일이 없으면(기존 데이터) 필터링 없이 예전과 동일하게 전부 합산 — 하위호환 자동 보장)
+  const cutoff = acc.openingCashDate || null;
+
   if (isMixed) {
     // 혼합계좌: 원화/외화 예수금을 각각 그 통화의 입출금·거래만 모아서 재계산
     const recalcOne = ccy => {
-      let cash = 0;
+      let cash = ccy === "usd" ? (acc.openingCashUsd||0) : (acc.openingCashKrw||0);
       for (const d of (acc.deposits||[])) {
         if (d.historicalOnly) continue;
+        if (cutoff && d.date < cutoff) continue;
         if (d.type === "fx-convert") {
           if (d.fromCcy === ccy) cash -= d.fromAmount;
           else if (d.toCcy === ccy) cash += d.toAmount;
@@ -1762,6 +1812,7 @@ function recalcAccountCash(accId) {
       for (const item of acc.items) {
         if ((itemMarket(item,acc.type)==="us"?"usd":"krw") !== ccy) continue;
         for (const tr of (item.trades||[])) {
+          if (cutoff && tr.date < cutoff) continue;
           if (tr.type === "buy")       cash -= tr.qty * tr.price;
           else if (tr.type === "sell") cash += tr.qty * tr.price;
           else if (tr.type === "dividend") cash += tr.amount;
@@ -1782,6 +1833,7 @@ function recalcAccountCash(accId) {
   //    cash-in/out의 amount는 KRW 기준으로 저장되어 있으므로, USD 계좌는 usdAmount 필드가 있으면 그걸 쓰고 없으면 현재환율로 근사
   for (const d of (acc.deposits||[])) {
     if (d.historicalOnly) continue;
+    if (cutoff && d.date < cutoff) continue;
     if (d.type === "cash-in") {
       cash += (d.usdAmount != null) ? d.usdAmount : (isUS ? (d.amount/(usdKrw||1350)) : d.amount);
     } else if (d.type === "cash-out") {
@@ -1791,6 +1843,7 @@ function recalcAccountCash(accId) {
   // 2) 모든 거래 반영
   for (const item of acc.items) {
     for (const tr of (item.trades||[])) {
+      if (cutoff && tr.date < cutoff) continue;
       if (tr.type === "buy")       cash -= tr.qty * tr.price;
       else if (tr.type === "sell") cash += tr.qty * tr.price;
       else if (tr.type === "dividend") cash += tr.amount;
@@ -2359,31 +2412,11 @@ function bindDepositModalEvents() {
     recalcAccountCash(accId);
   });
 
-  if (!isMixed) {
-    // 기초 예수금 설정 (IRP/연금저축 등 거래내역서 없는 계좌용 - 순입금엔 반영 안 됨)
-    $("dm-set-opening")?.addEventListener("click",()=>{
-      const cur = acc.openingCash || 0;
-      const input = prompt("기초 예수금을 입력하세요 (연도별 순입금엔 안 잡혀요, 재계산 시 이 값부터 시작해요):", cur);
-      if (input === null) return;
-      const v = parseFloat(input.replace(/,/g,""));
-      if (isNaN(v) || v < 0) { alert("올바른 숫자를 입력해주세요"); return; }
-      acc.openingCash = v;
-      saveData();
-      render();
-    });
-
-    // 예수금 직접 수정 (재계산 없이 값만 덮어씀 - 환전 등으로 재계산이 부정확한 계좌용)
-    $("dm-set-cash")?.addEventListener("click",()=>{
-      const cur = acc.cash || 0;
-      const input = prompt("예수금을 거래내역서 기준 값으로 직접 입력하세요 (재계산 없이 이 값으로 바로 덮어써요):", cur);
-      if (input === null) return;
-      const v = parseFloat(input.replace(/,/g,""));
-      if (isNaN(v)) { alert("올바른 숫자를 입력해주세요"); return; }
-      acc.cash = v;
-      saveData();
-      render();
-    });
-  }
+  // 기초 예수금 설정/재설정 — 과거 기록 없이 지금 잔액부터 시작하거나, 나중에 어긋난 값을 다시 교정할 때
+  $("dm-set-opening")?.addEventListener("click",()=>{
+    openingCashModal = { accId };
+    render();
+  });
 
   // 혼합계좌: 원화/외화 예수금 중 어디에 적용할지 선택
   $("dm-ccy-krw")?.addEventListener("click",()=>{ depositModal.ccy="krw"; render(); });
@@ -2474,6 +2507,41 @@ function bindDepositModalEvents() {
     saveData();
     depositModal = null;
     render();
+  });
+}
+
+// ─── 기초 예수금 설정 모달 이벤트 ─────────────────────────────
+function bindOpeningCashModalEvents() {
+  if (!openingCashModal) return;
+  const $ = id => document.getElementById(id);
+  const acc = ST.accounts.find(a=>a.id===openingCashModal.accId);
+  if (!acc) { openingCashModal = null; return; }
+  const isMixed = acc.type === "mixed";
+
+  $("oc-close")?.addEventListener("click",()=>{ openingCashModal=null; render(); });
+  $("opening-cash-modal-bg")?.addEventListener("click",e=>{ if(e.target.id==="opening-cash-modal-bg"){openingCashModal=null;render();} });
+
+  $("oc-clear")?.addEventListener("click",()=>{
+    if (!confirm("기초 예수금 설정을 해제할까요? (입출금·거래 전체를 처음부터 다시 합산하는 방식으로 돌아가요)")) return;
+    if (isMixed) { acc.openingCashKrw = 0; acc.openingCashUsd = 0; }
+    else acc.openingCash = 0;
+    acc.openingCashDate = null;
+    openingCashModal = null;
+    recalcAccountCash(acc.id);
+  });
+
+  $("oc-save")?.addEventListener("click",()=>{
+    const date = $("oc-date")?.value || new Date().toISOString().slice(0,10);
+    if (isMixed) {
+      acc.openingCashKrw = parseFloat($("oc-krw")?.value) || 0;
+      acc.openingCashUsd = parseFloat($("oc-usd")?.value) || 0;
+    } else {
+      acc.openingCash = parseFloat($("oc-amount")?.value) || 0;
+    }
+    acc.openingCashDate = date;
+    openingCashModal = null;
+    depositModal = null;
+    recalcAccountCash(acc.id);
   });
 }
 
@@ -2778,7 +2846,7 @@ function render() {
   _prevOpenModals = {
     trade: !!tradeModal, deposit: !!depositModal, transfer: !!transferModal, exchange: !!exchangeModal,
     rebalance: !!rebalanceModal, merge: !!mergeModal, thesis: !!thesisViewModal,
-    tutorial: tutorialStep != null, accountAdd: !!showModal,
+    tutorial: tutorialStep != null, accountAdd: !!showModal, "opening-cash": !!openingCashModal,
   };
 }
 
@@ -3011,6 +3079,7 @@ function bindEvents() {
   // 새로 생긴 DOM에 맞춰 매번 다시 바인딩해야 닫기 버튼 등이 계속 동작함
   if (rebalanceModal) bindRebalanceModalEvents();
   if (depositModal) bindDepositModalEvents();
+  if (openingCashModal) bindOpeningCashModalEvents();
   if (tradeModal) bindTradeModalEvents();
   if (mergeModal) bindMergeModalEvents();
   if (tutorialStep != null) bindTutorialEvents();
@@ -3021,7 +3090,8 @@ function bindEvents() {
 // ─── 모달 ESC 닫기 ───────────────────────────────────────────
 document.addEventListener("keydown", e=>{
   if (e.key !== "Escape") return;
-  if (rebalanceModal) { rebalanceModal=null; render(); }
+  if (openingCashModal) { openingCashModal=null; render(); }
+  else if (rebalanceModal) { rebalanceModal=null; render(); }
   else if (tradeModal) { tradeModal=null; render(); }
   else if (depositModal) { depositModal=null; render(); }
   else if (mergeModal) { mergeModal=null; render(); }
