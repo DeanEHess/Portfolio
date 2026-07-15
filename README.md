@@ -1,6 +1,6 @@
 # Portfolio
 
-개인용 자산/포트폴리오 트래커입니다. 빌드나 서버 없이 `index.html` 하나로 동작하는 정적 웹앱이고, GitHub Pages(`deanehess.github.io/Portfolio`)로 배포되어 있습니다.
+개인용 자산/포트폴리오 트래커입니다. 빌드나 서버 없이 `index.html` 하나로 동작하는 웹앱입니다.
 
 ## 왜 만들었나
 
