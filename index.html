@@ -203,6 +203,30 @@ async function decryptFromCloud(payload, encKeyB64url) {
 async function cloudSave(silent=false) {
   if (!silent) { cloudStatus = "saving"; render(); }
   try {
+    // 덮어쓰기 전에 이 기기가 모르는 사이 다른 기기가 더 최신 내용을 클라우드에 저장했는지 확인
+    // (오래 안 켠 기기/탭을 열었을 때 자동저장이 조용히 최신 백업을 옛날 걸로 덮어쓰는 걸 방지)
+    try {
+      const checkR = await fetch(WORKER + "?type=kv-load&uid=" + CLOUD_UID);
+      if (checkR.status !== 404) {
+        const checkRaw = await checkR.json();
+        let cloudSavedAt = null;
+        if (checkRaw.iv && checkRaw.data) {
+          const peeked = await decryptFromCloud(checkRaw, CLOUD_ENC_KEY);
+          cloudSavedAt = peeked._savedAt;
+        } else {
+          cloudSavedAt = checkRaw._savedAt;
+        }
+        const lastSynced = Number(localStorage.getItem("asset_last_synced_at")) || 0;
+        if (cloudSavedAt && cloudSavedAt > lastSynced) {
+          if (silent) return; // 자동저장은 조용히 건너뜀 — 사용자가 직접 확인하게
+          const cloudTime = new Date(cloudSavedAt).toLocaleString("ko-KR");
+          if (!confirm("⚠️ 다른 기기에서 이 기기가 모르는 사이 더 최신 내용을 클라우드에 저장했어요("+cloudTime+").\n\n지금 저장하면 그 내용이 사라져요. 먼저 '클라우드 복원'으로 최신 내용부터 받아오는 걸 추천해요.\n\n그래도 지금 이 기기의 데이터로 덮어쓸까요?")) {
+            cloudStatus = ""; render(); return;
+          }
+        }
+      }
+    } catch {}
+
     ST._savedAt = Date.now();
     const encrypted = await encryptForCloud(ST, CLOUD_ENC_KEY);
     const r = await fetch(WORKER + "?type=kv-save&uid=" + CLOUD_UID, {
@@ -211,6 +235,7 @@ async function cloudSave(silent=false) {
       body: JSON.stringify(encrypted),
     });
     const d = await r.json();
+    if (d.ok) { try { localStorage.setItem("asset_last_synced_at", String(ST._savedAt)); } catch {} }
     if (!silent) {
       cloudStatus = d.ok ? "saved" : "error";
       render();
@@ -254,6 +279,7 @@ async function cloudLoad() {
     localStorage.setItem("asset_uid", uid);
     CLOUD_UID = uid;
     if (encKey) { localStorage.setItem("asset_enc_key", encKey); CLOUD_ENC_KEY = encKey; }
+    if (d._savedAt) { try { localStorage.setItem("asset_last_synced_at", String(d._savedAt)); } catch {} }
     saveData(); cloudStatus = ""; render(); fetchAll();
     alert("✅ 복원 완료!");
   } catch(e) { alert("❌ 복원 실패: " + e.message); cloudStatus = ""; render(); }
@@ -508,6 +534,15 @@ function itemPriceKrw(item, type) {
 function itemMarket(item, accType) {
   return item.market || accType;
 }
+// 보유 중(q>0)인데 현재가를 못 받아온 종목이 있는지 — itemVal/itemValBest이 이럴 때 원가를
+// 대신 넣어서 합계를 계산하므로(값이 아예 안 나오는 것보단 낫다고 판단), 총자산 표시 옆에
+// "일부 종목 가격 정보 없음" 같은 안내를 붙여 착시(0% 수익처럼 보임)를 막기 위한 용도
+function hasUnknownPricedHoldings(accounts) {
+  return accounts.some(acc => acc.items.some(it => {
+    const m = itemMarket(it, acc.type);
+    return (m==="us"||m==="krx"||m==="coin") && (Number(it.q)||0) > 0 && !px[it.t];
+  }));
+}
 // 혼합계좌는 원화예수금/외화예수금이 분리돼 있고, 레거시 계좌는 acc.cash 하나뿐 —
 // 이 두 헬퍼로 감싸서 나머지 코드는 계좌 종류를 신경 안 써도 되게 함
 function getCash(acc, ccy) {
@@ -663,7 +698,14 @@ async function fetchAll() {
       }
     }
     saveDataLocalOnly();
-    fetchError=false; lastUp=new Date();
+    // 개별 청크 요청은 전부 .catch()로 감싸져 있어서 전부 실패해도 여기까지 예외 없이 도달함 —
+    // 그래서 별도로 "기대한 종목 수 대비 실제로 가격을 받아온 종목 수"를 확인해서, 하나도 못 받아왔으면
+    // (일부만 델리스팅 등으로 빠진 정상적인 경우와 구분) 갱신 실패로 표시해줌
+    const expectedCount = usTickers.length + krxCodes.length + coinIds.length;
+    const gotCount = Object.keys(usAll.prices).length + Object.keys(krxAll.prices).length
+      + coinTickers.filter(t=>{ const id=GECKO_ID[t.toUpperCase()]; return id && coinRes?.[id]?.krw; }).length;
+    fetchError = expectedCount > 0 && gotCount === 0;
+    lastUp=new Date();
   } catch { fetchError=true; }
   if (!usdKrw) await fetchFxFallback();
   loading=false; render();
@@ -698,6 +740,8 @@ function backupData() {
 }
 function restoreData(file) {
   if (!file) return;
+  if (!confirm("백업 파일로 복원할까요? 지금 있는 데이터는 이 파일 내용으로 덮어써져요.\n혹시 몰라 지금 상태를 백업 파일로 먼저 자동 다운로드해요.")) return;
+  backupData(); // 잘못된/오래된 파일을 실수로 복원해도 되돌릴 수 있게 안전장치로 항상 먼저 백업
   const reader=new FileReader();
   reader.onload=e=>{ try { const d=JSON.parse(e.target.result); if(!d.accounts) throw new Error("올바른 백업 파일이 아니에요"); d.accounts.forEach(a=>{if(a.type==="mixed"&&Array.isArray(a.items)) a.items.forEach(it=>{if(!it.market) it.market=/^\d{5,6}$/.test(it.t||"")?"krx":"us";});}); Object.assign(ST,d); saveData(); render(); fetchAll(); alert("✅ 복원 완료!"); } catch(err){alert("❌ 복원 실패: "+err.message);} };
   reader.readAsText(file);
@@ -1076,10 +1120,12 @@ function buildAccountSection(acc) {
         ? '<div style="font-size:11px;color:#93c5fd;background:#3182f61a;border:1px solid #3182f633;border-radius:8px;padding:8px 12px;margin-bottom:10px">💡 이미 투자 중인 계좌시군요! <b>+ 신규매수</b> → <b>이미 보유 중인 종목이에요</b> 체크 → 수량·평단만 입력해서 빠르게 등록하세요. 그다음 남은 현금은 <b>입출금</b>으로 넣으면 돼요. (선택) 정확한 연도별 순입금을 남기고 싶으면 입출금에서 과거 날짜로 나눠서 여러 번 입력할 수도 있어요 — 나중에 언제든 추가·수정 가능해요.</div>'
         : '<div style="font-size:11px;color:#93c5fd;background:#3182f61a;border:1px solid #3182f633;border-radius:8px;padding:8px 12px;margin-bottom:10px">💡 먼저 <b>입출금</b> 버튼으로 예수금을 채운 다음 <b>+ 신규매수</b>로 종목을 사보세요</div>')
     : '';
+  const missingPriceAcc = !isCash && hasUnknownPricedHoldings([acc]);
   const hdrRight = '<div style="text-align:right">'
     +'<div style="font-weight:800;font-size:17px;color:'+acc.color+'">'+(total?won(total):"₩0")+'</div>'
     +(profit!=null?'<div style="font-size:12px;font-weight:600;color:'+(profit>=0?'#ef4444':'#3b82f6')+'">'+fProfit(profit)+'</div>':"")
     +(gp!=null?'<div style="font-size:12px;font-weight:700;color:'+(gp>=0?'#ef4444':'#3b82f6')+'">'+fPct(gp)+'</div>':"")
+    +(missingPriceAcc?'<div style="font-size:9px;color:#f59e0b;margin-top:2px">⚠️ 가격 미확인 종목 포함</div>':"")
     +'</div>';
 
   const accEdit = editMode
@@ -1240,6 +1286,7 @@ function buildOverview() {
     ? [...allItems, {l:"예수금", v: totalCashKrw, c: SECTOR_COLORS["현금/예금"]||"#636366"}].sort((a,b)=>b.v-a.v)
     : allItems;
 
+  const missingPrice = hasUnknownPricedHoldings(ST.accounts);
   return buildGoals(tot)
     +'<div class="card-grad">'
     +'<div style="font-size:12px;color:#8e8e93;margin-bottom:6px">총 평가 자산</div>'
@@ -1248,6 +1295,7 @@ function buildOverview() {
     +(gp!=null?'<div style="font-size:16px;font-weight:700;color:'+(gp>=0?'#ef4444':'#3b82f6')+'">'+fPct(gp)+'</div>':"")
     +'</div>'
     +(profit!=null?'<div style="font-size:13px;font-weight:600;color:'+(profit>=0?'#ef4444':'#3b82f6')+';margin-top:4px">'+fProfit(profit)+'</div>':"")
+    +(missingPrice?'<div style="font-size:10px;color:#f59e0b;margin-top:4px">⚠️ 일부 종목은 현재가를 못 받아와서 원가로 임시 반영됐어요</div>':"")
     +'<div style="margin-top:8px;display:flex;gap:14px;flex-wrap:wrap">'+segs.map(s=>'<span style="font-size:11px;color:#8e8e93">'+s.l+' <b style="color:#aeaeb2">'+pp(s.v)+'%</b></span>').join("")+'</div></div>'
     +buildOverviewDepositSection()
     +buildDonutCard(secItems,"섹터 비중")
@@ -1409,7 +1457,7 @@ function buildOpeningCashModal() {
         <div class="modal-title" style="margin:0">🧮 기초 예수금 설정</div>
         <button id="oc-close" style="background:transparent;border:none;color:#8e8e93;font-size:20px;cursor:pointer">✕</button>
       </div>
-      <div style="font-size:11px;color:#8e8e93;line-height:1.6;margin-bottom:14px">과거 입출금·거래를 하나하나 기록하지 않아도, 특정 날짜 기준 실제 예수금을 입력하면 재계산 시 이 값부터 시작해요. 이 날짜 이전의 입출금·거래는 이미 이 금액에 포함된 걸로 보고 재계산에서 제외돼요(순입금 통계에는 계속 그대로 반영돼요). 나중에 기록이 어긋나면 여기서 오늘 날짜와 실제 잔액을 다시 입력해서 언제든 교정할 수 있어요.</div>
+      <div style="font-size:11px;color:#8e8e93;line-height:1.6;margin-bottom:14px">과거 입출금·거래를 하나하나 기록하지 않아도, 특정 날짜 기준 실제 예수금을 입력하면 재계산 시 이 값부터 시작해요. <b>이 날짜(당일 포함) 이전의 입출금·거래는 이미 이 금액에 포함된 걸로 보고 재계산에서 제외</b>되고, 이 날짜 다음날부터의 기록만 위에 더해져요(순입금 통계에는 계속 그대로 반영돼요). 그래서 기준일은 보통 "오늘 아침 입금까지 반영한 지금 잔액"을 넣을 때 오늘 날짜로 설정하면 돼요. 나중에 기록이 어긋나면 여기서 오늘 날짜와 실제 잔액을 다시 입력해서 언제든 교정할 수 있어요.</div>
       ${fields}
       <div class="trade-inp-group">
         <div class="trade-inp-label">기준일</div>
@@ -1619,7 +1667,7 @@ function buildTradeModal() {
         ${[...item.trades].reverse().map(tr=>`
           <div class="history-row">
             <div style="display:flex;align-items:center;gap:8px">
-              <span class="history-badge ${tr.type==="buy"?"badge-buy":tr.type==="sell"?"badge-sell":""}" style="${tr.type==="dividend"?"background:#f59e0b20;color:#f59e0b":""}">${tr.type==="buy"?"매수":tr.type==="sell"?"매도":"배당"}</span>
+              <span class="history-badge ${tr.type==="buy"||tr.type==="carryover"?"badge-buy":tr.type==="sell"?"badge-sell":""}" style="${tr.type==="dividend"?"background:#f59e0b20;color:#f59e0b":""}">${tr.type==="buy"?"매수":tr.type==="sell"?"매도":tr.type==="carryover"?"이월":"배당"}</span>
               <span style="color:#8e8e93">${tr.date}</span>
               ${tr.memo?`<span style="color:#636366;font-size:10px">${tr.memo}</span>`:""}
               ${tr.thesis?`<button class="btn-sm" data-thesis-view="${tr.id}" style="padding:2px 6px;font-size:10px;color:#3182f6;border-color:#3182f6">📝 근거</button>`:""}
@@ -1683,7 +1731,7 @@ function buildPage() {
       +'<button class="btn-sm" id="btn-add-acc" style="color:#3182f6;border-color:#3182f6">➕ 계좌 추가</button>'
       +(ST.accounts.filter(a=>a.type!=="cash"&&a.type!=="coin").length>=2?'<button class="btn-sm" id="btn-merge-acc" style="color:#8b5cf6;border-color:#8b5cf6">🔀 계좌 합치기</button>':"")
       +'</div>':'')
-    +(!uidAcknowledged ? '<div style="font-size:10px;color:#8e8e93;margin:-6px 0 10px">⚠️ 위 🔑 키(암호화 키 포함)가 클라우드 데이터의 유일한 복구 수단이에요. 이 키가 없으면 개발자를 포함해 아무도 클라우드 백업 내용을 복구할 수 없어요. 다른 기기에서 복원하려면 꼭 저장해두세요. ("보기"나 "복사"를 누르면 이 안내는 사라져요)</div>' : '')
+    +(!uidAcknowledged ? '<div style="font-size:10px;color:#8e8e93;margin:-6px 0 10px">⚠️ 위 🔑 키(암호화 키 포함)가 클라우드 데이터의 유일한 복구 수단이에요. 이 키가 없으면 개발자를 포함해 아무도 클라우드 백업 내용을 복구할 수 없어요. 메모장 등 안전한 곳에 꼭 저장해두세요. ("복사" 버튼으로 실제로 복사해서 저장하면 이 안내는 사라져요 — "보기"만으로는 안 사라져요)</div>' : '')
     +'<div class="tabs">'+tabHtml+'</div>'
     +(tab==="overview"?buildOverview():"")
     +(activeAcc?buildAccountSection(activeAcc):"")
@@ -1757,13 +1805,15 @@ function showSectorPopup(seg, svg) {
 
 // ─── 거래 히스토리 기반 재계산 (이동평균법) ─────────────────
 // 매도 시 원가도 비례 차감하는 표준 이동평균법. 매수 단순평균이 아님.
+// "carryover"(이월 잔고 시작점)는 예수금에 영향 없는 기록이지만, 수량/평단 계산에는
+// buy와 똑같이 포함시켜야 함 — 안 그러면 이월 등록 후 추가 매수 시 이월분이 사라짐.
 function computeMovingAverage(trades) {
   const sorted = [...trades]
-    .filter(t=>t.type==="buy"||t.type==="sell")
+    .filter(t=>t.type==="buy"||t.type==="sell"||t.type==="carryover")
     .sort((a,b)=> a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
   let qty = 0, cost = 0;
   for (const t of sorted) {
-    if (t.type === "buy") {
+    if (t.type === "buy" || t.type === "carryover") {
       cost += t.qty * t.price;
       qty  += t.qty;
     } else if (t.type === "sell") {
@@ -1789,7 +1839,10 @@ function recalcAccountCash(accId) {
   const isUS = acc.type === "us";
   const isMixed = acc.type === "mixed";
 
-  // 기초 예수금 기준일 — 이 날짜 이전의 입출금·거래는 이미 기초 예수금에 흡수된 것으로 간주하고 건너뜀
+  // 기초 예수금 기준일 — 기준일 "당일 및 그 이전"의 입출금·거래는 이미 기초 예수금에 흡수된 것으로
+  // 간주하고 건너뜀(기준일 기본값이 "오늘"이라, 사용자가 "오늘자 입금까지 포함한 지금 잔액"을 입력하는 게
+  // 자연스러운 흐름 — 당일 기록까지 제외해야 그걸 또 반영해서 이중계산되는 걸 막을 수 있음).
+  // 기준일 다음날부터의 기록만 기초값 위에 더해짐.
   // (기준일이 없으면(기존 데이터) 필터링 없이 예전과 동일하게 전부 합산 — 하위호환 자동 보장)
   const cutoff = acc.openingCashDate || null;
 
@@ -1799,7 +1852,7 @@ function recalcAccountCash(accId) {
       let cash = ccy === "usd" ? (acc.openingCashUsd||0) : (acc.openingCashKrw||0);
       for (const d of (acc.deposits||[])) {
         if (d.historicalOnly) continue;
-        if (cutoff && d.date < cutoff) continue;
+        if (cutoff && d.date <= cutoff) continue;
         if (d.type === "fx-convert") {
           if (d.fromCcy === ccy) cash -= d.fromAmount;
           else if (d.toCcy === ccy) cash += d.toAmount;
@@ -1812,7 +1865,7 @@ function recalcAccountCash(accId) {
       for (const item of acc.items) {
         if ((itemMarket(item,acc.type)==="us"?"usd":"krw") !== ccy) continue;
         for (const tr of (item.trades||[])) {
-          if (cutoff && tr.date < cutoff) continue;
+          if (cutoff && tr.date <= cutoff) continue;
           if (tr.type === "buy")       cash -= tr.qty * tr.price;
           else if (tr.type === "sell") cash += tr.qty * tr.price;
           else if (tr.type === "dividend") cash += tr.amount;
@@ -1833,7 +1886,7 @@ function recalcAccountCash(accId) {
   //    cash-in/out의 amount는 KRW 기준으로 저장되어 있으므로, USD 계좌는 usdAmount 필드가 있으면 그걸 쓰고 없으면 현재환율로 근사
   for (const d of (acc.deposits||[])) {
     if (d.historicalOnly) continue;
-    if (cutoff && d.date < cutoff) continue;
+    if (cutoff && d.date <= cutoff) continue;
     if (d.type === "cash-in") {
       cash += (d.usdAmount != null) ? d.usdAmount : (isUS ? (d.amount/(usdKrw||1350)) : d.amount);
     } else if (d.type === "cash-out") {
@@ -1843,7 +1896,7 @@ function recalcAccountCash(accId) {
   // 2) 모든 거래 반영
   for (const item of acc.items) {
     for (const tr of (item.trades||[])) {
-      if (cutoff && tr.date < cutoff) continue;
+      if (cutoff && tr.date <= cutoff) continue;
       if (tr.type === "buy")       cash -= tr.qty * tr.price;
       else if (tr.type === "sell") cash += tr.qty * tr.price;
       else if (tr.type === "dividend") cash += tr.amount;
@@ -1863,12 +1916,12 @@ function deleteTrade(accId, itemId, tradeId) {
   const tr = item.trades.find(t=>t.id===tradeId);
   if (!tr) return;
 
-  // 매수 삭제 검증: 삭제 후 총매수량 < 총매도량이 되면 차단
-  if (tr.type === "buy") {
-    const totalBuyAfter = item.trades.filter(t=>t.type==="buy" && t.id!==tradeId).reduce((s,t)=>s+t.qty,0);
+  // 매수/이월잔고 삭제 검증: 삭제 후 총매수량 < 총매도량이 되면 차단
+  if (tr.type === "buy" || tr.type === "carryover") {
+    const totalBuyAfter = item.trades.filter(t=>(t.type==="buy"||t.type==="carryover") && t.id!==tradeId).reduce((s,t)=>s+t.qty,0);
     const totalSold     = item.trades.filter(t=>t.type==="sell").reduce((s,t)=>s+t.qty,0);
     if (totalBuyAfter < totalSold) {
-      alert("이 매수를 삭제하면 매도 수량이 매수 수량보다 많아져요.\n연결된 매도 기록을 먼저 삭제해주세요.");
+      alert("이 기록을 삭제하면 매도 수량이 매수 수량보다 많아져요.\n연결된 매도 기록을 먼저 삭제해주세요.");
       return;
     }
   }
@@ -2110,6 +2163,27 @@ function mergeAccountsIntoMixed(accIds, name) {
         merged.deposits.push({ ...d, ccy:"krw" });
       }
     }
+  }
+
+  // 기초 예수금(기준일 포함) 이관 — 소스 계좌 중 기준일이 설정된 게 하나로 통일될 때만 합쳐서 넘겨줌.
+  // 서로 다른 기준일을 가진 소스가 여러 개 섞이면(드문 경우) 정확히 합칠 방법이 없어서 안전하게 스킵함
+  // (스킵해도 지금 예수금 값 자체는 이미 정확히 이관됐고, 나중에 재계산할 때만 영향 있음 —
+  //  필요하면 합친 계좌에서 기초 예수금을 다시 설정하면 됨)
+  const cutoffDates = [...new Set(srcAccs.map(a=>a.openingCashDate).filter(Boolean))];
+  if (cutoffDates.length === 1) {
+    merged.openingCashDate = cutoffDates[0];
+    for (const acc of srcAccs) {
+      if (acc.type === "mixed") {
+        merged.openingCashKrw = (merged.openingCashKrw||0) + (acc.openingCashKrw||0);
+        merged.openingCashUsd = (merged.openingCashUsd||0) + (acc.openingCashUsd||0);
+      } else if (acc.type === "us") {
+        merged.openingCashUsd = (merged.openingCashUsd||0) + (acc.openingCash||0);
+      } else {
+        merged.openingCashKrw = (merged.openingCashKrw||0) + (acc.openingCash||0);
+      }
+    }
+  } else if (cutoffDates.length > 1) {
+    console.warn("[계좌합치기] 합치는 계좌들의 기초 예수금 기준일이 서로 달라서 이관하지 않았어요. 필요하면 합친 계좌에서 기초 예수금을 다시 설정해주세요.");
   }
 
   ST.accounts = ST.accounts.filter(a=>!accIds.includes(a.id)).concat([merged]);
@@ -2407,7 +2481,10 @@ function bindDepositModalEvents() {
 
   // 예수금 재계산
   $("dm-recalc")?.addEventListener("click",()=>{
-    if(!confirm("모든 입출금·거래 내역을 기반으로 예수금을 처음부터 다시 계산할까요?\n(기초 예수금이 설정돼있으면 그 값부터 시작해서 계산해요)")) return;
+    const directEditWarning = isMixed
+      ? "\n\n※ 원화/외화예수금을 편집모드에서 직접 수정한 적이 있다면(기록 안 남는 방식), 그 수정값은 재계산하면 사라져요."
+      : (acc.type==="us" ? "\n\n※ 예수금을 직접 수정한 적이 있다면(기록 안 남는 방식), 그 수정값은 재계산하면 사라져요." : "");
+    if(!confirm("모든 입출금·거래 내역을 기반으로 예수금을 처음부터 다시 계산할까요?\n(기초 예수금이 설정돼있으면 그 값부터 시작해서 계산해요)"+directEditWarning)) return;
     depositModal = null;
     recalcAccountCash(accId);
   });
@@ -2767,8 +2844,12 @@ function bindTradeModalEvents() {
           alert("이미 거래 기록이 있는 종목이에요. 이월 잔고 등록 대신 신규 매수를 이용해주세요.");
           return;
         }
-        item.q = qty;
-        item.a = price;
+        if (!item.trades) item.trades=[];
+        // buy와 동일하게 이동평균 계산에 포함되는 시작점 기록 — 이후 추가매수해도 이월 수량/평단이 안 사라짐
+        item.trades.push({id:"tr"+Date.now(), type:"carryover", date, qty, price, memo, thesis});
+        const { qty: carryQty, avg: carryAvg } = computeMovingAverage(item.trades);
+        item.q = carryQty;
+        item.a = carryAvg;
         item.isCarryover = true;
       } else {
         const cost = qty*price;
@@ -2870,13 +2951,13 @@ function bindEvents() {
   document.querySelectorAll("[data-exchange-acc]").forEach(el=>el.addEventListener("click",()=>{ exchangeModal={accId:el.dataset.exchangeAcc, direction:"krw2usd"}; render(); }));
   $("btn-toggle-usd")?.addEventListener("click",()=>{showUSD=!showUSD;render();});
 
-  // 클라우드 키(UID) 표시/복사
-  $("btn-uid-toggle")?.addEventListener("click",()=>{ uidRevealed=!uidRevealed; markUidAcknowledged(); render(); });
+  // 클라우드 키(UID) 표시/복사 — 그냥 "보기"만으로는 경고 배너를 없애지 않음(실제로 어딘가 저장했다는
+  // 확실한 신호가 아니라서). "복사"가 실제로 성공했을 때만 확인 처리함
+  $("btn-uid-toggle")?.addEventListener("click",()=>{ uidRevealed=!uidRevealed; render(); });
   $("btn-uid-copy")?.addEventListener("click",()=>{
-    markUidAcknowledged();
     const btn=$("btn-uid-copy"); if(!btn) return;
     const orig=btn.textContent;
-    const flash=(text)=>{ btn.textContent=text; setTimeout(()=>{ if(btn.isConnected) btn.textContent=orig; },1500); };
+    const flash=(text,ok)=>{ btn.textContent=text; if(ok) markUidAcknowledged(); setTimeout(()=>{ if(btn.isConnected) btn.textContent=orig; },1500); };
     // 클립보드 API가 권한 프롬프트에 걸려 응답 없이 멈추는 경우를 대비해 구식 execCommand로 대체
     const fallbackCopy=()=>{
       try {
@@ -2885,12 +2966,12 @@ function bindEvents() {
         document.body.appendChild(ta); ta.focus(); ta.select();
         const ok=document.execCommand("copy");
         document.body.removeChild(ta);
-        flash(ok?"복사됨!":"복사 실패");
-      } catch { flash("복사 실패"); }
+        flash(ok?"복사됨!":"복사 실패", ok);
+      } catch { flash("복사 실패", false); }
     };
     if (navigator.clipboard?.writeText) {
       const withTimeout = (p, ms) => Promise.race([p, new Promise((_,rej)=>setTimeout(()=>rej(new Error("timeout")),ms))]);
-      withTimeout(navigator.clipboard.writeText(cloudToken()), 1000).then(()=>flash("복사됨!")).catch(fallbackCopy);
+      withTimeout(navigator.clipboard.writeText(cloudToken()), 1000).then(()=>flash("복사됨!", true)).catch(fallbackCopy);
     } else {
       fallbackCopy();
     }
@@ -2900,7 +2981,24 @@ function bindEvents() {
   document.querySelectorAll("[data-profile]").forEach(b=>b.addEventListener("click",()=>switchProfile(b.dataset.profile)));
   $("btn-add-profile")?.addEventListener("click",()=>{ const name=prompt("새 프로필 이름:"); if(!name?.trim()) return; const list=getProfiles(); if(list.includes(name.trim())){alert("이미 있는 이름이에요");return;} list.push(name.trim()); saveProfiles(list); switchProfile(name.trim()); });
   document.querySelectorAll("[data-profile-rename]").forEach(inp=>inp.addEventListener("change",e=>{ const oldName=inp.dataset.profileRename, newName=e.target.value.trim(); if(!newName||newName===oldName) return; const list=getProfiles(); if(list.includes(newName)){alert("이미 있는 이름이에요");e.target.value=oldName;return;} const data=localStorage.getItem(profileKey(oldName)); if(data){localStorage.setItem(profileKey(newName),data);localStorage.removeItem(profileKey(oldName));} list[list.indexOf(oldName)]=newName; saveProfiles(list); if(curProfile===oldName){curProfile=newName;localStorage.setItem(PROFILE_CUR_KEY,newName);} render(); }));
-  document.querySelectorAll("[data-profile-del]").forEach(b=>b.addEventListener("click",e=>{ e.stopPropagation(); const name=b.dataset.profileDel, list=getProfiles(); if(list.length<=1){alert("마지막 프로필은 삭제할 수 없어요");return;} if(confirm("'"+name+"' 프로필을 삭제할까요? (저장된 데이터도 삭제됩니다)")) deleteProfile(name); }));
+  document.querySelectorAll("[data-profile-del]").forEach(b=>b.addEventListener("click",e=>{
+    e.stopPropagation();
+    const name=b.dataset.profileDel, list=getProfiles();
+    if(list.length<=1){alert("마지막 프로필은 삭제할 수 없어요");return;}
+    if(!confirm("'"+name+"' 프로필을 삭제할까요? (저장된 데이터도 삭제됩니다)\n삭제 전에 이 프로필 데이터를 백업 파일로 자동 다운로드해요.")) return;
+    // 삭제 전 안전장치 — 지금 활성 프로필이 아닌 다른 프로필을 지울 수도 있으므로 ST가 아니라 그 프로필 자체의 저장 데이터를 백업
+    try {
+      const raw = localStorage.getItem(profileKey(name));
+      if (raw) {
+        const blob=new Blob([raw],{type:"application/json"});
+        const url=URL.createObjectURL(blob);
+        const a=document.createElement("a");
+        a.href=url; a.download="asset_backup_"+name+"_삭제전_"+new Date().toISOString().slice(0,10).replace(/-/g,"")+".json";
+        a.click(); URL.revokeObjectURL(url);
+      }
+    } catch {}
+    deleteProfile(name);
+  }));
 
   // 모달
   document.querySelectorAll("[data-modal-type]").forEach(b=>b.addEventListener("click",()=>{modalType=b.dataset.modalType;render();}));
@@ -2920,7 +3018,7 @@ function bindEvents() {
   }
 
   // 계좌 CRUD
-  document.querySelectorAll("[data-acc-del]").forEach(b=>b.addEventListener("click",()=>{ if(!confirm("'"+ST.accounts.find(a=>a.id===b.dataset.accDel)?.name+"' 계좌를 삭제할까요?")) return; const i=ST.accounts.findIndex(a=>a.id===b.dataset.accDel); if(i>-1) ST.accounts.splice(i,1); tab="overview"; render(); }));
+  document.querySelectorAll("[data-acc-del]").forEach(b=>b.addEventListener("click",()=>{ if(!confirm("'"+ST.accounts.find(a=>a.id===b.dataset.accDel)?.name+"' 계좌를 삭제할까요?\n삭제 전에 지금 상태를 백업 파일로 자동 다운로드해요.")) return; backupData(); const i=ST.accounts.findIndex(a=>a.id===b.dataset.accDel); if(i>-1) ST.accounts.splice(i,1); tab="overview"; render(); }));
   document.querySelectorAll("[data-acc-name]").forEach(inp=>inp.addEventListener("input",e=>{ const acc=ST.accounts.find(a=>a.id===inp.dataset.accName); if(acc){acc.name=e.target.value;saveData();} }));
   document.querySelectorAll("[data-cash-edit]").forEach(inp=>inp.addEventListener("change",e=>{
     const acc=ST.accounts.find(a=>a.id===inp.dataset.cashEdit);
