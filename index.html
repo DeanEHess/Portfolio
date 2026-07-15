@@ -159,7 +159,15 @@ const SK      = "asset_v7";
 // uid: 서버(Worker/KV)에 그대로 전송되는 조회용 식별자
 // encKey: 절대 서버로 전송되지 않는 암호화 전용 비밀키 — 이게 있어야만 클라우드에 저장된 내용을 복호화할 수 있음
 //         (uid만 알아내도 서버 운영자를 포함해 아무도 평문 내용을 볼 수 없게 하기 위함)
-function b64encode(bytes) { return btoa(String.fromCharCode(...new Uint8Array(bytes))); }
+// 바이트를 한 번에 펼쳐서 넘기면(String.fromCharCode(...arr)) 데이터가 많아졌을 때
+// "Maximum call stack size exceeded"가 나서, 큰 배열도 안전하도록 잘게 나눠 처리함
+function b64encode(bytes) {
+  const arr = new Uint8Array(bytes);
+  let binary = "";
+  const CHUNK = 0x8000;
+  for (let i = 0; i < arr.length; i += CHUNK) binary += String.fromCharCode.apply(null, arr.subarray(i, i + CHUNK));
+  return btoa(binary);
+}
 function b64decode(str) { return Uint8Array.from(atob(str), c=>c.charCodeAt(0)); }
 function b64urlEncode(bytes) { return b64encode(bytes).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,""); }
 function b64urlDecode(str) { return b64decode(str.replace(/-/g,"+").replace(/_/g,"/").padEnd(str.length+(4-str.length%4)%4,"=")); }
