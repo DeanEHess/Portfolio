@@ -239,10 +239,11 @@ async function cloudSave(silent=false) {
     if (!silent) {
       cloudStatus = d.ok ? "saved" : "error";
       render();
+      if (!d.ok) alert("클라우드 저장 실패: " + (d.error || "알 수 없는 오류"));
       setTimeout(() => { cloudStatus = ""; render(); }, 3000);
     }
-  } catch {
-    if (!silent) { cloudStatus = "error"; render(); setTimeout(()=>{ cloudStatus=""; render(); }, 3000); }
+  } catch (e) {
+    if (!silent) { cloudStatus = "error"; render(); alert("클라우드 저장 실패: " + e.message); setTimeout(()=>{ cloudStatus=""; render(); }, 3000); }
   }
 }
 
