@@ -2277,7 +2277,7 @@ function buildExchangeModal() {
           <span>적용 환율 (USD/KRW)</span>
           ${liveRate>0?'<button type="button" class="btn-sm" id="ex-rate-reset" style="padding:2px 8px;font-size:10px">실시간 환율</button>':''}
         </div>
-        <input class="trade-inp" id="ex-rate" type="number" step="0.1" placeholder="0" value="${rate>0?rate:""}"/>
+        <input class="trade-inp" id="ex-rate" type="text" inputmode="decimal" placeholder="0" value="${rate>0?rate:""}"/>
         <div style="font-size:10px;color:#636366;margin-top:4px">실제 증권사 환전 환율은 실시간 시세와 다를 수 있어요 — 체결 문자·앱에서 확인한 환율을 직접 입력하면 더 정확해요${liveRate>0?' (실시간 ₩'+Math.round(liveRate).toLocaleString()+')':''}</div>
       </div>
       <div class="trade-inp-group">
@@ -2285,7 +2285,7 @@ function buildExchangeModal() {
           <span>보낼 금액 (${fromCcy==="usd"?"USD":"KRW"})</span>
           <button type="button" class="btn-sm" id="ex-max" style="padding:2px 8px;font-size:10px">전액 환전</button>
         </div>
-        <input class="trade-inp" id="ex-amount" type="number" step="0.01" placeholder="0" value="${exchangeModal.amount||""}"/>
+        <input class="trade-inp" id="ex-amount" type="text" inputmode="decimal" placeholder="0" value="${exchangeModal.amount||""}"/>
       </div>
       <div style="font-size:12px;color:#93c5fd;margin:-6px 0 12px">≈ ${toCcy==="usd"?usd(converted):won(converted)} 받음</div>
       ${insufficient ? `<div style="font-size:11px;color:#f59e0b;margin-bottom:10px">⚠ 보유한 ${fromCcy==="usd"?"외화":"원화"}예수금(${fromCcy==="usd"?usd(balance):won(balance)})보다 많아요.</div>` : ""}
@@ -2390,27 +2390,25 @@ function bindExchangeModalEvents() {
     render();
   });
   $("ex-amount")?.addEventListener("input",e=>{
-    exchangeModal.amount=e.target.value;
+    // 숫자와 소수점만 허용 — type="text"라 "1234." 같은 입력 중간 상태도 재렌더링에도 안 날아감
+    const filtered = e.target.value.replace(/[^0-9.]/g,"");
+    if (filtered !== e.target.value) e.target.value = filtered;
+    exchangeModal.amount=filtered;
     render();
     setTimeout(()=>{
       const el=$("ex-amount");
-      if(el){
-        el.focus();
-        const len = el.value.length;
-        try{ el.type="text"; el.setSelectionRange(len, len); el.type="number"; }catch{}
-      }
+      if(el){ el.focus(); const len = el.value.length; try{ el.setSelectionRange(len, len); }catch{} }
     }, 30);
   });
   $("ex-rate")?.addEventListener("input",e=>{
-    exchangeModal.rate=e.target.value;
+    // 숫자와 소수점만 허용 — type="text"라 "1234." 같은 입력 중간 상태도 재렌더링에도 안 날아감
+    const filtered = e.target.value.replace(/[^0-9.]/g,"");
+    if (filtered !== e.target.value) e.target.value = filtered;
+    exchangeModal.rate=filtered;
     render();
     setTimeout(()=>{
       const el=$("ex-rate");
-      if(el){
-        el.focus();
-        const len = el.value.length;
-        try{ el.type="text"; el.setSelectionRange(len, len); el.type="number"; }catch{}
-      }
+      if(el){ el.focus(); const len = el.value.length; try{ el.setSelectionRange(len, len); }catch{} }
     }, 30);
   });
   $("ex-rate-reset")?.addEventListener("click",()=>{ exchangeModal.rate=null; render(); });
