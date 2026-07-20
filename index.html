@@ -2250,7 +2250,9 @@ function buildExchangeModal() {
   const direction = exchangeModal.direction || "krw2usd";
   const fromCcy = direction === "krw2usd" ? "krw" : "usd";
   const toCcy = direction === "krw2usd" ? "usd" : "krw";
-  const rate = usdKrw || 0;
+  const liveRate = usdKrw || 0;
+  // 실제 증권사에서 적용되는 환율은 실시간 시세와 다를 수 있어서, 사용자가 직접 입력한 값이 있으면 그걸 우선함
+  const rate = (exchangeModal.rate != null && exchangeModal.rate !== "") ? Number(exchangeModal.rate) : liveRate;
   const balance = getCash(acc, fromCcy);
   const amount = Number(exchangeModal.amount) || 0;
   const converted = rate>0 ? (direction==="krw2usd" ? amount/rate : amount*rate) : 0;
@@ -2269,7 +2271,15 @@ function buildExchangeModal() {
           <button type="button" class="btn-sm" id="ex-dir-usd2krw" style="flex:1;${direction==="usd2krw"?"background:#f59e0b;color:#fff;border-color:#f59e0b":""}">🌎 달러 → 🇰🇷 원화</button>
         </div>
       </div>
-      <div style="font-size:11px;color:#8e8e93;margin:-6px 0 12px">현재 ${fromCcy==="usd"?"외화":"원화"}예수금: ${fromCcy==="usd"?usd(balance):won(balance)}${rate>0?' · 환율 ₩'+Math.round(rate).toLocaleString():''}</div>
+      <div style="font-size:11px;color:#8e8e93;margin:-6px 0 12px">현재 ${fromCcy==="usd"?"외화":"원화"}예수금: ${fromCcy==="usd"?usd(balance):won(balance)}</div>
+      <div class="trade-inp-group">
+        <div class="trade-inp-label" style="display:flex;justify-content:space-between;align-items:center">
+          <span>적용 환율 (USD/KRW)</span>
+          ${liveRate>0?'<button type="button" class="btn-sm" id="ex-rate-reset" style="padding:2px 8px;font-size:10px">실시간 환율</button>':''}
+        </div>
+        <input class="trade-inp" id="ex-rate" type="number" step="0.1" placeholder="0" value="${rate>0?rate:""}"/>
+        <div style="font-size:10px;color:#636366;margin-top:4px">실제 증권사 환전 환율은 실시간 시세와 다를 수 있어요 — 체결 문자·앱에서 확인한 환율을 직접 입력하면 더 정확해요${liveRate>0?' (실시간 ₩'+Math.round(liveRate).toLocaleString()+')':''}</div>
+      </div>
       <div class="trade-inp-group">
         <div class="trade-inp-label" style="display:flex;justify-content:space-between;align-items:center">
           <span>보낼 금액 (${fromCcy==="usd"?"USD":"KRW"})</span>
@@ -2391,6 +2401,19 @@ function bindExchangeModalEvents() {
       }
     }, 30);
   });
+  $("ex-rate")?.addEventListener("input",e=>{
+    exchangeModal.rate=e.target.value;
+    render();
+    setTimeout(()=>{
+      const el=$("ex-rate");
+      if(el){
+        el.focus();
+        const len = el.value.length;
+        try{ el.type="text"; el.setSelectionRange(len, len); el.type="number"; }catch{}
+      }
+    }, 30);
+  });
+  $("ex-rate-reset")?.addEventListener("click",()=>{ exchangeModal.rate=null; render(); });
 
   $("ex-confirm")?.addEventListener("click",()=>{
     const acc = ST.accounts.find(a=>a.id===exchangeModal.accId);
@@ -2398,7 +2421,7 @@ function bindExchangeModalEvents() {
     const direction = exchangeModal.direction || "krw2usd";
     const fromCcy = direction === "krw2usd" ? "krw" : "usd";
     const toCcy = direction === "krw2usd" ? "usd" : "krw";
-    const rate = usdKrw || 0;
+    const rate = parseFloat($("ex-rate")?.value) || 0;
     const amount = parseFloat($("ex-amount")?.value) || 0;
     const date = $("ex-date")?.value || new Date().toISOString().slice(0,10);
     const memo = $("ex-memo")?.value || "";
