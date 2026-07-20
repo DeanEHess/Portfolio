@@ -2865,6 +2865,13 @@ function bindTradeModalEvents() {
       if (!item) return;
       if (!item.trades) item.trades=[];
 
+      // 편집모드에서 거래 기록 없이 직접 입력한 수량/평단이 있으면(예: 초기 보유분 세팅),
+      // 매수 시 이동평균 재계산으로 그 값이 사라지지 않도록 이월 거래로 먼저 백필
+      const { qty: recordedQty } = computeMovingAverage(item.trades);
+      if (item.q > recordedQty + 0.00001) {
+        item.trades.push({id:"tr"+Date.now()+"c", type:"carryover", date, qty: item.q - recordedQty, price: item.a, memo:"직접 입력된 기존 보유분 자동 이월", thesis:""});
+      }
+
       if (isBuy) {
         const cost = qty*price;
         if (cost > getCash(acc, isUS?"usd":"krw")) {
