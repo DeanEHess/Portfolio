@@ -379,7 +379,7 @@ const SECTOR_DB = { NVO:"헬스케어",LLY:"헬스케어",JNJ:"헬스케어",UNH
   // 섹터 ETF(SPDR Select Sector류) — 추종 대상 섹터로 분류
   XLK:"IT",SMH:"IT",SOXX:"IT",XLF:"금융",KBE:"금융",XLE:"에너지",XLV:"헬스케어",XBI:"헬스케어",XLY:"경기소비재",XLP:"필수소비재",XLI:"산업재",XLU:"유틸리티",XLB:"소재",XLRE:"부동산",XLC:"커뮤니케이션",
   QQQ:"지수추종",SPY:"지수추종",VOO:"지수추종",VTI:"지수추종",SCHD:"지수추종",JEPI:"지수추종",JEPQ:"지수추종",QQQM:"지수추종",DIA:"지수추종",IWM:"지수추종",TQQQ:"레버리지",QLD:"레버리지",SOXL:"레버리지",UPRO:"레버리지",TLT:"채권",IEF:"채권",SHY:"채권",BND:"채권",AGG:"채권",SGOV:"채권",HYG:"채권",LQD:"채권",GLD:"원자재",GLDM:"원자재",IAU:"원자재",SLV:"원자재","381170":"지수추종","360750":"지수추종","381180":"지수추종","367380":"지수추종","360200":"지수추종","438080":"채권","069500":"지수추종","133690":"지수추종","379800":"지수추종","448290":"지수추종","411060":"원자재","0072R0":"원자재" };
-const SECTOR_COLORS = { "IT":"#3182f6","헬스케어":"#10b981","경기소비재":"#f59e0b","필수소비재":"#84cc16","금융":"#3b82f6","커뮤니케이션":"#a855f7","산업재":"#06b6d4","에너지":"#f97316","소재":"#78716c","유틸리티":"#facc15","부동산":"#ec4899","지수추종":"#aeaeb2","레버리지":"#ef4444","채권":"#0ea5e9","원자재":"#d97706","암호화폐":"#8b5cf6","현금/예금":"#636366","기타":"#2c2c2e" };
+const SECTOR_COLORS = { "IT":"#3182f6","헬스케어":"#10b981","경기소비재":"#f59e0b","필수소비재":"#84cc16","금융":"#3b82f6","커뮤니케이션":"#a855f7","산업재":"#06b6d4","에너지":"#f97316","소재":"#78716c","유틸리티":"#facc15","부동산":"#ec4899","지수추종":"#aeaeb2","레버리지":"#ef4444","채권":"#0ea5e9","원자재":"#d97706","암호화폐":"#8b5cf6","현금/예금":"#636366","예수금":"#636366","기타":"#2c2c2e" };
 const SECTOR_EN = { "Healthcare":"헬스케어","Technology":"IT","Communication Services":"커뮤니케이션","Consumer Cyclical":"경기소비재","Consumer Defensive":"필수소비재","Financial Services":"금융","Industrials":"산업재","Energy":"에너지","Basic Materials":"소재","Utilities":"유틸리티","Real Estate":"부동산" };
 
 // ─── 프로필 ──────────────────────────────────────────────────
@@ -633,6 +633,12 @@ function accTotal(acc) {
     : acc.type==="us" ? (acc.cash||0)*(usdKrw||0) : (acc.cash||0);
   return itemsVal + cashKrw;
 }
+// 투자계좌 예수금을 KRW로 환산 (현금계좌는 예수금 개념이 없어 0) — 비중/섹터 도넛에서 예수금을 조각으로 넣을 때 사용
+function acctCashKrw(acc) {
+  if (acc.type === "cash") return 0;
+  if (acc.type === "mixed") return (acc.cashKrw||0) + (acc.cashUsd||0)*(usdKrw||0);
+  return acc.type === "us" ? (acc.cash||0)*(usdKrw||0) : (acc.cash||0);
+}
 // [핵심] 계좌 수익금 — cost 있는 종목만 합산
 function accProfit(acc) {
   if (acc.type==="cash") return null;
@@ -687,7 +693,7 @@ function getSector(ticker, accType) {
   // 그래야 예를 들어 VOO가 Yahoo의 원시 응답으로 인해 "지수추종"에서 다른 값으로 잘못 덮어써지지 않음
   return SECTOR_DB[t]||SECTOR_DB[ticker]||sectorCache[t]||sectorCache[ticker]||(accType==="coin"?"암호화폐":"기타");
 }
-function calcSectorMap(accounts) {
+function calcSectorMap(accounts, cashLabel="현금/예금") {
   const map={};
   for (const acc of accounts) {
     if (acc.type==="cash") { const v=accTotal(acc); if(v>0) map["현금/예금"]=(map["현금/예금"]||0)+v; continue; }
@@ -696,6 +702,8 @@ function calcSectorMap(accounts) {
       const v=itemValBest(item,acc.type); if(!v) continue;
       const s=getSector(item.t,itemMarket(item,acc.type)); map[s]=(map[s]||0)+v;
     }
+    // 투자계좌 예수금도 하나의 조각으로 반영 (전체현황=현금/예금, 계좌별=예수금)
+    const cash=acctCashKrw(acc); if(cash>0) map[cashLabel]=(map[cashLabel]||0)+cash;
   }
   return map;
 }
@@ -1265,7 +1273,12 @@ function buildAccountSection(acc) {
 
   if (!acc.deposits) acc.deposits=[];
   const valItems=sorted.filter(x=>isCash?Number(x.a)>0:x.q>0&&itemValBest(x,type)>0).map(x=>({l:isCash?x.n:(x.n||x.t),v:itemValBest(x,type)}));
-  const secItems=sectorMapToItems(calcSectorMap([acc]));
+  // 계좌 비중 도넛에도 예수금을 조각으로 포함 (현금계좌는 예수금 개념이 없어 제외)
+  const accCashKrw=acctCashKrw(acc);
+  const valItemsWithCash=accCashKrw>0
+    ? [...valItems, {l:"예수금", v:accCashKrw, c:SECTOR_COLORS["현금/예금"]}].sort((a,b)=>b.v-a.v)
+    : valItems;
+  const secItems=sectorMapToItems(calcSectorMap([acc], "예수금"));
 
   return '<div class="card" style="border-top:3px solid '+acc.color+'">'
     +'<div class="card-hdr" style="margin-bottom:10px"><span class="card-title">'+acc.name+'</span>'+hdrRight+'</div>'
@@ -1278,7 +1291,7 @@ function buildAccountSection(acc) {
     +(editMode?'<button class="add-btn" data-add-item="'+acc.id+'">+ 종목 추가</button>':"")
     +(acc.type!=="cash" ? buildDepositSection(acc.deposits, acc.id) : "")
     +buildAccountHistorySection(acc)
-    +buildDonutCard(valItems,acc.name+" 비중")
+    +buildDonutCard(valItemsWithCash,acc.name+" 비중")
     +buildDonutCard(secItems,acc.name+" 섹터")
     +'</div>';
 }
@@ -1339,13 +1352,7 @@ function buildOverview() {
   const allItems = buildTickerItems(()=>true, (l,i)=>COLORS[i%COLORS.length]);
 
   // 각 투자계좌의 예수금을 "예수금" 항목으로 합산해서 종목별 비중에 추가
-  let totalCashKrw = 0;
-  for (const acc of ST.accounts) {
-    if (acc.type === "cash") continue;
-    if (acc.type === "mixed") { totalCashKrw += (acc.cashKrw||0) + (acc.cashUsd||0)*(usdKrw||0); continue; }
-    if (!acc.cash) continue;
-    totalCashKrw += acc.type === "us" ? (acc.cash * (usdKrw||0)) : acc.cash;
-  }
+  const totalCashKrw = ST.accounts.reduce((s,acc)=>s+acctCashKrw(acc), 0);
   const allItemsWithCash = totalCashKrw > 0
     ? [...allItems, {l:"예수금", v: totalCashKrw, c: SECTOR_COLORS["현금/예금"]||"#636366"}].sort((a,b)=>b.v-a.v)
     : allItems;
