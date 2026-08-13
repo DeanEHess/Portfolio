@@ -890,6 +890,22 @@ function eventsToHtml(events, isUS, isCoin) {
           <button class="del-btn" data-hist-trade-del="${ev.trId}" data-hist-trade-acc="${ev.accId}" data-hist-trade-item="${ev.itemId}" style="padding:3px 7px;font-size:10px">✕</button>
         </div>
       </div>`;
+    } else if (ev.kind === "carryover") {
+      // 이월 잔고(기존 보유분 시작점) — 예수금 이동이 아니라 종목 거래이므로 수량·단가로 표시하고 거래 삭제 버튼을 씀
+      return `<div class="history-row">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span class="history-badge badge-buy">이월</span>
+          <span style="font-weight:600">${ev.ticker}</span>
+          <span style="color:#8e8e93">${ev.date}</span>
+          ${ev.memo?`<span style="color:#636366;font-size:10px">${ev.memo}</span>`:""}
+        </div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <div style="text-align:right">
+            <div>${ev.qty}${evIsCoin?"":"주"} · ${evIsUS?usd(ev.price):won(ev.price)}</div>
+          </div>
+          <button class="del-btn" data-hist-trade-del="${ev.trId}" data-hist-trade-acc="${ev.accId}" data-hist-trade-item="${ev.itemId}" style="padding:3px 7px;font-size:10px">✕</button>
+        </div>
+      </div>`;
     } else if (ev.kind === "dividend") {
       return `<div class="history-row">
         <div style="display:flex;align-items:center;gap:8px">
