@@ -2922,12 +2922,11 @@ function bindTradeModalEvents() {
         item.q -= sellQty;
         // 예수금 증가
         adjustCash(acc, isUS?"usd":"krw", sellQty*price);
-        if (item.q <= 0.00001) {
-          if (confirm("보유 수량이 0이 됐어요. 종목을 삭제할까요?")) {
-            const idx = acc.items.findIndex(x=>x.id===itemId);
-            if (idx>-1) acc.items.splice(idx,1);
-          } else { item.q = 0; }
-        }
+        // 전량 매도해도 종목을 지우지 않고 q=0으로만 둔다 — 종목을 splice하면 item.trades(방금 만든
+        // 매도 기록 포함)까지 통째로 사라져 거래 히스토리에서 매도 내역이 없어지는 버그가 있었음.
+        // q=0 종목은 보유목록에선 자동으로 숨겨지고(비편집 모드), 히스토리엔 기록이 그대로 남음.
+        // 정말 종목 자체를 지우고 싶으면 편집 모드에서 직접 삭제할 수 있음.
+        if (item.q <= 0.00001) item.q = 0;
       }
     }
 
