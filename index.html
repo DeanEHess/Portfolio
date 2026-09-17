@@ -1237,7 +1237,10 @@ function buildAccountSection(acc) {
       :'<tr><td style="font-size:13px;font-weight:500">'+item.n+'</td><td class="r" style="font-size:13px;font-weight:600">'+(won(item.a)||"₩0")+'</td></tr>'
     ).join("");
   } else {
-    const visibleSorted = editMode ? sorted : sorted.filter(item => item.q && item.q > 0);
+    // 보유수량 0이어도 거래 기록(trades)이 있는 청산 종목은 목록에 흐리게 남겨둠 — 매도 후에도
+    // 클릭해서 배당/거래 내역 열람·추가가 가능해야 함(예: 전량매도 다음날 들어온 배당).
+    // 완전히 빈 신규 종목(편집모드에서 방금 추가해 아직 안 채운 placeholder)만 숨김.
+    const visibleSorted = editMode ? sorted : sorted.filter(item => (item.q && item.q > 0) || (item.trades && item.trades.length > 0));
     rows=visibleSorted.map(item=>{
       // 혼합계좌는 종목마다 시장(국내/해외/코인)이 다를 수 있어 행 단위로 통화를 판정
       const rowMarket=itemMarket(item,type), rowIsUS=rowMarket==="us", rowIsCoin=rowMarket==="coin";
