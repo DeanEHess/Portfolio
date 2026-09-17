@@ -482,7 +482,7 @@ let thesisViewModal = null; // {text: string}
 let tutorialStep = null; // null이면 닫힘, 아니면 0부터 시작하는 현재 단계 인덱스
 let transferModal = null; // {fromId, fromItemId, toId, toItemId, ccy}
 let exchangeModal = null; // {accId, direction:"krw2usd"|"usd2krw", amount}
-let dividendPickModal = null; // {accId, itemId}
+let dividendPickModal = null; // {accId, ticker, market}
 // 모달마다 "직전 렌더에서 이미 열려있었는지"를 기억해뒀다가, 이미 열려있던 채로 재렌더될 땐
 // 슬라이드업 진입 애니메이션을 억제함(입력값 바꿀 때마다 매번 재생돼서 튀어보이는 문제 방지)
 let _prevOpenModals = {};
@@ -2475,17 +2475,33 @@ function buildDividendPickModal() {
   const acc = ST.accounts.find(a=>a.id===dividendPickModal.accId);
   if (!acc) return "";
   const isMixed = acc.type === "mixed";
-  const MARKET_LABEL = {krx:"🇰🇷국내", us:"🌎해외", coin:"🪙코인"};
   const candidates = acc.items.filter(it=>it.t); // 현금 항목 제외, 보유중/청산 종목 모두 포함
-  if (!dividendPickModal.itemId || !candidates.find(it=>it.id===dividendPickModal.itemId)) {
-    dividendPickModal.itemId = candidates[0]?.id || "";
+  // 시장(국내/해외)을 아직 안 골랐으면 "+ 신규매수"와 동일하게 기본 국내(krx). 혼합계좌가 아니면 계좌 타입 그대로(코인 전용 계좌는 시장선택 없이 바로 coin)
+  const market = isMixed ? (dividendPickModal.market||"krx") : acc.type;
+  const tickerPlaceholder = market==="krx" ? "예) 005930" : (market==="coin" ? "예) BTC, ETH" : "예) AAPL");
+  const tickerAttrs = market==="krx" ? ' inputmode="numeric" maxlength="6"' : "";
+  const marketPickerHtml = isMixed ? `<div class="trade-inp-group">
+        <div class="trade-inp-label">시장</div>
+        <div style="display:flex;gap:6px">
+          ${[["krx","🇰🇷 국내"],["us","🌎 해외"]].map(([m,label])=>
+            `<button type="button" class="btn-sm" data-dp-market="${m}" style="flex:1;${market===m?'background:#3182f6;color:#fff;border-color:#3182f6':''}">${label}</button>`
+          ).join("")}
+        </div>
+       </div>` : "";
+
+  // 입력한 티커가 이 계좌에 실제로 있는(보유중이든 청산이든) 종목인지 바로 찾아서 미리보기 — 없으면 배당을 막음(신규종목을 몰래 만들지 않음)
+  const typed = (dividendPickModal.ticker||"").toUpperCase().trim();
+  const matched = typed ? candidates.find(it=>it.t===typed && itemMarket(it,acc.type)===market) : null;
+  let previewHtml = "";
+  if (typed) {
+    if (matched) {
+      const mkt = itemMarket(matched, acc.type);
+      const statusLabel = (matched.q && matched.q > 0) ? ('보유 '+matched.q+(mkt==="coin"?"":"주")) : "청산됨";
+      previewHtml = `<div style="font-size:12px;color:#10b981;margin-top:4px">✓ ${matched.n||matched.t} — ${statusLabel}</div>`;
+    } else {
+      previewHtml = `<div style="font-size:12px;color:#f59e0b;margin-top:4px">⚠ 이 계좌에서 매수한 기록이 없는 티커예요. 배당은 이미 매수한 종목에만 입력할 수 있어요.</div>`;
+    }
   }
-  const optionsHtml = candidates.map(it=>{
-    const mkt = itemMarket(it, acc.type);
-    const statusLabel = (it.q && it.q > 0) ? ('보유 '+it.q+(mkt==="coin"?"":"주")) : "청산됨";
-    const marketPrefix = isMixed ? MARKET_LABEL[mkt]+' ' : '';
-    return `<option value="${it.id}" ${it.id===dividendPickModal.itemId?"selected":""}>${marketPrefix}${it.t} ${it.n||""} (${statusLabel})</option>`;
-  }).join("");
 
   return `<div class="trade-modal-bg" id="dividend-pick-modal-bg">
     <div class="trade-modal"${modalAnimStyle('dividendPick')}>
@@ -2495,11 +2511,13 @@ function buildDividendPickModal() {
       </div>
       ${candidates.length === 0
         ? `<div style="font-size:12px;color:#8e8e93;padding:24px 0;text-align:center">등록된 종목이 없어요.<br/>먼저 종목을 매수한 뒤 이용해주세요.</div>`
-        : `<div class="trade-inp-group">
-            <div class="trade-inp-label">어느 종목의 배당인가요?</div>
-            <select class="trade-inp" id="dp-item-select">${optionsHtml}</select>
+        : `${marketPickerHtml}
+          <div class="trade-inp-group">
+            <div class="trade-inp-label">티커${market==="krx"?"(종목코드)":""}</div>
+            <input class="trade-inp" id="dp-ticker" placeholder="${tickerPlaceholder}"${tickerAttrs} style="text-transform:uppercase" value="${dividendPickModal.ticker||""}"/>
+            ${previewHtml}
           </div>
-          <button class="trade-btn" style="background:#f59e0b" id="dp-confirm">선택</button>`
+          <button class="trade-btn" style="background:#f59e0b${matched?"":";opacity:0.4"}" id="dp-confirm" ${matched?"":"disabled"}>선택</button>`
       }
     </div>
   </div>`;
@@ -2508,15 +2526,32 @@ function buildDividendPickModal() {
 function bindDividendPickModalEvents() {
   if (!dividendPickModal) return;
   const $ = id => document.getElementById(id);
+  const acc = ST.accounts.find(a=>a.id===dividendPickModal.accId);
   $("dp-close")?.addEventListener("click",()=>{ dividendPickModal=null; render(); });
   $("dividend-pick-modal-bg")?.addEventListener("click",e=>{ if(e.target.id==="dividend-pick-modal-bg"){dividendPickModal=null;render();} });
-  $("dp-item-select")?.addEventListener("change", e=>{ dividendPickModal.itemId = e.target.value; });
+  document.querySelectorAll("[data-dp-market]").forEach(b=>b.addEventListener("click",()=>{ dividendPickModal.market=b.dataset.dpMarket; dividendPickModal.ticker=""; render(); }));
+  $("dp-ticker")?.addEventListener("input", e=>{
+    if (!acc) return;
+    const isMixed = acc.type === "mixed";
+    const market = isMixed ? (dividendPickModal.market||"krx") : acc.type;
+    // 국내(krx) 시장에서는 "+ 신규매수"와 동일하게 숫자 외 문자를 입력 즉시 제거
+    if (market === "krx") {
+      const filtered = e.target.value.replace(/\D/g,"").slice(0,6);
+      if (filtered !== e.target.value) e.target.value = filtered;
+    }
+    dividendPickModal.ticker = e.target.value.toUpperCase().trim();
+    render();
+  });
   $("dp-confirm")?.addEventListener("click", ()=>{
-    const itemId = $("dp-item-select")?.value || dividendPickModal.itemId;
-    if (!itemId) return;
+    if (!acc) return;
+    const isMixed = acc.type === "mixed";
+    const market = isMixed ? (dividendPickModal.market||"krx") : acc.type;
+    const typed = (dividendPickModal.ticker||"").toUpperCase().trim();
+    const matched = acc.items.find(it=>it.t===typed && itemMarket(it,acc.type)===market);
+    if (!matched) return;
     const accId = dividendPickModal.accId;
     dividendPickModal = null;
-    tradeModal = {accId, itemId, mode:"dividend"};
+    tradeModal = {accId, itemId:matched.id, mode:"dividend"};
     render();
   });
 }
@@ -3177,7 +3212,7 @@ function bindEvents() {
   // ─ 배당 버튼
   document.querySelectorAll("[data-dividend-acc]").forEach(b=>b.addEventListener("click",e=>{
     e.stopPropagation();
-    dividendPickModal={accId:b.dataset.dividendAcc, itemId:null};
+    dividendPickModal={accId:b.dataset.dividendAcc, ticker:"", market:null};
     render();
   }));
 
