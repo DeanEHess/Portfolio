@@ -529,6 +529,7 @@ function saveData() {
   // 연속 조작이 여러 번 일어나도 디바운스 안에 들어오면 KV write 1번으로 뭉쳐짐 — write 절약
   clearTimeout(_autoSaveTimer);
   _autoSaveTimer = setTimeout(()=>{ cloudSave(true); }, 60000);
+  scheduleGhSync(); // 저장소 동기화(토큰을 설정한 기기에서만, 20초 디바운스)
 }
 
 // ─── 앱 상태 ─────────────────────────────────────────────────
@@ -873,6 +874,99 @@ async function fetchMissingSectors() {
     for (const [sym,sec] of Object.entries(d)) sectorCache[sym.toUpperCase()]=sec;
     localStorage.setItem("sector_cache",JSON.stringify(sectorCache));
     render();
+  } catch {}
+}
+
+// ─── 깃허브 저장소 동기화 (매매기록·근거 영구 보관) ─────────────
+// 사용자가 토큰을 입력한 기기에서만 동작한다. 토큰은 이 브라우저 localStorage에만 저장되고 다른 곳으로 보내지 않는다.
+// 비공개 저장소의 portfolio/trades/ 아래에 JSON(전체 데이터)과 마크다운(매매기록·근거)을 커밋한다.
+const GH_REPO = "DeanEHess/Private-Financial-Advisor";
+const GH_BRANCH = "main";
+const GH_DIR = "portfolio/trades";
+let ghSyncStatus = ""; // "", "syncing", "synced", "error"
+let _ghSyncTimer = null;
+function ghToken() { try { return localStorage.getItem("gh_sync_token") || ""; } catch { return ""; } }
+function ghSafeName(s) { return String(s||"기본").replace(/[\\/:*?"<>|#%\s]+/g,"_"); }
+function ghB64(str) {
+  const bytes = new TextEncoder().encode(str); let bin = "";
+  for (let i=0;i<bytes.length;i+=0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i,i+0x8000));
+  return btoa(bin);
+}
+async function ghHash(str) {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(str));
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,"0")).join("");
+}
+const TRADE_TYPE_KO = {buy:"매수", sell:"매도", carryover:"이월", dividend:"배당"};
+function buildTradesMarkdown() {
+  const rows = [];
+  ST.accounts.forEach(a => (a.items||[]).forEach(it => (it.trades||[]).forEach(tr => rows.push({a, it, tr}))));
+  rows.sort((x,y) => String(y.tr.date||"").localeCompare(String(x.tr.date||"")) || String(y.tr.id||"").localeCompare(String(x.tr.id||"")));
+  const oneLine = s => String(s||"").replace(/\r?\n+/g," / ").trim();
+  const L = [];
+  L.push("---", "theme: [포트폴리오, 매매기록]", "---", "");
+  L.push("# 매매기록 · " + curProfile, "");
+  L.push("_자산 대시보드가 자동으로 커밋하는 파일이다. 직접 수정하지 않는다. 마지막 동기화: " + new Date().toLocaleString("ko-KR") + " · 거래 " + rows.length + "건_", "");
+  let month = "";
+  rows.forEach(({a, it, tr}) => {
+    const m = String(tr.date||"").slice(0,7);
+    if (m !== month) { month = m; L.push("## " + (m || "날짜 없음"), ""); }
+    const kind = TRADE_TYPE_KO[tr.type] || tr.type;
+    L.push("### " + (tr.date||"") + " · " + kind + " · " + (it.t||"") + (it.n ? " " + it.n : "") + " (" + a.name + ")");
+    if (tr.type === "dividend") L.push("- 금액: " + (tr.amount ?? ""));
+    else L.push("- 수량 " + (tr.qty ?? "") + " · 단가 " + (tr.price ?? "") + (tr.pnl != null && tr.type === "sell" ? " · 실현손익 " + Math.round(tr.pnl*100)/100 : ""));
+    if (oneLine(tr.thesis)) L.push("- 근거: " + oneLine(tr.thesis));
+    if (oneLine(tr.memo)) L.push("- 메모: " + oneLine(tr.memo));
+    L.push("");
+  });
+  return L.join("\n");
+}
+async function ghPutFile(path, content, message, token) {
+  const url = "https://api.github.com/repos/" + GH_REPO + "/contents/" + path.split("/").map(encodeURIComponent).join("/");
+  const headers = { "Authorization": "Bearer " + token, "Accept": "application/vnd.github+json" };
+  let sha;
+  const g = await fetch(url + "?ref=" + GH_BRANCH, { headers });
+  if (g.status === 200) sha = (await g.json()).sha;
+  else if (g.status !== 404) throw new Error("조회 실패 (" + g.status + ")");
+  const body = { message, content: ghB64(content), branch: GH_BRANCH };
+  if (sha) body.sha = sha;
+  const r = await fetch(url, { method: "PUT", headers, body: JSON.stringify(body) });
+  if (!r.ok) throw new Error("저장 실패 (" + r.status + ")");
+}
+async function ghSync(manual=false) {
+  const token = ghToken();
+  if (!token) { if (manual) ghSetToken(); return; }
+  if (isPristineData()) { if (manual) alert("저장할 기록이 아직 없어요."); return; }
+  const base = GH_DIR + "/" + ghSafeName(curProfile);
+  const json = JSON.stringify(ST, null, 2);
+  const md = buildTradesMarkdown();
+  const h = await ghHash(json);
+  const hashKey = "gh_sync_hash_" + curProfile;
+  if (!manual && localStorage.getItem(hashKey) === h) return; // 바뀐 게 없으면 커밋하지 않음
+  ghSyncStatus = "syncing"; if (manual) render();
+  try {
+    const msg = "dashboard: " + curProfile + " 매매기록 동기화";
+    await ghPutFile(base + ".json", json, msg, token);
+    await ghPutFile(base + "-매매기록.md", md, msg, token);
+    try { localStorage.setItem(hashKey, h); localStorage.setItem("gh_sync_at", String(Date.now())); } catch {}
+    ghSyncStatus = "synced";
+  } catch (e) {
+    ghSyncStatus = "error";
+    if (manual) alert("저장소 동기화에 실패했어요: " + e.message + "\n토큰 권한(이 저장소 Contents 읽기·쓰기)과 만료일을 확인해주세요.");
+  }
+  render();
+}
+function scheduleGhSync() {
+  if (!ghToken()) return;
+  clearTimeout(_ghSyncTimer);
+  _ghSyncTimer = setTimeout(()=>{ ghSync(false); }, 20000);
+}
+function ghSetToken() {
+  const cur = ghToken();
+  const v = prompt("깃허브 토큰을 입력하세요.\n\n• " + GH_REPO + " 저장소 하나만, Contents 읽기·쓰기 권한으로 만든 fine-grained 토큰을 쓰세요.\n• 토큰은 이 기기 브라우저에만 저장돼요.\n• 비우고 확인하면 동기화를 끕니다." + (cur ? "\n\n(현재 토큰이 설정돼 있어요)" : ""), "");
+  if (v === null) return;
+  try {
+    if (v.trim()) { localStorage.setItem("gh_sync_token", v.trim()); ghSync(true); }
+    else { localStorage.removeItem("gh_sync_token"); ghSyncStatus = ""; render(); alert("저장소 동기화를 껐어요."); }
   } catch {}
 }
 
@@ -1926,6 +2020,8 @@ function buildPage() {
       +'<button class="data-menu-item" id="btn-cloud-save" style="color:'+(cloudStatus==="error"?"#ef4444":"#10b981")+'">'+(cloudStatus==="saving"?"⟳":cloudStatus==="saved"?"✅":cloudStatus==="error"?"❌":"☁️")+' <span>'+(cloudStatus==="saving"?"저장 중...":cloudStatus==="saved"?"저장됨":cloudStatus==="error"?"저장 실패":"클라우드 저장")+'</span></button>'
       +'<button class="data-menu-item" id="btn-cloud-load" style="color:#3182f6">☁️ <span>클라우드 복원</span></button>'
       +'<button class="data-menu-item" id="btn-phrase-set" style="color:#a855f7">🔐 <span>복구 문장 설정</span></button>'
+      +'<button class="data-menu-item" id="btn-gh-sync" style="color:'+(ghSyncStatus==="error"?"#ef4444":"#f59e0b")+'">'+(ghSyncStatus==="syncing"?"⟳":ghSyncStatus==="synced"?"✅":ghSyncStatus==="error"?"❌":"🗂️")+' <span>'+(!ghToken()?"저장소 동기화 켜기":ghSyncStatus==="syncing"?"저장소에 저장 중...":ghSyncStatus==="error"?"저장소 동기화 실패":"저장소에 지금 저장")+'</span></button>'
+      +(ghToken()?'<button class="data-menu-item" id="btn-gh-token" style="color:#8e8e93">🔑 <span>저장소 토큰 변경·끄기</span></button>':'')
       +'</div>' : '')
     +'</div>'
     +'<button class="btn'+(editMode?" on":"")+'" id="btn-edit">'+(editMode?"✓":"✏")+'</button></div></div>'
@@ -3188,6 +3284,8 @@ function bindEvents() {
   $("btn-cloud-save")?.addEventListener("click", ()=>cloudSave(false));
   $("btn-cloud-load")?.addEventListener("click", ()=>{ dataMenuOpen=false; cloudLoad(); });
   $("btn-phrase-set")?.addEventListener("click", ()=>{ dataMenuOpen=false; setRecoveryPhrase(); });
+  $("btn-gh-sync")?.addEventListener("click", ()=>{ dataMenuOpen=false; ghSync(true); });
+  $("btn-gh-token")?.addEventListener("click", ()=>{ dataMenuOpen=false; ghSetToken(); });
   // 저장/백업 상태 배너 버튼
   $("btn-sync-now")?.addEventListener("click", ()=>cloudSave(false));
   $("btn-sync-restore")?.addEventListener("click", ()=>cloudLoad());
