@@ -528,7 +528,8 @@ function saveData() {
   // 자동 클라우드 저장 (60초 디바운스) — 실제 사용자 조작(거래/입출금/계좌 편집 등)에서만 호출됨.
   // 연속 조작이 여러 번 일어나도 디바운스 안에 들어오면 KV write 1번으로 뭉쳐짐 — write 절약
   clearTimeout(_autoSaveTimer);
-  _autoSaveTimer = setTimeout(()=>{ cloudSave(true); }, 60000);
+  // 저장소 동기화를 켠 기기에서는 클라우드(KV) 자동저장을 하지 않는다. 데이터의 원본은 저장소 한 곳으로 둔다
+  if (!ghToken()) _autoSaveTimer = setTimeout(()=>{ cloudSave(true); }, 60000);
   scheduleGhSync(); // 저장소 동기화(토큰을 설정한 기기에서만, 20초 디바운스)
 }
 
@@ -941,7 +942,7 @@ async function ghSync(manual=false) {
   const md = buildTradesMarkdown();
   const h = await ghHash(json);
   const hashKey = "gh_sync_hash_" + curProfile;
-  if (!manual && localStorage.getItem(hashKey) === h) return; // 바뀐 게 없으면 커밋하지 않음
+  if (!manual && localStorage.getItem(hashKey) === h) { try { localStorage.setItem("gh_sync_at", String(Date.now())); } catch {} return; } // 바뀐 게 없으면 커밋하지 않음(저장 상태는 최신으로 표시)
   ghSyncStatus = "syncing"; if (manual) render();
   try {
     const msg = "dashboard: " + curProfile + " 매매기록 동기화";
@@ -959,6 +960,36 @@ function scheduleGhSync() {
   if (!ghToken()) return;
   clearTimeout(_ghSyncTimer);
   _ghSyncTimer = setTimeout(()=>{ ghSync(false); }, 20000);
+}
+async function ghRestore() {
+  let token = ghToken();
+  if (!token) {
+    const v = prompt("저장소에서 복원하려면 깃허브 토큰이 필요해요.\n" + GH_REPO + " 저장소 Contents 읽기·쓰기 권한 토큰을 입력하세요.", "");
+    if (!v || !v.trim()) return;
+    token = v.trim(); try { localStorage.setItem("gh_sync_token", token); } catch {}
+  }
+  const path = GH_DIR + "/" + ghSafeName(curProfile) + ".json";
+  let d;
+  try {
+    const url = "https://api.github.com/repos/" + GH_REPO + "/contents/" + path.split("/").map(encodeURIComponent).join("/") + "?ref=" + GH_BRANCH;
+    const r = await fetch(url, { headers: { "Authorization": "Bearer " + token, "Accept": "application/vnd.github.raw+json" } });
+    if (r.status === 404) { alert("저장소에 '" + curProfile + "' 프로필 데이터가 아직 없어요 (" + path + ")."); return; }
+    if (!r.ok) throw new Error("조회 실패 (" + r.status + ")");
+    d = JSON.parse(await r.text());
+    if (!d.accounts) throw new Error("올바른 데이터 파일이 아니에요");
+  } catch (e) { alert("❌ 저장소 복원 실패: " + e.message); return; }
+  const when = d._savedAt ? new Date(d._savedAt).toLocaleString("ko-KR") : "시각 정보 없음";
+  if (!isPristineData()) {
+    if (!confirm("저장소에 있는 데이터(" + when + " 저장)로 복원할까요?\n지금 이 기기의 데이터는 덮어써져요. 혹시 몰라 지금 상태를 백업 파일로 먼저 내려받아요.")) return;
+    backupData(false);
+  }
+  d.accounts.forEach(a=>{ if(a.type==="mixed"&&Array.isArray(a.items)) a.items.forEach(it=>{ if(!it.market) it.market=/^\d{5,6}$/.test(it.t||"")?"krx":"us"; }); });
+  Object.assign(ST, d);
+  saveDataLocalOnly();
+  try { localStorage.setItem("gh_sync_hash_" + curProfile, await ghHash(JSON.stringify(ST, null, 2))); localStorage.setItem("gh_sync_at", String(Date.now())); } catch {}
+  ghSyncStatus = "synced"; cloudIssue = null;
+  render(); fetchAll();
+  alert("✅ 저장소에서 복원했어요 (" + when + " 저장분).");
 }
 function ghSetToken() {
   const cur = ghToken();
@@ -1971,6 +2002,11 @@ function noticeHtml(kind, text, buttons) {
 const SYNC_SLACK_MS = 10*60*1000; // 자동저장 디바운스(60초)보다 넉넉히 — 이보다 오래 저장 안 된 변경이 있으면 경고
 function syncBannerHtml() {
   if (isPristineData()) return "";
+  if (ghToken()) {
+    const ghAt = lsNum("gh_sync_at"), chg = lsNum("asset_last_changed_at");
+    if (ghSyncStatus === "error" || chg > ghAt + SYNC_SLACK_MS) return noticeHtml("amber", "⚠️ <b>저장소에 저장되지 않은 변경이 있어요.</b> 마지막 저장소 저장: "+(ghAt?timeAgo(ghAt):"한 번도 없음"), [["btn-gh-sync-now","지금 저장"]]);
+    return "";
+  }
   if (cloudIssue?.type === "error") return noticeHtml("red", "⚠️ <b>클라우드 저장이 실패하고 있어요</b> ("+escHtml(cloudIssue.msg)+"). 지금은 이 기기에만 데이터가 있어요. 브라우저 데이터를 지우면 복구할 수 없으니 백업 파일도 받아두세요.", [["btn-sync-now","지금 저장"],["btn-backup-now","💾 백업 받기"]]);
   if (cloudIssue?.type === "newer") return noticeHtml("red", "⚠️ <b>다른 기기에서 더 최신 내용을 클라우드에 저장해서 자동저장이 멈췄어요.</b> 먼저 클라우드 복원으로 최신 내용을 받아오세요.", [["btn-sync-restore","☁️ 클라우드 복원"]]);
   const synced = lsNum("asset_last_synced_at"), changed = lsNum("asset_last_changed_at");
@@ -1986,9 +2022,10 @@ function backupBannerHtml() {
 }
 function emptyRestoreHintHtml() {
   if (!isPristineData()) return "";
-  return noticeHtml("blue", "📂 이전에 쓰던 데이터가 있다면 <b>백업 키 또는 복구 문장</b>으로 불러올 수 있어요. (백업 파일은 ⋯ → 복원)", [["btn-hint-restore","☁️ 클라우드 복원"]]);
+  return noticeHtml("blue", "📂 이전에 쓰던 데이터가 있다면 <b>백업 키 또는 복구 문장</b>으로 불러올 수 있어요. (백업 파일은 ⋯ → 복원)", [["btn-hint-restore","☁️ 클라우드 복원"],["btn-hint-gh-restore","🗂️ 저장소에서 복원"]]);
 }
 function syncStatusLineHtml() {
+  if (ghToken()) { const ghAt = lsNum("gh_sync_at"); return '<div style="font-size:10px;color:#8e8e93;margin-top:3px">🗂️ 마지막 저장소 저장: '+(ghAt?timeAgo(ghAt):"아직 없음")+'</div>'; }
   const synced = lsNum("asset_last_synced_at");
   const phrase = (()=>{ try { return localStorage.getItem("asset_phrase_set")==="1"; } catch { return false; } })();
   return '<div style="font-size:10px;color:#8e8e93;margin-top:3px">☁️ 마지막 클라우드 저장: '+(synced?timeAgo(synced):"아직 없음")+(phrase?' · 🔐 복구 문장 사용 중':'')+'</div>';
@@ -2021,6 +2058,7 @@ function buildPage() {
       +'<button class="data-menu-item" id="btn-cloud-load" style="color:#3182f6">☁️ <span>클라우드 복원</span></button>'
       +'<button class="data-menu-item" id="btn-phrase-set" style="color:#a855f7">🔐 <span>복구 문장 설정</span></button>'
       +'<button class="data-menu-item" id="btn-gh-sync" style="color:'+(ghSyncStatus==="error"?"#ef4444":"#f59e0b")+'">'+(ghSyncStatus==="syncing"?"⟳":ghSyncStatus==="synced"?"✅":ghSyncStatus==="error"?"❌":"🗂️")+' <span>'+(!ghToken()?"저장소 동기화 켜기":ghSyncStatus==="syncing"?"저장소에 저장 중...":ghSyncStatus==="error"?"저장소 동기화 실패":"저장소에 지금 저장")+'</span></button>'
+      +'<button class="data-menu-item" id="btn-gh-restore" style="color:#f59e0b">📥 <span>저장소에서 복원</span></button>'
       +(ghToken()?'<button class="data-menu-item" id="btn-gh-token" style="color:#8e8e93">🔑 <span>저장소 토큰 변경·끄기</span></button>':'')
       +'</div>' : '')
     +'</div>'
@@ -3286,6 +3324,9 @@ function bindEvents() {
   $("btn-phrase-set")?.addEventListener("click", ()=>{ dataMenuOpen=false; setRecoveryPhrase(); });
   $("btn-gh-sync")?.addEventListener("click", ()=>{ dataMenuOpen=false; ghSync(true); });
   $("btn-gh-token")?.addEventListener("click", ()=>{ dataMenuOpen=false; ghSetToken(); });
+  $("btn-gh-restore")?.addEventListener("click", ()=>{ dataMenuOpen=false; ghRestore(); });
+  $("btn-hint-gh-restore")?.addEventListener("click", ()=>{ ghRestore(); });
+  $("btn-gh-sync-now")?.addEventListener("click", ()=>{ ghSync(true); });
   // 저장/백업 상태 배너 버튼
   $("btn-sync-now")?.addEventListener("click", ()=>cloudSave(false));
   $("btn-sync-restore")?.addEventListener("click", ()=>cloudLoad());
@@ -3570,7 +3611,7 @@ document.addEventListener("visibilitychange", () => {
   if (!document.hidden && !loading && (fetchError || !usdKrw)) fetchAll();
 });
 // 암호화 도입 전 평문으로 저장됐을 수 있는 기존 클라우드 백업을 암호화본으로 즉시 교체
-cloudSave(true);
+if (!ghToken()) cloudSave(true); // 저장소 동기화 사용 중이면 클라우드 자동저장 생략
 </script>
 </body>
 </html>
