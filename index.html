@@ -1673,16 +1673,21 @@ function buildAccountHistorySection(acc) {
 
   const hasTickerSearch = acc.type !== "cash";
 
+  const kindKeys = isMixed ? ['all','buy','sell','dividend','cash','fx'] : ['all','buy','sell','dividend','cash'];
+  const KIND_LBL = {all:"전체 종류", buy:"매수", sell:"매도", dividend:"배당", cash:"입출금", fx:"환전"};
+  const selStyle = 'flex:1;background:#000;color:#fff;border:1px solid #2c2c2e;border-radius:8px;padding:7px 8px;font-size:12px';
+  const selects = '<div style="display:flex;gap:6px;margin:10px 0">'
+    +'<select data-history-kind-sel="'+acc.id+'" style="'+selStyle+'">'+kindKeys.map(k=>'<option value="'+k+'"'+(filter.kind===k?' selected':'')+'>'+KIND_LBL[k]+'</option>').join("")+'</select>'
+    +(availYears.length>1?'<select data-history-year-sel="'+acc.id+'" style="'+selStyle+'"><option value="all">전체 연도</option>'+availYears.map(y=>'<option value="'+y+'"'+((filter.year||"all")===y?' selected':'')+'>'+y+'년</option>').join("")+'</select>':'')
+    +'</div>';
   return '<div class="card" style="margin-bottom:12px">'
-    +'<div class="card-hdr"><span class="card-title">📜 전체 거래 히스토리</span><span style="font-size:11px;color:#636366">'+filteredEvents.length+'/'+events.length+'건</span></div>'
-    +'<div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:10px">'+filterTabs+'</div>'
-    +(yearTabs ? '<div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:10px">'+yearTabs+'</div>' : "")
+    +foldHtml("hist_"+acc.id, '<div class="card-hdr" style="margin:0"><span class="card-title">📜 거래 기록 <span style="font-weight:400;color:#8e8e93">'+events.length+'건</span></span><span style="font-size:12px;color:#636366">펼치기 ▾</span></div>', selects
     +(hasTickerSearch ? '<input class="inp inp-l" data-history-search="'+acc.id+'" placeholder="🔍 종목 검색 (예: NVO)" value="'+(filter.search||"")+'" style="margin-bottom:10px"/>' : "")
     +summaryHtml
     +'<div>'+(filteredEvents.length ? eventsToHtml(visibleEvents, isUS, isCoin) : '<div style="font-size:12px;color:#636366;text-align:center;padding:12px 0">해당하는 내역이 없어요</div>')+'</div>'
     +(filteredEvents.length > 5
       ? '<button class="add-btn" data-history-toggle="'+acc.id+'" style="margin-top:8px">'+(showAll?"접기 ▲":"전체 "+filteredEvents.length+"건 보기 ▼")+'</button>'
-      : "")
+      : ""))
     +'</div>';
 }
 
@@ -1718,10 +1723,14 @@ function buildDepositSection(deposits, accId) {
       +'</div></div>'
     : "";
 
+  if (!total) return "";
+  const head = '<div style="display:flex;justify-content:space-between;align-items:center">'
+    +'<span class="card-title">💸 순입금 <span style="font-size:11px;color:#636366;font-weight:400">▾</span></span>'
+    +'<div style="text-align:right"><span style="font-size:14px;font-weight:800">'+won(total)+'</span>'
+    +(diffPct!=null?'<span style="font-size:11px;font-weight:700;color:'+(diffPct>=0?'#ef4444':'#3b82f6')+';margin-left:6px">'+fPct(diffPct)+'</span>':"")
+    +'</div></div>';
   return '<div class="card" style="margin-bottom:12px">'
-    +'<div class="card-hdr"><span class="card-title">💸 순입금 내역</span></div>'
-    +(viewRows || '<div style="font-size:12px;color:#636366;text-align:center;padding:8px 0">입력된 내역이 없습니다</div>')
-    +summaryHtml
+    +foldHtml("dep_"+accId, head, '<div style="margin-top:12px">'+viewRows+summaryHtml+'</div>')
     +'</div>';
 }
 
@@ -1751,7 +1760,7 @@ function buildOverviewDepositSection() {
     return '<tr>'
       +'<td><div style="display:flex;align-items:center;gap:6px"><div style="width:8px;height:8px;border-radius:2px;background:'+r.color+';flex-shrink:0"></div><span style="font-size:12px;font-weight:600">'+r.name+'</span></div></td>'
       +'<td class="r" style="font-size:12px">'+(r.dep>0?won(r.dep):'<span style="color:#636366">미입력</span>')+'</td>'
-      +'<td class="r" style="font-size:12px;font-weight:600">'+won(r.ev)+'</td>'
+      +'<td class="r" style="font-size:12px;font-weight:600">'+won(r.ev)+'<div style="font-size:10px;color:#8e8e93;font-weight:400">비중 '+(grandTotal()>0?(r.ev/grandTotal()*100).toFixed(1):"0.0")+'%</div></td>'
       +'<td class="r"><span style="font-size:11px;font-weight:700;color:'+(diff==null?'#636366':diff>=0?'#ef4444':'#3b82f6')+'">'
       +(diff==null?'—':(diffPct>=0?'+':'')+diffPct.toFixed(1)+'%')+'</span></td>'
       +'</tr>';
@@ -1836,6 +1845,8 @@ function buildAccountSection(acc) {
     : "";
 
   const MARKET_LABEL = {krx:"🇰🇷국내", us:"🌎해외", coin:"🪙코인"};
+  // 한 계좌에 국내·해외가 섞였을 때만 시장 표시를 붙인다(해외는 표시 없음, 국내만 🇰🇷)
+  const mixedMarkets = isMixed && new Set(acc.items.filter(x=>(Number(x.q)||0)>0).map(x=>itemMarket(x,type))).size > 1;
   const marketPicker = item => '<div style="display:flex;gap:3px;margin-bottom:3px">'
     +['krx','us'].map(m=>'<button type="button" class="btn-sm" data-market-pick="'+item.id+'" data-market-val="'+m+'" data-acc="'+acc.id+'" style="padding:2px 6px;font-size:9px;flex:none;'+(itemMarket(item,type)===m?'background:'+acc.color+';color:#fff;border-color:'+acc.color:'')+'">'+MARKET_LABEL[m]+'</button>').join("")
     +'</div>';
@@ -1878,7 +1889,7 @@ function buildAccountSection(acc) {
         +'<td class="r '+gCls(gp)+'" data-calc="gp">'+fPct(gp)+'</td>'
         +'<td><button class="del-btn" data-del="'+item.id+'" data-acc="'+acc.id+'">✕</button></td></tr>';
       return '<tr class="ticker-row" data-trade-item="'+item.id+'" data-trade-acc="'+acc.id+'">'
-        +'<td style="min-width:110px"><div class="ticker">'+(isMixed?MARKET_LABEL[rowMarket]+' ':'')+item.t+'</div><div class="subname">'+(item.n||"")+'</div></td>'
+        +'<td style="min-width:110px"><div class="ticker">'+(mixedMarkets&&rowMarket!=="us"?({krx:"🇰🇷",coin:"🪙"}[rowMarket]||"")+' ':'')+item.t+'</div><div class="subname">'+(item.n||"")+'</div></td>'
         +'<td class="r">'+item.q+'</td>'
         +'<td class="r" style="color:#aeaeb2">'+(rowIsUS?usd(item.a):won(item.a))+'</td>'
         +'<td class="r">'+priceStr+'</td>'
@@ -1920,8 +1931,7 @@ function buildAccountSection(acc) {
     +(editMode?'<button class="add-btn" data-add-item="'+acc.id+'">+ 종목 추가</button>':"")
     +(acc.type!=="cash" ? buildDepositSection(acc.deposits, acc.id) : "")
     +buildAccountHistorySection(acc)
-    +buildDonutCard(valItemsWithCash,acc.name+" 비중")
-    +buildDonutCard(secItems,acc.name+" 섹터")
+    +buildDonutSwitch("acc_"+acc.id, {label:"종목", title:acc.name+" 비중", items:valItemsWithCash}, {label:"섹터", title:acc.name+" 섹터", items:secItems})
     +'</div>';
 }
 
@@ -1930,6 +1940,7 @@ function buildGoals(tot) {
   const now=new Date(), curYear=now.getFullYear(), goals=ST.goals||[];
   if (!goals.length&&!editMode) return "";
   goals.forEach(g=>{ if(curYear>g.year&&g.snapshot===null){g.snapshot=tot;saveData();} });
+  const futureRows=[];
   const rows=goals.map((g,i)=>{
     const isExpired=curYear>g.year, isCurrent=!isExpired&&(i===0||curYear>goals[i-1].year);
     const isAchieved=tot>=g.target||(isExpired&&(g.snapshot||0)>=g.target);
@@ -1941,7 +1952,8 @@ function buildGoals(tot) {
     else if(isCurrent){icon="🎯";col="#3182f6";bar="#3182f6";}
     else{icon="";col="#636366";bar="#2c2c2e";}
     const ts=g.target>=1e8?(g.target/1e8).toFixed(g.target%1e8===0?0:1)+"억":(g.target/1e4).toFixed(0)+"만";
-    if(isFuture) return '<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;opacity:0.4"><span style="font-size:11px;color:#636366;width:36px">'+g.year+'</span><span style="font-size:12px;color:#636366;width:52px">'+ts+'</span><div style="flex:1;height:4px;background:#1c1c1e;border-radius:2px"></div></div>';
+    if(isFuture){ futureRows.push('<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;opacity:0.4"><span style="font-size:11px;color:#636366;width:36px">'+g.year+'</span><span style="font-size:12px;color:#636366;width:52px">'+ts+'</span><div style="flex:1;height:4px;background:#1c1c1e;border-radius:2px"></div></div>'); return ""; }
+    if(isExpired && goals.slice(i+1).some(x=>x.year<curYear)) return ""; // 지난 목표는 가장 최근 것 하나만
     return '<div style="margin-bottom:12px">'
       +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px"><span>'+icon+'</span><span style="font-size:12px;color:#aeaeb2;width:36px">'+g.year+'</span><span style="font-size:12px;font-weight:600;flex:1">'+ts+'</span><span style="font-size:12px;font-weight:700;color:'+col+'">'+pct+'%</span>'+(isExpired&&!isAchieved?'<span style="font-size:10px;color:#f59e0b">기간종료</span>':"")+'</div>'
       +'<div style="height:6px;background:#1c1c1e;border-radius:3px;overflow:hidden"><div style="height:100%;width:'+pct+'%;background:'+bar+';border-radius:3px;transition:width 0.5s"></div></div>'
@@ -1949,7 +1961,21 @@ function buildGoals(tot) {
       +'</div>';
   }).join("");
   const editRows=editMode?goals.map(g=>'<div style="display:flex;gap:6px;margin-bottom:6px;align-items:center"><input class="inp inp-r" type="number" style="width:60px" data-gf="year" data-gid="'+g.id+'" value="'+g.year+'"/><input class="inp inp-r" type="number" style="flex:1" data-gf="target" data-gid="'+g.id+'" value="'+g.target+'"/><button class="del-btn" data-gdel="'+g.id+'">✕</button></div>').join("")+'<button class="add-btn" id="btn-add-goal">+ 목표 추가</button>':"";
-  return '<div class="card" style="border-top:3px solid #3182f6;margin-bottom:12px"><div class="card-hdr"><span class="card-title">📈 목표 달성 현황</span></div>'+(editMode?editRows:rows)+'</div>';
+  return '<div class="card" style="border-top:3px solid #3182f6;margin-bottom:12px"><div class="card-hdr"><span class="card-title">📈 목표 달성 현황</span></div>'+(editMode?editRows:rows+(futureRows.length?foldHtml("goals_future",'<div style="font-size:12px;color:#636366;padding:2px 0">다음 목표 '+futureRows.length+'개 ▾</div>','<div style="margin-top:8px">'+futureRows.join("")+'</div>'):""))+'</div>';
+}
+
+// 접기 공통: <details> 열림 상태를 화면을 다시 그려도 유지한다
+const foldOpen = {};
+function foldHtml(key, summaryHtml, bodyHtml) {
+  return '<details data-fold="'+key+'"'+(foldOpen[key]?' open':'')+'><summary style="cursor:pointer;list-style:none">'+summaryHtml+'</summary>'+bodyHtml+'</details>';
+}
+// 도넛 두 개(종목/섹터)를 카드 하나 + 전환 버튼으로
+const donutMode = {};
+function buildDonutSwitch(key, a, b) {
+  const cur = donutMode[key] === 1 ? 1 : 0, pick = cur ? b : a;
+  if (!pick.items.length) return "";
+  const seg = '<span style="display:inline-flex;gap:4px">'+[a,b].map((x,i)=>'<button class="btn-sm" data-donut-mode="'+key+'" data-donut-val="'+i+'" style="padding:3px 10px;font-size:12px;'+(i===cur?'background:#3182f6;color:#fff;border-color:#3182f6':'')+'">'+x.label+'</button>').join("")+'</span>';
+  return buildDonutCard(pick.items, pick.title).replace('>'+pick.title+'</div>', '>'+seg+'</div>');
 }
 
 // ─── 전체 현황 ───────────────────────────────────────────────
@@ -1996,10 +2022,9 @@ function buildOverview() {
     +'</div>'
     +(profit!=null?'<div style="font-size:13px;font-weight:600;color:'+(profit>=0?'#ef4444':'#3b82f6')+';margin-top:4px">'+fProfit(profit)+'</div>':"")
     +(missingPrice?'<div style="font-size:10px;color:#f59e0b;margin-top:4px">⚠️ 일부 종목은 현재가를 못 받아와서 원가로 임시 반영됐어요</div>':"")
-    +'<div style="margin-top:8px;display:flex;gap:14px;flex-wrap:wrap">'+segs.map(s=>'<span style="font-size:11px;color:#8e8e93">'+s.l+' <b style="color:#aeaeb2">'+pp(s.v)+'%</b></span>').join("")+'</div></div>'
+    +'</div>'
     +buildOverviewDepositSection()
-    +buildDonutCard(secItems,"섹터 비중")
-    +(allItemsWithCash.length >= 2 ? buildDonutCard(allItemsWithCash, '📦 전체 종목별 비중') : '');
+    +buildDonutSwitch("overview", {label:"종목", title:"전체 종목별 비중", items:allItemsWithCash}, {label:"섹터", title:"섹터 비중", items:secItems});
 }
 
 
@@ -3971,6 +3996,15 @@ function bindEvents() {
     render();
   }));
 
+  // 히스토리 종류·연도 선택
+  document.querySelectorAll("[data-history-kind-sel],[data-history-year-sel]").forEach(s=>s.addEventListener("change",()=>{
+    const accId = s.dataset.historyKindSel || s.dataset.historyYearSel;
+    if (!accHistoryFilter[accId]) accHistoryFilter[accId] = {kind:"all", search:"", year:"all"};
+    if (s.dataset.historyKindSel) accHistoryFilter[accId].kind = s.value; else accHistoryFilter[accId].year = s.value;
+    render();
+  }));
+  document.querySelectorAll("details[data-fold]").forEach(d=>d.addEventListener("toggle",()=>{ foldOpen[d.dataset.fold]=d.open; }));
+  document.querySelectorAll("[data-donut-mode]").forEach(b=>b.addEventListener("click",()=>{ donutMode[b.dataset.donutMode]=Number(b.dataset.donutVal); render(); }));
   // 히스토리 필터 탭
   document.querySelectorAll("[data-history-filter]").forEach(b=>b.addEventListener("click",()=>{
     const accId = b.dataset.historyFilter, kind = b.dataset.filterKind;
