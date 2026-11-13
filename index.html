@@ -2290,6 +2290,8 @@ function buildTradeModal() {
   // 국내(krx) 시장에서는 종목코드가 숫자 6자리이므로 입력 자체를 숫자만 되도록 제한 — 미국 티커를 국내로 잘못 등록하는 걸 원천 차단
   const tickerPlaceholder = market==="krx" ? "예) 005930" : (market==="coin" ? "예) BTC, ETH" : "예) AAPL");
   const tickerAttrs = market==="krx" ? ' inputmode="numeric" maxlength="6"' : "";
+  // "이미 보유 중" 체크는 처음 세팅할 때만 필요하다: '이미 투자 중'으로 만든 계좌나 아직 거래가 없는 계좌에서만 바로 보이고, 그 밖에는 접어 둔다
+  const showCarryover = !!acc?.alreadyInvested || !(acc?.items||[]).some(x=>(x.trades||[]).length);
   const tickerSection = isNew
     ? `${marketPickerHtml}
        <div class="trade-inp-group">
@@ -2297,7 +2299,8 @@ function buildTradeModal() {
         <input class="trade-inp" id="tm-ticker" placeholder="${tickerPlaceholder}"${tickerAttrs} style="text-transform:uppercase"/>
         <div id="tm-name-preview" style="font-size:11px;color:#3182f6;margin-top:4px;min-height:16px"></div>
        </div>
-       <div style="display:flex;align-items:center;justify-content:space-between;background:#000000;border-radius:8px;padding:10px 12px;margin-bottom:12px">
+       ${showCarryover?"":`<details style="margin-bottom:12px"><summary style="font-size:12px;color:#8e8e93;cursor:pointer;padding:4px 0">예전부터 갖고 있던 종목인가요?</summary>`}
+       <div style="display:flex;align-items:center;justify-content:space-between;background:#000000;border-radius:8px;padding:10px 12px;margin-bottom:12px${showCarryover?"":";margin-top:6px"}">
         <div>
           <div style="font-size:12px;font-weight:600">📋 이미 보유 중인 종목이에요</div>
           <div style="font-size:10px;color:#8e8e93;margin-top:2px">과거 매매기록 없이 현재 수량·평단만 등록 (예수금 차감 안 됨). 예수금도 같이 있다면 입출금 → 기초 예수금 설정에서 맞춰두면 편해요</div>
@@ -2305,7 +2308,7 @@ function buildTradeModal() {
         <label style="display:flex;align-items:center;cursor:pointer;flex-shrink:0;margin-left:10px">
           <input type="checkbox" id="tm-carryover" style="width:20px;height:20px;cursor:pointer"/>
         </label>
-       </div>`
+       </div>${showCarryover?"":"</details>"}`
     : `<div style="margin-bottom:14px">
         <div style="font-size:16px;font-weight:800">${item.t} <span style="font-size:13px;font-weight:400;color:#aeaeb2">${item.n||""}</span></div>
         <div style="font-size:12px;color:#8e8e93;margin-top:3px">
