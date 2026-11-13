@@ -1,0 +1,15 @@
+{
+ "name": "자산 대시보드",
+ "short_name": "자산현황",
+ "description": "여러 계좌의 자산 현황과 매매 근거를 한 화면에서 보는 개인용 대시보드",
+ "start_url": "./",
+ "scope": "./",
+ "display": "standalone",
+ "background_color": "#000000",
+ "theme_color": "#000000",
+ "lang": "ko",
+ "icons": [
+  {"src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable"},
+  {"src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable"}
+ ]
+}
