@@ -131,6 +131,130 @@
 <body>
 <div id="app"></div>
 <div id="tip"></div>
+<style>
+  /* ─── PIN 잠금 화면 ─── */
+  #pin-lock, #pin-cover { position:fixed; inset:0; z-index:2147483000; background:#000; color:#fff; display:flex; flex-direction:column; align-items:center; justify-content:center; user-select:none; -webkit-user-select:none; touch-action:manipulation; }
+  #pin-cover .pin-logo { font-size:40px; opacity:.6; }
+  #pin-lock .pin-title { font-size:17px; font-weight:600; margin-bottom:20px; }
+  #pin-lock .pin-dots { display:flex; gap:14px; margin-bottom:12px; }
+  #pin-lock .pin-dots i { width:13px; height:13px; border-radius:50%; border:2px solid #636366; box-sizing:border-box; }
+  #pin-lock .pin-dots i.on { background:#3182f6; border-color:#3182f6; }
+  #pin-lock .pin-msg { min-height:18px; font-size:13px; color:#ef4444; margin-bottom:24px; text-align:center; padding:0 16px; }
+  #pin-lock .pin-pad { display:grid; grid-template-columns:repeat(3,72px); gap:14px 22px; }
+  #pin-lock .pin-pad button { width:72px; height:72px; border-radius:50%; border:none; background:#1c1c1e; color:#fff; font-size:26px; cursor:pointer; -webkit-tap-highlight-color:transparent; }
+  #pin-lock .pin-pad button:active { background:#2c2c2e; }
+  #pin-lock .pin-pad button.ghost { background:transparent; font-size:15px; color:#8e8e93; }
+  #pin-lock .pin-pad button:disabled { opacity:.35; }
+  #pin-lock .pin-foot { margin-top:26px; display:flex; gap:18px; }
+  #pin-lock .pin-foot button { background:none; border:none; color:#8e8e93; font-size:13px; text-decoration:underline; cursor:pointer; }
+  #pin-lock.shake .pin-dots { animation:pinshake .35s; }
+  @keyframes pinshake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-10px)} 75%{transform:translateX(10px)} }
+</style>
+<script>
+// ─── PIN 잠금 ───────────────────────────────────────────────
+// 화면 잠금이다. 데이터 자체를 PIN으로 암호화하지는 않는다(데이터는 기존처럼 이 브라우저 localStorage에 있다).
+// PIN 원문은 저장하지 않고 PBKDF2(SHA-256, 15만 회) 해시만 저장한다.
+// 앱이 백그라운드로 가면 즉시 화면을 가리고(최근 앱 미리보기 보호), 1분 넘게 지나 돌아오면 PIN을 다시 묻는다.
+(function(){
+  const KEY = "asset_pin_v1", FAIL_KEY = "asset_pin_fail_v1", LEN = 6, RELOCK_MS = 60 * 1000;
+  const enc = new TextEncoder();
+  const b64 = a => btoa(String.fromCharCode(...new Uint8Array(a)));
+  const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+  const read = k => { try { return JSON.parse(localStorage.getItem(k) || "null"); } catch { return null; } };
+  const write = (k, v) => { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, JSON.stringify(v)); } catch {} };
+  async function hashPin(pin, salt, iter) {
+    const key = await crypto.subtle.importKey("raw", enc.encode(pin), "PBKDF2", false, ["deriveBits"]);
+    return b64(await crypto.subtle.deriveBits({ name:"PBKDF2", salt, iterations:iter, hash:"SHA-256" }, key, 256));
+  }
+  async function makeRecord(pin) {
+    const salt = crypto.getRandomValues(new Uint8Array(16)), iter = 150000;
+    return { salt: b64(salt), iter, hash: await hashPin(pin, salt, iter) };
+  }
+  async function check(pin) {
+    const r = read(KEY); if (!r) return true;
+    return (await hashPin(pin, ub64(r.salt), r.iter)) === r.hash;
+  }
+  const isSet = () => !!read(KEY);
+  // 연속 5회 틀리면 30초 대기, 그 뒤 5회마다 대기 시간이 두 배로 늘어난다.
+  function lockoutLeft() { const f = read(FAIL_KEY); return f && f.until > Date.now() ? Math.ceil((f.until - Date.now()) / 1000) : 0; }
+  function addFail() {
+    const f = read(FAIL_KEY) || { n:0, until:0 }; f.n++;
+    if (f.n % 5 === 0) f.until = Date.now() + 30000 * Math.pow(2, f.n / 5 - 1);
+    write(FAIL_KEY, f);
+  }
+
+  let el = null, entry = "", mode = null, firstPin = "", onDone = null, busy = false, timer = null;
+  const TITLES = { unlock:"PIN을 입력하세요", verify:"현재 PIN을 입력하세요", set1:"새 PIN 6자리를 입력하세요", set2:"한 번 더 입력하세요" };
+
+  function draw(msg) {
+    if (!el) return;
+    const left = lockoutLeft();
+    el.querySelector(".pin-title").textContent = TITLES[mode];
+    el.querySelector(".pin-dots").innerHTML = Array.from({ length:LEN }, (_, i) => '<i class="' + (i < entry.length ? "on" : "") + '"></i>').join("");
+    el.querySelector(".pin-msg").textContent = left ? left + "초 후에 다시 시도하세요" : (msg || "");
+    el.querySelectorAll(".pin-pad button[data-k]").forEach(b => b.disabled = !!left && (mode === "unlock" || mode === "verify"));
+    el.querySelector("#pin-cancel").style.display = mode === "unlock" ? "none" : "";
+    el.querySelector("#pin-forgot").style.display = (mode === "unlock" || mode === "verify") ? "" : "none";
+    clearTimeout(timer); if (left) timer = setTimeout(() => draw(), 1000);
+  }
+  function open(m, done) {
+    mode = m; entry = ""; onDone = done || null;
+    if (!el) {
+      el = document.createElement("div"); el.id = "pin-lock";
+      el.innerHTML = '<div class="pin-title"></div><div class="pin-dots"></div><div class="pin-msg"></div><div class="pin-pad">'
+        + [1,2,3,4,5,6,7,8,9].map(n => '<button data-k="' + n + '">' + n + '</button>').join("")
+        + '<button class="ghost" disabled></button><button data-k="0">0</button><button class="ghost" data-k="del">지우기</button></div>'
+        + '<div class="pin-foot"><button id="pin-forgot">PIN을 잊었어요</button><button id="pin-cancel">취소</button></div>';
+      el.addEventListener("click", e => { const b = e.target.closest("button[data-k]"); if (b && !b.disabled) press(b.dataset.k); });
+      el.querySelector("#pin-forgot").addEventListener("click", () => alert("PIN은 이 기기에서만 확인해서 다시 알려 드릴 방법이 없어요.\n\n크롬 설정 → 사이트 설정 → 이 사이트의 데이터 삭제 후 다시 열면 PIN이 사라져요. 대신 이 기기에 저장된 데이터도 함께 지워지니, ⋯ → 클라우드 복원(복구 문장)이나 저장소에서 복원으로 되살리세요."));
+      el.querySelector("#pin-cancel").addEventListener("click", close);
+      document.addEventListener("keydown", e => { if (!el || !el.isConnected) return; if (/^[0-9]$/.test(e.key)) press(e.key); else if (e.key === "Backspace") press("del"); });
+    }
+    document.body.appendChild(el); hideCover(); draw();
+  }
+  function close() { if (el) el.remove(); mode = null; entry = ""; }
+  async function press(k) {
+    if (busy) return;
+    if (k === "del") { entry = entry.slice(0, -1); return draw(); }
+    if (entry.length >= LEN) return;
+    entry += k; draw();
+    if (entry.length < LEN) return;
+    busy = true;
+    try {
+      if (mode === "unlock" || mode === "verify") {
+        if (lockoutLeft()) { entry = ""; return draw(); }
+        if (await check(entry)) { write(FAIL_KEY, null); const cb = onDone; close(); cb && cb(); }
+        else { addFail(); entry = ""; el.classList.add("shake"); setTimeout(() => el && el.classList.remove("shake"), 400); draw("PIN이 맞지 않아요"); }
+      } else if (mode === "set1") {
+        firstPin = entry; mode = "set2"; entry = ""; draw();
+      } else if (mode === "set2") {
+        if (entry !== firstPin) { mode = "set1"; entry = ""; firstPin = ""; draw("두 PIN이 달라요. 처음부터 다시 입력하세요"); }
+        else { write(KEY, await makeRecord(entry)); write(FAIL_KEY, null); firstPin = ""; close(); alert("🔒 PIN 잠금을 켰어요.\n앱을 열 때와, 1분 넘게 다른 앱에 있다가 돌아올 때 PIN을 물어요."); }
+      }
+    } finally { busy = false; }
+  }
+
+  // 백그라운드 전환 시 화면 가리기 + 복귀 시 재잠금
+  let cover = null, hiddenAt = 0;
+  function showCover() { if (!cover) { cover = document.createElement("div"); cover.id = "pin-cover"; cover.innerHTML = '<div class="pin-logo">🔒</div>'; } if (!el || !el.isConnected) document.body.appendChild(cover); }
+  function hideCover() { if (cover) cover.remove(); }
+  document.addEventListener("visibilitychange", () => {
+    if (!isSet()) return;
+    if (document.hidden) { hiddenAt = Date.now(); showCover(); }
+    else { if (hiddenAt && Date.now() - hiddenAt > RELOCK_MS && mode !== "unlock") open("unlock"); else hideCover(); }
+  });
+
+  // ⋯ 메뉴에서 쓰는 함수
+  window.pinLock = {
+    isSet,
+    setup() { open("set1"); },
+    change() { open("verify", () => open("set1")); },
+    disable() { open("verify", () => { write(KEY, null); write(FAIL_KEY, null); alert("🔓 PIN 잠금을 껐어요."); }); },
+  };
+
+  if (isSet()) open("unlock");
+})();
+</script>
 <script>
 // ─── 전역 에러 핸들러 (콘솔 없이도 화면에 에러 표시) ──────────
 window.addEventListener('error', function(e) {
@@ -2062,6 +2186,9 @@ function buildPage() {
       +'<button class="data-menu-item" id="btn-gh-sync" style="color:'+(ghSyncStatus==="error"?"#ef4444":"#f59e0b")+'">'+(ghSyncStatus==="syncing"?"⟳":ghSyncStatus==="synced"?"✅":ghSyncStatus==="error"?"❌":"🗂️")+' <span>'+(!ghToken()?"저장소 동기화 켜기":ghSyncStatus==="syncing"?"저장소에 저장 중...":ghSyncStatus==="error"?"저장소 동기화 실패":"저장소에 지금 저장")+'</span></button>'
       +'<button class="data-menu-item" id="btn-gh-restore" style="color:#f59e0b">📥 <span>저장소에서 복원</span></button>'
       +(ghToken()?'<button class="data-menu-item" id="btn-gh-token" style="color:#8e8e93">🔑 <span>저장소 토큰 변경·끄기</span></button>':'')
+      +(window.pinLock&&pinLock.isSet()
+        ?'<button class="data-menu-item" id="btn-pin-change" style="color:#3182f6">🔒 <span>PIN 변경</span></button><button class="data-menu-item" id="btn-pin-off" style="color:#8e8e93">🔓 <span>PIN 잠금 끄기</span></button>'
+        :'<button class="data-menu-item" id="btn-pin-set" style="color:#3182f6">🔒 <span>PIN 잠금 설정</span></button>')
       +'</div>' : '')
     +'</div>'
     +'<button class="btn'+(editMode?" on":"")+'" id="btn-edit">'+(editMode?"✓":"✏")+'</button></div></div>'
@@ -3324,6 +3451,9 @@ function bindEvents() {
   $("btn-cloud-save")?.addEventListener("click", ()=>cloudSave(false));
   $("btn-cloud-load")?.addEventListener("click", ()=>{ dataMenuOpen=false; cloudLoad(); });
   $("btn-phrase-set")?.addEventListener("click", ()=>{ dataMenuOpen=false; setRecoveryPhrase(); });
+  $("btn-pin-set")?.addEventListener("click", ()=>{ dataMenuOpen=false; render(); pinLock.setup(); });
+  $("btn-pin-change")?.addEventListener("click", ()=>{ dataMenuOpen=false; render(); pinLock.change(); });
+  $("btn-pin-off")?.addEventListener("click", ()=>{ dataMenuOpen=false; render(); pinLock.disable(); });
   $("btn-gh-sync")?.addEventListener("click", ()=>{ dataMenuOpen=false; ghSync(true); });
   $("btn-gh-token")?.addEventListener("click", ()=>{ dataMenuOpen=false; ghSetToken(); });
   $("btn-gh-restore")?.addEventListener("click", ()=>{ dataMenuOpen=false; ghRestore(); });
