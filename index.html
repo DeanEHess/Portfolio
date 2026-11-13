@@ -1302,6 +1302,133 @@ function copyImportPrompt() {
 }
 document.addEventListener("click", e => { if (e.target.closest && e.target.closest("[data-copy-import-prompt]")) copyImportPrompt(); });
 
+// ─── 실계좌 스냅샷과 대조 → 기록 안 된 매매 알림 ─────────────────────
+// 피클(AI 비서)이 증권사 API로 읽어 저장소 portfolio/live/latest.json에 올린 실계좌 수량과
+// 대시보드 수량을 비교한다. 차이가 있으면 팝업으로 알려 주고, 체결가·매매 사유를 받아 거래로 기록한다.
+// 저장소 토큰이 있는 기기에서만, '기본' 프로필에서만 동작한다.
+const LIVE_PATH = "portfolio/live/latest.json", LIVE_PROFILE = "기본", LIVE_ACK_KEY = "asset_live_ack_v1";
+let liveCheckedAt = 0, liveBox = null;
+function liveAcks() { try { return JSON.parse(localStorage.getItem(LIVE_ACK_KEY) || "[]"); } catch { return []; } }
+function liveAck(key) { const a = liveAcks(); if (!a.includes(key)) a.push(key); try { localStorage.setItem(LIVE_ACK_KEY, JSON.stringify(a.slice(-200))); } catch {} }
+
+async function liveCheck(force) {
+  if (!ghToken() || curProfile !== LIVE_PROFILE) return;
+  if (!force && Date.now() - liveCheckedAt < 10 * 60 * 1000) return;
+  if (liveBox && liveBox.isConnected) return;
+  liveCheckedAt = Date.now();
+  let snap;
+  try {
+    const url = "https://api.github.com/repos/" + GH_REPO + "/contents/" + LIVE_PATH + "?ref=" + GH_BRANCH;
+    const r = await fetch(url, { headers: { "Authorization": "Bearer " + ghToken(), "Accept": "application/vnd.github.raw+json" } });
+    if (!r.ok) return;
+    snap = JSON.parse(await r.text());
+  } catch { return; }
+  const diffs = liveDiffs(snap);
+  if (diffs.length) showLiveDiffs(snap, diffs);
+}
+
+function liveDiffs(snap) {
+  const asOf = String(snap.as_of || ""), asOfDate = asOf.slice(0, 10), acks = liveAcks(), out = [];
+  for (const sa of (snap.accounts || [])) {
+    if (sa.stale || !Array.isArray(sa.positions)) continue;
+    const syms = new Set(sa.positions.map(p => String(p.symbol).toUpperCase()));
+    // 종목 겹침이 가장 큰 대시보드 계좌를 같은 계좌로 본다(절반 이상 겹쳐야 인정)
+    let best = null, bestN = 0;
+    for (const acc of ST.accounts) {
+      if (acc.type === "cash") continue;
+      const n = acc.items.filter(it => (Number(it.q) || 0) > 0 && syms.has(String(it.t).toUpperCase())).length;
+      if (n > bestN) { best = acc; bestN = n; }
+    }
+    if (!best || bestN < Math.max(1, Math.ceil(syms.size / 2))) continue;
+    const all = new Set([...syms, ...best.items.filter(it => (Number(it.q) || 0) > 0).map(it => String(it.t).toUpperCase())]);
+    for (const sym of all) {
+      const pos = sa.positions.find(p => String(p.symbol).toUpperCase() === sym);
+      const item = best.items.find(it => String(it.t).toUpperCase() === sym);
+      const live = pos ? Number(pos.qty) || 0 : 0, dash = item ? Number(item.q) || 0 : 0;
+      const tol = best.type === "coin" ? 1e-8 : 1e-6;
+      if (Math.abs(live - dash) <= tol) continue;
+      // 스냅샷 날짜 당일·이후에 대시보드에 기록한 거래가 있으면 대시보드가 더 최신이라 보고 건너뛴다
+      if (item && (item.trades || []).some(t => t.date >= asOfDate)) continue;
+      const key = asOf + "|" + sa.id + "|" + sym + "|" + live;
+      if (acks.includes(key)) continue;
+      const delta = live - dash, side = delta > 0 ? "buy" : "sell", qty = Math.abs(delta);
+      // 매수는 평단 변화로 체결가를 역산해 기본값으로 넣는다(수수료 때문에 약간 다를 수 있음)
+      let hint = "";
+      if (side === "buy" && pos && Number(pos.avg_price) > 0) {
+        const implied = (live * Number(pos.avg_price) - dash * (Number(item?.a) || 0)) / qty;
+        if (implied > 0 && isFinite(implied)) hint = String(Math.round(implied * 10000) / 10000);
+      }
+      out.push({ key, acc: best, saName: sa.name || sa.id, sym, name: (item && item.n) || "", dash, live, side, qty, hint, pos, asOfDate });
+    }
+  }
+  return out;
+}
+
+function showLiveDiffs(snap, diffs) {
+  liveBox = document.createElement("div");
+  liveBox.className = "modal-bg";
+  liveBox.style.zIndex = "2000";
+  const isUSd = d => d.acc.type === "us" || (d.acc.type === "mixed" && (d.pos?.currency === "USD" || !/^\d{6}$|^\d{4}[0-9A-Z]{2}$/.test(d.sym)));
+  const rows = diffs.map((d, i) => {
+    const unit = d.acc.type === "coin" ? "개" : "주", ccy = isUSd(d) ? "달러" : "원";
+    return '<div data-live-row="' + i + '" style="border:1px solid var(--border);border-radius:12px;padding:12px;margin-bottom:10px">'
+      + '<div style="font-weight:700;margin-bottom:4px">' + (d.side === "buy" ? "🟥 매수 " : "🟦 매도 ") + d.sym + (d.name ? ' <span style="font-weight:400;color:var(--muted-1);font-size:12px">' + d.name + '</span>' : '') + '</div>'
+      + '<div style="font-size:12px;color:var(--muted-1);margin-bottom:8px">' + d.acc.name + ' · 대시보드 ' + d.dash + unit + ' → 실계좌 ' + d.live + unit + ' (' + (d.side === "buy" ? "+" : "−") + d.qty + unit + ')</div>'
+      + '<div style="display:flex;gap:6px;margin-bottom:6px"><input class="inp" type="date" data-f="date" value="' + d.asOfDate + '" style="flex:1"/>'
+      + '<input class="inp" type="number" inputmode="decimal" step="any" data-f="price" placeholder="체결 단가(' + ccy + ')" value="' + d.hint + '" style="flex:1"/></div>'
+      + '<textarea class="inp" data-f="thesis" rows="2" placeholder="매매 사유 (필수)" style="width:100%;box-sizing:border-box;resize:vertical"></textarea>'
+      + '<div style="display:flex;gap:6px;margin-top:6px"><button class="btn" data-act="ignore" style="flex:1;font-size:12px">무시</button><button class="trade-btn ' + (d.side === "buy" ? "buy" : "sell") + '" data-act="save" style="flex:2">기록</button></div></div>';
+  }).join("");
+  liveBox.innerHTML = '<div class="modal" style="max-height:85dvh;overflow-y:auto">'
+    + '<div class="modal-title">📝 기록 안 된 매매가 있어요</div>'
+    + '<div style="font-size:12px;color:var(--muted-1);margin-bottom:12px">실계좌 스냅샷(' + String(snap.as_of || "").replace("T", " ").slice(0, 16) + ')과 대시보드 수량이 달라요. 체결 단가와 매매 사유를 적으면 거래로 기록돼요. 매수 단가는 평단 변화로 추정한 값이라 확인해 주세요.</div>'
+    + rows + '<button class="btn" data-act="later" style="width:100%">나중에</button></div>';
+  document.body.appendChild(liveBox);
+  liveBox.addEventListener("click", e => {
+    const b = e.target.closest("button[data-act]"); if (!b) return;
+    if (b.dataset.act === "later") { liveBox.remove(); return; }
+    const rowEl = b.closest("[data-live-row]"), d = diffs[+rowEl.dataset.liveRow];
+    if (b.dataset.act === "ignore") {
+      if (!confirm(d.sym + " 차이를 이 스냅샷 기준으로 더 묻지 않을까요?\n(분할·입고·다른 계좌 이동처럼 매매가 아닌 차이일 때 쓰세요)")) return;
+      liveAck(d.key);
+    } else {
+      const date = rowEl.querySelector('[data-f="date"]').value, price = parseFloat(rowEl.querySelector('[data-f="price"]').value), thesis = rowEl.querySelector('[data-f="thesis"]').value.trim();
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) { alert("날짜를 확인해 주세요"); return; }
+      if (!(price > 0)) { alert("체결 단가를 입력해 주세요"); return; }
+      if (!thesis) { alert("매매 사유를 입력해 주세요"); return; }
+      liveRecord(d, date, price, thesis, isUSd(d));
+      liveAck(d.key);
+    }
+    rowEl.remove();
+    if (!liveBox.querySelector("[data-live-row]")) liveBox.remove();
+  });
+}
+
+function liveRecord(d, date, price, thesis, isUSd) {
+  const acc = d.acc, memo = "실계좌 스냅샷 대조로 기록";
+  let item = acc.items.find(it => String(it.t).toUpperCase() === d.sym);
+  if (!item) {
+    item = { id: "i" + Date.now(), t: d.sym, n: US_DB[d.sym] || KRX_DB[d.sym] || "", q: 0, a: 0, trades: [] };
+    if (acc.type === "mixed") item.market = isUSd ? "us" : "krx";
+    acc.items.push(item);
+  }
+  if (!item.trades) item.trades = [];
+  const { qty: recordedQty } = computeMovingAverage(item.trades);
+  if (item.q > recordedQty + 0.00001) item.trades.push({ id: "tr" + Date.now() + "c", type: "carryover", date, qty: item.q - recordedQty, price: item.a, memo: "직접 입력된 기존 보유분 자동 이월", thesis: "" });
+  const ccy = acc.type === "mixed" ? (item.market === "us" ? "usd" : "krw") : (acc.type === "us" ? "usd" : "krw");
+  if (d.side === "buy") {
+    item.trades.push({ id: "tr" + Date.now(), type: "buy", date, qty: d.qty, price, memo, thesis });
+    adjustCash(acc, ccy, -d.qty * price);
+  } else {
+    const { avg } = computeMovingAverage(item.trades);
+    item.trades.push({ id: "tr" + Date.now(), type: "sell", date, qty: d.qty, price, pnl: (price - avg) * d.qty, memo, thesis });
+    adjustCash(acc, ccy, d.qty * price);
+  }
+  const { qty, avg } = computeMovingAverage(item.trades);
+  item.q = qty; item.a = avg;
+  saveData(); render();
+}
+
 // ─── SVG 도넛 ────────────────────────────────────────────────
 function buildDonutSVG(segs, total, cx, cy, R, r, interactive) {
   if (!segs.length||!total) return "";
@@ -3901,6 +4028,9 @@ setInterval(fetchAll,60000);
 document.addEventListener("visibilitychange", () => {
   if (!document.hidden && !loading && (fetchError || !usdKrw)) fetchAll();
 });
+// 실계좌 스냅샷과 대조해 기록 안 된 매매를 알린다(앱을 열 때, 10분 넘게 지나 돌아올 때)
+setTimeout(()=>liveCheck(true), 1500);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) liveCheck(false); });
 // 암호화 도입 전 평문으로 저장됐을 수 있는 기존 클라우드 백업을 암호화본으로 즉시 교체
 if (!ghToken()) cloudSave(true); // 저장소 동기화 사용 중이면 클라우드 자동저장 생략
 </script>
