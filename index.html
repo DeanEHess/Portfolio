@@ -53,7 +53,7 @@
     .btn-sm { background:var(--card); border:1px solid var(--border); color:var(--muted-3); padding:6px 12px; border-radius:999px; font-size:12px; cursor:pointer; flex:1; text-align:center; }
     .data-menu-wrap { position:relative; }
     .data-menu-bg { position:fixed; inset:0; z-index:40; background:transparent; }
-    .data-menu { position:absolute; top:calc(100% + 8px); right:0; background:var(--card); border:1px solid var(--border); border-radius:14px; box-shadow:var(--shadow-modal); padding:6px; min-width:180px; z-index:41; display:flex; flex-direction:column; gap:2px; animation:menu-pop 0.15s ease-out; }
+    .data-menu { position:absolute; top:calc(100% + 8px); right:0; background:var(--card); border:1px solid var(--border); border-radius:14px; box-shadow:var(--shadow-modal); padding:6px; min-width:180px; max-height:calc(100dvh - 90px); overflow-y:auto; z-index:41; display:flex; flex-direction:column; gap:2px; animation:menu-pop 0.15s ease-out; }
     .data-menu-item { display:flex; align-items:center; gap:8px; background:transparent; border:none; color:var(--text); font-size:13px; padding:9px 10px; border-radius:9px; cursor:pointer; text-align:left; width:100%; }
     .data-menu-item:active { background:var(--border); }
     @keyframes menu-pop { from { opacity:0; transform:translateY(-4px) scale(0.97); } to { opacity:1; transform:translateY(0) scale(1); } }
@@ -1123,7 +1123,7 @@ function ghSetToken() {
   if (v === null) return;
   try {
     if (v.trim()) { localStorage.setItem("gh_sync_token", v.trim()); ghSync(true); }
-    else { localStorage.removeItem("gh_sync_token"); ghSyncStatus = ""; render(); alert("저장소 동기화를 껐어요."); }
+    else { if (!cur || !confirm("빈 칸으로 확인하면 저장소 동기화가 꺼져요.\n정말 끌까요? (그대로 두려면 취소)")) return; localStorage.removeItem("gh_sync_token"); ghSyncStatus = ""; render(); alert("저장소 동기화를 껐어요."); }
   } catch {}
 }
 
@@ -2178,6 +2178,9 @@ function buildPage() {
     +'<div class="hdr-btns"><button class="btn" id="btn-tutorial" title="사용법 튜토리얼">❓</button><button class="btn" id="btn-refresh">↻</button>'
     +'<div class="data-menu-wrap"><button class="btn" id="btn-data-menu" title="백업 및 복원">⋯</button>'
     +(dataMenuOpen ? '<div class="data-menu-bg" id="data-menu-bg"></div><div class="data-menu">'
+      +(window.pinLock&&pinLock.isSet()
+        ?'<button class="data-menu-item" id="btn-pin-change" style="color:#3182f6">🔒 <span>PIN 변경</span></button><button class="data-menu-item" id="btn-pin-off" style="color:#8e8e93">🔓 <span>PIN 잠금 끄기</span></button>'
+        :'<button class="data-menu-item" id="btn-pin-set" style="color:#3182f6">🔒 <span>PIN 잠금 설정</span></button>')
       +'<button class="data-menu-item" id="btn-backup">💾 <span>백업 (내보내기)</span></button>'
       +'<label class="data-menu-item">📂 <span>복원 (파일)</span><input type="file" accept=".json" id="inp-restore" style="display:none"/></label>'
       +'<button class="data-menu-item" id="btn-cloud-save" style="color:'+(cloudStatus==="error"?"#ef4444":"#10b981")+'">'+(cloudStatus==="saving"?"⟳":cloudStatus==="saved"?"✅":cloudStatus==="error"?"❌":"☁️")+' <span>'+(cloudStatus==="saving"?"저장 중...":cloudStatus==="saved"?"저장됨":cloudStatus==="error"?"저장 실패":"클라우드 저장")+'</span></button>'
@@ -2186,9 +2189,6 @@ function buildPage() {
       +'<button class="data-menu-item" id="btn-gh-sync" style="color:'+(ghSyncStatus==="error"?"#ef4444":"#f59e0b")+'">'+(ghSyncStatus==="syncing"?"⟳":ghSyncStatus==="synced"?"✅":ghSyncStatus==="error"?"❌":"🗂️")+' <span>'+(!ghToken()?"저장소 동기화 켜기":ghSyncStatus==="syncing"?"저장소에 저장 중...":ghSyncStatus==="error"?"저장소 동기화 실패":"저장소에 지금 저장")+'</span></button>'
       +'<button class="data-menu-item" id="btn-gh-restore" style="color:#f59e0b">📥 <span>저장소에서 복원</span></button>'
       +(ghToken()?'<button class="data-menu-item" id="btn-gh-token" style="color:#8e8e93">🔑 <span>저장소 토큰 변경·끄기</span></button>':'')
-      +(window.pinLock&&pinLock.isSet()
-        ?'<button class="data-menu-item" id="btn-pin-change" style="color:#3182f6">🔒 <span>PIN 변경</span></button><button class="data-menu-item" id="btn-pin-off" style="color:#8e8e93">🔓 <span>PIN 잠금 끄기</span></button>'
-        :'<button class="data-menu-item" id="btn-pin-set" style="color:#3182f6">🔒 <span>PIN 잠금 설정</span></button>')
       +'</div>' : '')
     +'</div>'
     +'<button class="btn'+(editMode?" on":"")+'" id="btn-edit">'+(editMode?"✓":"✏")+'</button></div></div>'

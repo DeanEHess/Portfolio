@@ -1,7 +1,7 @@
 // 설치형 웹앱(PWA)용 서비스 워커.
 // 같은 출처의 정적 파일만 캐시한다(네트워크 우선, 오프라인일 때만 캐시 사용).
 // 시세 Worker, GitHub API 등 다른 출처 요청은 건드리지 않는다.
-const C = 'portfolio-v2';
+const C = 'portfolio-v3';
 const F = ['./', 'index.html', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png'];
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(C).then(c => c.addAll(F)));
