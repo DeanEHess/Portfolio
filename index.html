@@ -129,8 +129,10 @@
     .ticker-row:active { background:var(--border); }
 
     /* ── 토스증권풍 정리: 테두리 대신 면, 넉넉한 여백, 큰 숫자 ── */
-    #app { padding:18px 16px 40px; }
-    .hdr-title { font-size:22px; font-weight:700; letter-spacing:-0.6px; }
+    #app { padding:calc(18px + env(safe-area-inset-top)) calc(16px + env(safe-area-inset-right)) calc(40px + env(safe-area-inset-bottom)) calc(16px + env(safe-area-inset-left)); }
+    .hdr-title { font-size:clamp(18px,5.6vw,22px); font-weight:700; letter-spacing:-0.6px; white-space:nowrap; }
+    .hdr-btns { gap:0; }
+    @media (max-width:360px) { .btn { padding:8px 6px; font-size:16px; } }
     .btn { background:transparent; border:none; padding:8px 10px; font-size:18px; color:var(--muted-3); }
     .btn.on { background:var(--accent); color:#fff; border-radius:12px; }
     .btn-sm { background:var(--elev); border:none; border-radius:10px; padding:8px 12px; font-size:13px; font-weight:600; }
@@ -148,7 +150,8 @@
     .card .card { padding-left:14px; padding-right:14px; }
     .inp { background:var(--elev); border:none; border-radius:8px; padding:6px 8px; font-size:13px; }
     .add-btn { border:none; background:var(--elev); color:var(--muted-1); border-radius:12px; padding:12px; font-size:14px; }
-    .modal, .trade-modal { border:none; border-radius:24px 24px 0 0; padding:24px 20px 32px; }
+    .modal, .trade-modal { border:none; border-radius:24px 24px 0 0; padding:24px 20px calc(32px + env(safe-area-inset-bottom)); }
+    #pin-lock { padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom); box-sizing:border-box; }
     .modal-title { font-size:20px; letter-spacing:-0.5px; }
     .trade-inp-label { font-size:13px; margin-bottom:6px; }
     .trade-inp { background:var(--elev); border:1px solid transparent; border-radius:12px; padding:14px; font-size:17px; }
@@ -171,17 +174,17 @@
   /* ─── PIN 잠금 화면 ─── */
   #pin-lock, #pin-cover { position:fixed; inset:0; z-index:2147483000; background:var(--bg); color:#fff; display:flex; flex-direction:column; align-items:center; justify-content:center; user-select:none; -webkit-user-select:none; touch-action:manipulation; }
   #pin-cover .pin-logo { font-size:40px; opacity:.6; }
-  #pin-lock .pin-title { font-size:clamp(20px,5.5vw,26px); font-weight:700; margin-bottom:28px; }
+  #pin-lock .pin-title { font-size:clamp(18px,5.5vw,26px); font-weight:700; margin-bottom:min(28px,3.5vh); }
   #pin-lock .pin-dots { display:flex; gap:clamp(16px,4.5vw,22px); margin-bottom:16px; }
   #pin-lock .pin-dots i { width:clamp(16px,4.2vw,20px); height:clamp(16px,4.2vw,20px); border-radius:50%; border:2px solid #63636e; box-sizing:border-box; }
   #pin-lock .pin-dots i.on { background:#3182f6; border-color:#3182f6; }
-  #pin-lock .pin-msg { min-height:22px; font-size:15px; color:#f04452; margin-bottom:36px; text-align:center; padding:0 16px; }
-  #pin-lock .pin-pad { display:grid; grid-template-columns:repeat(3,clamp(76px,23vw,104px)); gap:clamp(14px,4vw,22px) clamp(20px,7vw,36px); }
-  #pin-lock .pin-pad button { width:clamp(76px,23vw,104px); height:clamp(76px,23vw,104px); border-radius:50%; border:none; background:var(--card); color:#fff; font-size:clamp(28px,8vw,36px); font-weight:500; cursor:pointer; -webkit-tap-highlight-color:transparent; }
+  #pin-lock .pin-msg { min-height:22px; font-size:15px; color:#f04452; margin-bottom:min(36px,4vh); text-align:center; padding:0 16px; }
+  #pin-lock .pin-pad { display:grid; grid-template-columns:repeat(3,clamp(60px,min(23vw,10.5vh),104px)); gap:clamp(10px,min(4vw,2.2vh),22px) clamp(20px,7vw,36px); }
+  #pin-lock .pin-pad button { width:clamp(60px,min(23vw,10.5vh),104px); height:clamp(60px,min(23vw,10.5vh),104px); border-radius:50%; border:none; background:var(--card); color:#fff; font-size:clamp(24px,min(8vw,4vh),36px); font-weight:500; cursor:pointer; -webkit-tap-highlight-color:transparent; }
   #pin-lock .pin-pad button:active { background:#2b2b31; }
   #pin-lock .pin-pad button.ghost { background:transparent; font-size:17px; color:#8d8d98; }
   #pin-lock .pin-pad button:disabled { opacity:.35; }
-  #pin-lock .pin-foot { margin-top:32px; display:flex; gap:18px; }
+  #pin-lock .pin-foot { margin-top:min(32px,3.5vh); display:flex; gap:18px; }
   #pin-lock .pin-foot button { background:none; border:none; color:#8d8d98; font-size:15px; padding:8px; text-decoration:underline; cursor:pointer; }
   #pin-lock.shake .pin-dots { animation:pinshake .35s; }
   @keyframes pinshake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-10px)} 75%{transform:translateX(10px)} }
