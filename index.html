@@ -9,6 +9,8 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
   <meta name="apple-mobile-web-app-title" content="자산현황"/>
   <meta name="theme-color" content="#000000"/>
+  <link rel="manifest" href="manifest.webmanifest"/>
+  <link rel="apple-touch-icon" href="icon-192.png"/>
   <style>
     :root {
       /* 토스증권 스타일 참고: 거의 순검정 배경 + 짙은 그레이 카드 + 토스 블루 포인트 */
@@ -3613,5 +3615,6 @@ document.addEventListener("visibilitychange", () => {
 // 암호화 도입 전 평문으로 저장됐을 수 있는 기존 클라우드 백업을 암호화본으로 즉시 교체
 if (!ghToken()) cloudSave(true); // 저장소 동기화 사용 중이면 클라우드 자동저장 생략
 </script>
+<script>if('serviceWorker' in navigator&&location.protocol!=='file:')navigator.serviceWorker.register('sw.js').catch(()=>{});</script>
 </body>
 </html>
