@@ -588,7 +588,7 @@ const TUTORIAL_SEEN_KEY = "tutorial_seen_v1";
 // need: 이 단계에 들어갈 때 강제로 맞춰줄 앱 상태({tab, editMode})를 반환하는 함수(선택)
 const TUTORIAL_STEPS = [
   { title:"👋 환영합니다", body:"이 앱을 만든 이유를 먼저 말씀드릴게요.<br><br>전설적인 투자자 필립 피셔는 이렇게 말했어요 — \"내가 주식을 매수할 때 가졌던 당초의 시각을 바꿀 만한 일이 벌어지지 않았다면, 나는 적어도 3년은 계속 보유할 것이다.\"<br><br>하지만 우리는 종종 잦은 뇌동매매로 후회하곤 하죠. 그래서 이 앱은 매수·매도할 때마다 '투자 근거'를 꼭 남기게 해요 — 나중에 그 근거가 정말 바뀌었는지 스스로 되짚어볼 수 있도록요. 여러분의 소중한 손가락(그리고 계좌)을 지킬 수 있으면 좋겠습니다 🙏<br><br>자, 실제 버튼을 하이라이트하면서 짧게 사용법을 안내할게요. 언제든 '그만두기'로 중단할 수 있어요.", target:()=>null },
-  { title:"💾 내 데이터는 어디에 저장되나요?", body:"<b>이 기기의 브라우저 안에만</b> 저장돼요. 서버로 보내지 않아서, 같은 주소를 다른 사람이 열어도 내 데이터는 보이지 않아요.<br><br>대신 브라우저 데이터를 지우거나 폰을 바꾸면 사라져요. 그래서 <b>복구 수단을 꼭 하나 만들어 두세요.</b><br>• <b>⋯ → ⚙️ 복구·동기화 설정 → 복구 문장</b> (추천): 데이터를 이 기기에서 암호화한 뒤 클라우드에 저장해요. 개발자도 내용을 못 읽고, 문장만 기억하면 어디서든 되살릴 수 있어요. 마지막 저장 후 5년간 보관돼요.<br>• <b>⋯ → 💾 백업 → 파일로 내려받기</b>: 파일로 내려받아 직접 보관해요.<br><br>시세는 저장하지 않고 열 때마다 새로 받아와요. 홈 화면에 앱으로 설치할 수 있고, <b>⋯ → 🔒 PIN 잠금</b>도 켤 수 있어요.", target:()=>null },
+  { title:"💾 내 데이터는 어디에 저장되나요?", body:"원본은 <b>이 기기의 브라우저 안</b>에 있어요. 같은 주소를 다른 사람이 열어도 내 데이터는 보이지 않아요.<br><br>기록을 바꾸면 1분 뒤 <b>이 기기에서 암호화한 사본</b>이 클라우드에 자동으로 저장돼요. 암호화 키는 이 기기에만 있어서 개발자를 포함해 아무도 내용을 읽을 수 없어요. 마지막 저장 후 5년간 보관돼요.<br><br>브라우저 데이터를 지우거나 폰을 바꾸면 키도 같이 사라지니, <b>복구 수단을 꼭 만들어 두세요.</b><br>• <b>⋯ → ⚙️ 복구·동기화 설정 → 복구 문장</b> (추천): 외우기 쉬운 문장에서 키를 만들어요. 문장만 기억하면 어느 기기에서든 되살릴 수 있어요.<br>• <b>⋯ → 💾 백업 → 파일로 내려받기</b>: 파일로 내려받아 직접 보관해요.<br><br>시세는 저장하지 않고 열 때마다 새로 받아와요. 홈 화면에 앱으로 설치할 수 있고, <b>⋯ → 🔒 PIN 잠금</b>도 켤 수 있어요.", target:()=>null },
   { title:"🧭 어떻게 시작할까요?", body:"<b>A. 지금부터 새로 기록 (5분)</b><br>계좌를 만들 때 '이미 투자 중'을 켜고, 지금 예수금은 '기초 예수금', 지금 보유 종목은 '이월 잔고'로 넣어요. 과거 매매 이력과 실현손익은 없지만 가장 빨라요. 다음 단계부터 이 방법을 안내해요.<br><br><b>B. 과거 거래내역 가져오기</b><br>① 증권사 앱·웹에서 거래내역서(엑셀·CSV·PDF)를 내려받아요.<br>② 아래 버튼으로 <b>변환 안내문</b>을 복사해서, ChatGPT·Claude 같은 AI에 거래내역서와 함께 주세요. 계좌번호·이름은 지우고 주세요.<br>③ AI가 만든 JSON을 .json 파일로 저장하고 <b>⋯ → 📥 과거 거래내역 가져오기</b>로 넣으면 새 계좌가 만들어지고 평단·실현손익·예수금이 자동 계산돼요.<br><br><button class=\"btn\" data-copy-import-prompt style=\"width:100%;color:#10b981;border-color:#10b981\">📋 변환 안내문 복사</button>", target:()=>null },
   { title:"1️⃣ 계좌 추가하기", body:"편집 버튼을 눌러 편집 모드로 들어가세요. '➕ 계좌 추가' 버튼이 나타나면, 어떤 자산을 관리할 계좌인지 고르고(증권계좌/국내전용/코인/현금) 이름을 입력해 계좌를 만들 수 있어요. 같은 증권사에 원화·달러가 섞여 있다면 '증권계좌' 타입을 추천해요.",
     target:()=> editMode ? "#btn-add-acc" : "#btn-edit" },
@@ -1047,7 +1047,24 @@ async function fetchMissingSectors() {
 // ─── 깃허브 저장소 동기화 (매매기록·근거 영구 보관) ─────────────
 // 사용자가 토큰을 입력한 기기에서만 동작한다. 토큰은 이 브라우저 localStorage에만 저장되고 다른 곳으로 보내지 않는다.
 // 비공개 저장소의 portfolio/trades/ 아래에 JSON(전체 데이터)과 마크다운(매매기록·근거)을 커밋한다.
-const GH_REPO = "DeanEHess/Private-Financial-Advisor";
+// 저장소 동기화는 고급 기능이다. 저장소 이름(owner/repo)과 토큰을 이 기기에서 직접 입력해야 켜진다.
+// 이 설정 도입 전부터 토큰을 넣어 쓰던 기기는 예전 기본 저장소로 그대로 이어진다.
+const GH_REPO_LEGACY = "DeanEHess/Private-Financial-Advisor";
+function ghRepo() {
+  try {
+    let r = localStorage.getItem("gh_sync_repo") || "";
+    if (!r && localStorage.getItem("gh_sync_token")) { r = GH_REPO_LEGACY; localStorage.setItem("gh_sync_repo", r); }
+    return r;
+  } catch { return ""; }
+}
+function ghAskRepo() {
+  const v = prompt("동기화할 GitHub 저장소를 입력하세요 (형식: 아이디/저장소이름)\n예) myname/my-portfolio\n\n비공개(Private) 저장소를 추천해요.", ghRepo());
+  if (v === null) return null;
+  const r = v.trim().replace(/^https?:\/\/github\.com\//, "").replace(/\.git$/, "").replace(/\/$/, "");
+  if (!/^[\w.-]+\/[\w.-]+$/.test(r)) { alert("형식이 맞지 않아요. 예) myname/my-portfolio"); return null; }
+  try { localStorage.setItem("gh_sync_repo", r); } catch {}
+  return r;
+}
 const GH_BRANCH = "main";
 const GH_DIR = "portfolio/trades";
 let ghSyncStatus = ""; // "", "syncing", "synced", "error"
@@ -1088,7 +1105,7 @@ function buildTradesMarkdown() {
   return L.join("\n");
 }
 async function ghPutFile(path, content, message, token) {
-  const url = "https://api.github.com/repos/" + GH_REPO + "/contents/" + path.split("/").map(encodeURIComponent).join("/");
+  const url = "https://api.github.com/repos/" + ghRepo() + "/contents/" + path.split("/").map(encodeURIComponent).join("/");
   const headers = { "Authorization": "Bearer " + token, "Accept": "application/vnd.github+json" };
   let sha;
   const g = await fetch(url + "?ref=" + GH_BRANCH, { headers });
@@ -1130,14 +1147,15 @@ function scheduleGhSync() {
 async function ghRestore() {
   let token = ghToken();
   if (!token) {
-    const v = prompt("저장소에서 복원하려면 깃허브 토큰이 필요해요.\n" + GH_REPO + " 저장소 Contents 읽기·쓰기 권한 토큰을 입력하세요.", "");
+    if (!ghAskRepo()) return;
+    const v = prompt("저장소에서 복원하려면 깃허브 토큰이 필요해요.\n" + ghRepo() + " 저장소 Contents 읽기·쓰기 권한 토큰을 입력하세요.", "");
     if (!v || !v.trim()) return;
     token = v.trim(); try { localStorage.setItem("gh_sync_token", token); } catch {}
   }
   const path = GH_DIR + "/" + ghSafeName(curProfile) + ".json";
   let d;
   try {
-    const url = "https://api.github.com/repos/" + GH_REPO + "/contents/" + path.split("/").map(encodeURIComponent).join("/") + "?ref=" + GH_BRANCH;
+    const url = "https://api.github.com/repos/" + ghRepo() + "/contents/" + path.split("/").map(encodeURIComponent).join("/") + "?ref=" + GH_BRANCH;
     const r = await fetch(url, { headers: { "Authorization": "Bearer " + token, "Accept": "application/vnd.github.raw+json" } });
     if (r.status === 404) { alert("저장소에 '" + curProfile + "' 프로필 데이터가 아직 없어요 (" + path + ")."); return; }
     if (!r.ok) throw new Error("조회 실패 (" + r.status + ")");
@@ -1159,7 +1177,8 @@ async function ghRestore() {
 }
 function ghSetToken() {
   const cur = ghToken();
-  const v = prompt("깃허브 토큰을 입력하세요.\n\n• " + GH_REPO + " 저장소 하나만, Contents 읽기·쓰기 권한으로 만든 fine-grained 토큰을 쓰세요.\n• 토큰은 이 기기 브라우저에만 저장돼요.\n• 비우고 확인하면 동기화를 끕니다." + (cur ? "\n\n(현재 토큰이 설정돼 있어요)" : ""), "");
+  if (!cur && !ghAskRepo()) return;
+  const v = prompt("깃허브 토큰을 입력하세요.\n\n• " + ghRepo() + " 저장소 하나만, Contents 읽기·쓰기 권한으로 만든 fine-grained 토큰을 쓰세요.\n• 토큰은 이 기기 브라우저에만 저장돼요.\n• 비우고 확인하면 동기화를 끕니다." + (cur ? "\n\n(현재 토큰이 설정돼 있어요)" : ""), "");
   if (v === null) return;
   try {
     if (v.trim()) { localStorage.setItem("gh_sync_token", v.trim()); ghSync(true); }
@@ -1350,13 +1369,13 @@ function liveAcks() { try { return JSON.parse(localStorage.getItem(LIVE_ACK_KEY)
 function liveAck(key) { const a = liveAcks(); if (!a.includes(key)) a.push(key); try { localStorage.setItem(LIVE_ACK_KEY, JSON.stringify(a.slice(-200))); } catch {} }
 
 async function liveCheck(force) {
-  if (!ghToken() || curProfile !== LIVE_PROFILE) return;
+  if (!ghToken() || !ghRepo() || curProfile !== LIVE_PROFILE) return;
   if (!force && Date.now() - liveCheckedAt < 10 * 60 * 1000) return;
   if (liveBox && liveBox.isConnected) return;
   liveCheckedAt = Date.now();
   let snap;
   try {
-    const url = "https://api.github.com/repos/" + GH_REPO + "/contents/" + LIVE_PATH + "?ref=" + GH_BRANCH;
+    const url = "https://api.github.com/repos/" + ghRepo() + "/contents/" + LIVE_PATH + "?ref=" + GH_BRANCH;
     const r = await fetch(url, { headers: { "Authorization": "Bearer " + ghToken(), "Accept": "application/vnd.github.raw+json" } });
     if (!r.ok) return;
     snap = JSON.parse(await r.text());
@@ -2509,7 +2528,7 @@ function backupBannerHtml() {
 }
 function emptyRestoreHintHtml() {
   if (!isPristineData()) return "";
-  return noticeHtml("blue", "📂 이전에 쓰던 데이터가 있다면 <b>백업 키 또는 복구 문장</b>으로 불러올 수 있어요. (백업 파일은 ⋯ → 복원)", [["btn-hint-restore","☁️ 클라우드 복원"],["btn-hint-gh-restore","🗂️ 저장소에서 복원"]]);
+  return noticeHtml("blue", "📂 이전에 쓰던 데이터가 있다면 <b>백업 키 또는 복구 문장</b>으로 불러올 수 있어요. (백업 파일은 ⋯ → 복원)", [["btn-hint-restore","☁️ 클라우드 복원"]].concat(ghRepo()?[["btn-hint-gh-restore","🗂️ 저장소에서 복원"]]:[]));
 }
 // ⋯ 메뉴: 첫 화면은 5개, 누르면 하위 목록으로 들어간다
 let dataMenuSub = null; // null | "backup" | "restore" | "import" | "settings"
@@ -2520,11 +2539,11 @@ function dataMenuHtml() {
   const gh = !!ghToken();
   const cloudLbl = cloudStatus==="saving"?"저장 중...":cloudStatus==="saved"?"저장됨":cloudStatus==="error"?"저장 실패":"클라우드에 저장";
   if (dataMenuSub === "backup") return back
-    + it("btn-gh-sync", "🗂️", !gh?"저장소 동기화 켜기":ghSyncStatus==="syncing"?"저장소에 저장 중...":ghSyncStatus==="error"?"저장소 저장 실패":"저장소에 지금 저장", ghSyncStatus==="error"?"#f04452":"#f59e0b")
+    + (!gh ? "" : it("btn-gh-sync", "🗂️", !gh?"저장소 동기화 켜기":ghSyncStatus==="syncing"?"저장소에 저장 중...":ghSyncStatus==="error"?"저장소 저장 실패":"저장소에 지금 저장", ghSyncStatus==="error"?"#f04452":"#f59e0b"))
     + it("btn-cloud-save", "☁️", cloudLbl, cloudStatus==="error"?"#f04452":"#10b981")
     + it("btn-backup", "💾", "파일로 내려받기");
   if (dataMenuSub === "restore") return back
-    + it("btn-gh-restore", "🗂️", "저장소에서 복원", "#f59e0b")
+    + (gh ? it("btn-gh-restore", "🗂️", "저장소에서 복원", "#f59e0b") : "")
     + it("btn-cloud-load", "☁️", "클라우드에서 복원 (키·복구 문장)", "#3182f6")
     + '<label class="data-menu-item">📂 <span>파일에서 복원</span><input type="file" accept=".json" id="inp-restore" style="display:none"/></label>';
   if (dataMenuSub === "import") return back
@@ -2532,7 +2551,7 @@ function dataMenuHtml() {
     + it("data-copy-import-prompt", "📋", "AI 변환 안내문 복사", "#10b981");
   if (dataMenuSub === "settings") return back
     + it("btn-phrase-set", "🔐", "복구 문장 설정", "#a855f7")
-    + (gh ? it("btn-gh-token", "🔑", "저장소 토큰 변경·끄기", "#8d8d98") : it("btn-gh-sync", "🗂️", "저장소 동기화 켜기", "#f59e0b"))
+    + (gh ? it("btn-gh-token", "🔑", "저장소 토큰 변경·끄기", "#8d8d98") : it("btn-gh-sync", "🗂️", "GitHub 저장소 동기화 (고급)", "#8d8d98"))
     + '<div style="font-size:10px;color:#63636e;padding:8px 10px 4px;display:flex;align-items:center;gap:6px;flex-wrap:wrap">'
       + '<span'+(uidRevealed?' style="user-select:all;font-family:ui-monospace,Consolas,monospace;color:#b0b0ba"':'')+'>🔑 클라우드 키 '+(uidRevealed?groupKey(cloudToken()):"••••••")+'</span>'
       + '<button id="btn-uid-toggle" style="background:transparent;border:none;color:#8d8d98;font-size:10px;cursor:pointer;padding:0;text-decoration:underline">'+(uidRevealed?"숨기기":"보기")+'</button>'
