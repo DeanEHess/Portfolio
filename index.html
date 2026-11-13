@@ -549,8 +549,8 @@ const TUTORIAL_SEEN_KEY = "tutorial_seen_v1";
 // need: 이 단계에 들어갈 때 강제로 맞춰줄 앱 상태({tab, editMode})를 반환하는 함수(선택)
 const TUTORIAL_STEPS = [
   { title:"👋 환영합니다", body:"이 앱을 만든 이유를 먼저 말씀드릴게요.<br><br>전설적인 투자자 필립 피셔는 이렇게 말했어요 — \"내가 주식을 매수할 때 가졌던 당초의 시각을 바꿀 만한 일이 벌어지지 않았다면, 나는 적어도 3년은 계속 보유할 것이다.\"<br><br>하지만 우리는 종종 잦은 뇌동매매로 후회하곤 하죠. 그래서 이 앱은 매수·매도할 때마다 '투자 근거'를 꼭 남기게 해요 — 나중에 그 근거가 정말 바뀌었는지 스스로 되짚어볼 수 있도록요. 여러분의 소중한 손가락(그리고 계좌)을 지킬 수 있으면 좋겠습니다 🙏<br><br>자, 실제 버튼을 하이라이트하면서 짧게 사용법을 안내할게요. 언제든 '그만두기'로 중단할 수 있어요.", target:()=>null },
-  { title:"💾 내 데이터는 어디에 저장되나요?", body:"<b>이 기기의 브라우저 안에만</b> 저장돼요. 서버로 보내지 않아서, 같은 주소를 다른 사람이 열어도 내 데이터는 보이지 않아요.<br><br>대신 브라우저 데이터를 지우거나 폰을 바꾸면 사라져요. 그래서 <b>복구 수단을 꼭 하나 만들어 두세요.</b><br>• <b>⋯ → 🔐 복구 문장 설정</b> (추천): 데이터를 이 기기에서 암호화한 뒤 클라우드에 저장해요. 개발자도 내용을 못 읽고, 문장만 기억하면 어디서든 되살릴 수 있어요. 마지막 저장 후 5년간 보관돼요.<br>• <b>⋯ → 💾 백업(내보내기)</b>: 파일로 내려받아 직접 보관해요.<br><br>시세는 저장하지 않고 열 때마다 새로 받아와요. 홈 화면에 앱으로 설치할 수 있고, <b>⋯ → 🔒 PIN 잠금</b>도 켤 수 있어요.", target:()=>null },
-  { title:"🧭 어떻게 시작할까요?", body:"<b>A. 지금부터 새로 기록 (5분)</b><br>계좌를 만들 때 '이미 투자 중'을 켜고, 지금 예수금은 '기초 예수금', 지금 보유 종목은 '이월 잔고'로 넣어요. 과거 매매 이력과 실현손익은 없지만 가장 빨라요. 다음 단계부터 이 방법을 안내해요.<br><br><b>B. 과거 거래내역 가져오기</b><br>① 증권사 앱·웹에서 거래내역서(엑셀·CSV·PDF)를 내려받아요.<br>② 아래 버튼으로 <b>변환 안내문</b>을 복사해서, ChatGPT·Claude 같은 AI에 거래내역서와 함께 주세요. 계좌번호·이름은 지우고 주세요.<br>③ AI가 만든 JSON을 .json 파일로 저장하고 <b>⋯ → 📥 거래내역 가져오기</b>로 넣으면 새 계좌가 만들어지고 평단·실현손익·예수금이 자동 계산돼요.<br><br><button class=\"btn\" data-copy-import-prompt style=\"width:100%;color:#10b981;border-color:#10b981\">📋 변환 안내문 복사</button>", target:()=>null },
+  { title:"💾 내 데이터는 어디에 저장되나요?", body:"<b>이 기기의 브라우저 안에만</b> 저장돼요. 서버로 보내지 않아서, 같은 주소를 다른 사람이 열어도 내 데이터는 보이지 않아요.<br><br>대신 브라우저 데이터를 지우거나 폰을 바꾸면 사라져요. 그래서 <b>복구 수단을 꼭 하나 만들어 두세요.</b><br>• <b>⋯ → ⚙️ 복구·동기화 설정 → 복구 문장</b> (추천): 데이터를 이 기기에서 암호화한 뒤 클라우드에 저장해요. 개발자도 내용을 못 읽고, 문장만 기억하면 어디서든 되살릴 수 있어요. 마지막 저장 후 5년간 보관돼요.<br>• <b>⋯ → 💾 백업 → 파일로 내려받기</b>: 파일로 내려받아 직접 보관해요.<br><br>시세는 저장하지 않고 열 때마다 새로 받아와요. 홈 화면에 앱으로 설치할 수 있고, <b>⋯ → 🔒 PIN 잠금</b>도 켤 수 있어요.", target:()=>null },
+  { title:"🧭 어떻게 시작할까요?", body:"<b>A. 지금부터 새로 기록 (5분)</b><br>계좌를 만들 때 '이미 투자 중'을 켜고, 지금 예수금은 '기초 예수금', 지금 보유 종목은 '이월 잔고'로 넣어요. 과거 매매 이력과 실현손익은 없지만 가장 빨라요. 다음 단계부터 이 방법을 안내해요.<br><br><b>B. 과거 거래내역 가져오기</b><br>① 증권사 앱·웹에서 거래내역서(엑셀·CSV·PDF)를 내려받아요.<br>② 아래 버튼으로 <b>변환 안내문</b>을 복사해서, ChatGPT·Claude 같은 AI에 거래내역서와 함께 주세요. 계좌번호·이름은 지우고 주세요.<br>③ AI가 만든 JSON을 .json 파일로 저장하고 <b>⋯ → 📥 과거 거래내역 가져오기</b>로 넣으면 새 계좌가 만들어지고 평단·실현손익·예수금이 자동 계산돼요.<br><br><button class=\"btn\" data-copy-import-prompt style=\"width:100%;color:#10b981;border-color:#10b981\">📋 변환 안내문 복사</button>", target:()=>null },
   { title:"1️⃣ 계좌 추가하기", body:"편집 버튼을 눌러 편집 모드로 들어가세요. '➕ 계좌 추가' 버튼이 나타나면, 어떤 자산을 관리할 계좌인지 고르고(증권계좌/국내전용/코인/현금) 이름을 입력해 계좌를 만들 수 있어요. 같은 증권사에 원화·달러가 섞여 있다면 '증권계좌' 타입을 추천해요.",
     target:()=> editMode ? "#btn-add-acc" : "#btn-edit" },
   { title:"2️⃣ 이미 투자 중이신가요?", body:"이미 보유 중인 종목·예수금이 있는 계좌를 등록하는 거라면 이 체크박스를 꼭 켜주세요. 켜두면 예수금은 '기초 예수금', 종목은 '이월 잔고'로 등록하도록 안내해드려요 — 처음부터 다시 거래내역을 입력할 필요 없이 지금 상태 그대로 시작할 수 있어요.",
@@ -1192,7 +1192,7 @@ function importTradesFile(file) {
 }
 
 function applyTradeImport(d) {
-  if (d && d.accounts) throw new Error("이 파일은 전체 백업 파일이에요. ⋯ → 복원 (파일)을 쓰세요.");
+  if (d && d.accounts) throw new Error("이 파일은 전체 백업 파일이에요. ⋯ → 복원 → 파일에서 복원을 쓰세요.");
   if (!d || !Array.isArray(d.rows) || !d.rows.length) throw new Error("rows 배열이 없어요. 변환 안내문의 형식을 확인하세요.");
   const accType = ["mixed","krx","coin"].includes(d.account?.type) ? d.account.type : "mixed";
   let name = String(d.account?.name || ACCOUNT_TYPES[accType].label).trim();
@@ -1296,7 +1296,7 @@ function applyTradeImport(d) {
 }
 
 function copyImportPrompt() {
-  const done = () => alert("📋 변환 안내문을 복사했어요.\n\nChatGPT·Claude 같은 AI에 붙여 넣고, 증권사에서 내려받은 거래내역서(엑셀·CSV·PDF)를 함께 주세요.\n받은 JSON을 .json 파일로 저장한 뒤 ⋯ → 거래내역 가져오기로 넣으면 돼요.\n\n⚠️ 거래내역서의 계좌번호·이름은 지우고 AI에 주세요.");
+  const done = () => alert("📋 변환 안내문을 복사했어요.\n\nChatGPT·Claude 같은 AI에 붙여 넣고, 증권사에서 내려받은 거래내역서(엑셀·CSV·PDF)를 함께 주세요.\n받은 JSON을 .json 파일로 저장한 뒤 ⋯ → 과거 거래내역 가져오기 → JSON 파일 선택으로 넣으면 돼요.\n\n⚠️ 거래내역서의 계좌번호·이름은 지우고 AI에 주세요.");
   const fallback = () => { prompt("아래 안내문을 전체 선택해서 복사하세요.", IMPORT_PROMPT); };
   if (navigator.clipboard?.writeText) navigator.clipboard.writeText(IMPORT_PROMPT).then(done).catch(fallback); else fallback();
 }
@@ -1789,9 +1789,10 @@ function buildAccountSection(acc) {
   const transferBtnHtml = ST.accounts.length>=2 ? '<button class="btn-sm" style="flex:none;color:#06b6d4;border-color:#06b6d4;padding:6px 10px;font-size:12px;font-weight:700;white-space:nowrap" data-transfer-acc="'+acc.id+'">🔁 이체</button>' : '';
   const rebalanceBtnHtml = isCash ? '' : '<button class="btn-sm" style="flex:none;color:#8b5cf6;border-color:#8b5cf6;padding:6px 10px;font-size:12px;font-weight:700;white-space:nowrap" data-rebalance-acc="'+acc.id+'">🎯 리밸런싱</button>';
   const dividendBtnHtml = isCash ? '' : '<button class="btn-sm" style="flex:none;color:#f59e0b;border-color:#f59e0b;padding:6px 10px;font-size:12px;font-weight:700;white-space:nowrap" data-dividend-acc="'+acc.id+'">💵 배당</button>';
+  // 환전·이체는 입출금 안으로, 배당은 종목 안으로 옮겼다(버튼 6개 → 3개)
   const buyBtn = isCash
-    ? depositBtnHtml + transferBtnHtml
-    : depositBtnHtml + exchangeBtnHtml + transferBtnHtml + rebalanceBtnHtml + dividendBtnHtml
+    ? depositBtnHtml
+    : depositBtnHtml + rebalanceBtnHtml
       +'<button class="btn-sm" style="flex:none;color:#ef4444;border-color:#ef4444;padding:6px 10px;font-size:12px;font-weight:700;white-space:nowrap" data-new-trade="'+acc.id+'">+ 신규매수</button>';
   const cashRow = isCash ? "" : isMixed
     ? (editMode
@@ -2084,6 +2085,10 @@ function buildDepositModal() {
         <button class="trade-tab buy${isIn?" on":""}" id="dm-in-tab">💰 입금${isUS&&!isCashAcc?" (환전)":""}</button>
         <button class="trade-tab sell${!isIn?" on":""}" id="dm-out-tab">💸 출금${isUS&&!isCashAcc?" (환전)":""}</button>
       </div>
+      ${(acc.type==="mixed"||ST.accounts.length>=2)?`<div style="display:flex;gap:6px;margin:-4px 0 12px">
+        ${acc.type==="mixed"?`<button class="btn-sm" id="dm-go-exchange" style="flex:1;color:#f59e0b;border-color:#f59e0b">💱 환전</button>`:""}
+        ${ST.accounts.length>=2?`<button class="btn-sm" id="dm-go-transfer" style="flex:1;color:#06b6d4;border-color:#06b6d4">🔁 다른 계좌로 이체</button>`:""}
+      </div>`:""}
       ${itemPicker}
       ${isUS&&!isCashAcc ? `
       <div class="trade-inp-group">
@@ -2437,7 +2442,8 @@ function syncBannerHtml() {
   return "";
 }
 function backupBannerHtml() {
-  if (isPristineData()) return "";
+  if (isPristineData() || ghToken()) return "";
+  try { if (localStorage.getItem("asset_phrase_set")==="1") return ""; } catch {}
   const DAY = 86400000, now = Date.now();
   const ref = lsNum("asset_last_backup_at") || lsNum("asset_first_seen_at") || now;
   if (now - ref < 14*DAY || now < lsNum("asset_backup_snooze_until")) return "";
@@ -2447,11 +2453,47 @@ function emptyRestoreHintHtml() {
   if (!isPristineData()) return "";
   return noticeHtml("blue", "📂 이전에 쓰던 데이터가 있다면 <b>백업 키 또는 복구 문장</b>으로 불러올 수 있어요. (백업 파일은 ⋯ → 복원)", [["btn-hint-restore","☁️ 클라우드 복원"],["btn-hint-gh-restore","🗂️ 저장소에서 복원"]]);
 }
+// ⋯ 메뉴: 첫 화면은 5개, 누르면 하위 목록으로 들어간다
+let dataMenuSub = null; // null | "backup" | "restore" | "import" | "settings"
+function dataMenuHtml() {
+  const it = (id, icon, label, color, extra) => '<button class="data-menu-item" '+(id.startsWith("data-")?id:'id="'+id+'"')+(color?' style="color:'+color+'"':'')+(extra||"")+'>'+icon+' <span>'+label+'</span></button>';
+  const sub = (key, icon, label) => '<button class="data-menu-item" data-dm-sub="'+key+'">'+icon+' <span style="flex:1">'+label+'</span><span style="color:#636366">›</span></button>';
+  const back = '<button class="data-menu-item" data-dm-sub="" style="color:#8e8e93">‹ <span>뒤로</span></button>';
+  const gh = !!ghToken();
+  const cloudLbl = cloudStatus==="saving"?"저장 중...":cloudStatus==="saved"?"저장됨":cloudStatus==="error"?"저장 실패":"클라우드에 저장";
+  if (dataMenuSub === "backup") return back
+    + it("btn-gh-sync", "🗂️", !gh?"저장소 동기화 켜기":ghSyncStatus==="syncing"?"저장소에 저장 중...":ghSyncStatus==="error"?"저장소 저장 실패":"저장소에 지금 저장", ghSyncStatus==="error"?"#ef4444":"#f59e0b")
+    + it("btn-cloud-save", "☁️", cloudLbl, cloudStatus==="error"?"#ef4444":"#10b981")
+    + it("btn-backup", "💾", "파일로 내려받기");
+  if (dataMenuSub === "restore") return back
+    + it("btn-gh-restore", "🗂️", "저장소에서 복원", "#f59e0b")
+    + it("btn-cloud-load", "☁️", "클라우드에서 복원 (키·복구 문장)", "#3182f6")
+    + '<label class="data-menu-item">📂 <span>파일에서 복원</span><input type="file" accept=".json" id="inp-restore" style="display:none"/></label>';
+  if (dataMenuSub === "import") return back
+    + '<label class="data-menu-item" style="color:#10b981">📥 <span>JSON 파일 선택</span><input type="file" accept=".json,application/json,text/plain" id="inp-import" style="display:none"/></label>'
+    + it("data-copy-import-prompt", "📋", "AI 변환 안내문 복사", "#10b981");
+  if (dataMenuSub === "settings") return back
+    + it("btn-phrase-set", "🔐", "복구 문장 설정", "#a855f7")
+    + (gh ? it("btn-gh-token", "🔑", "저장소 토큰 변경·끄기", "#8e8e93") : it("btn-gh-sync", "🗂️", "저장소 동기화 켜기", "#f59e0b"))
+    + '<div style="font-size:10px;color:#636366;padding:8px 10px 4px;display:flex;align-items:center;gap:6px;flex-wrap:wrap">'
+      + '<span'+(uidRevealed?' style="user-select:all;font-family:ui-monospace,Consolas,monospace;color:#aeaeb2"':'')+'>🔑 클라우드 키 '+(uidRevealed?groupKey(cloudToken()):"••••••")+'</span>'
+      + '<button id="btn-uid-toggle" style="background:transparent;border:none;color:#8e8e93;font-size:10px;cursor:pointer;padding:0;text-decoration:underline">'+(uidRevealed?"숨기기":"보기")+'</button>'
+      + '<button id="btn-uid-copy" style="background:transparent;border:none;color:#8e8e93;font-size:10px;cursor:pointer;padding:0;text-decoration:underline">복사</button>'
+      + (uidRevealed?'<button id="btn-uid-regen" style="background:transparent;border:none;color:#8e8e93;font-size:10px;cursor:pointer;padding:0;text-decoration:underline">새 키 발급</button>':'')
+    + '</div>';
+  const pinSet = window.pinLock && pinLock.isSet();
+  return (pinSet ? it("btn-pin-change", "🔒", "PIN 변경", "#3182f6") + it("btn-pin-off", "🔓", "PIN 잠금 끄기", "#8e8e93") : it("btn-pin-set", "🔒", "PIN 잠금 설정", "#3182f6"))
+    + sub("backup", "💾", "백업")
+    + sub("restore", "📂", "복원")
+    + sub("import", "📥", "과거 거래내역 가져오기")
+    + sub("settings", "⚙️", "복구·동기화 설정");
+}
+
 function syncStatusLineHtml() {
-  if (ghToken()) { const ghAt = lsNum("gh_sync_at"); return '<div style="font-size:10px;color:#8e8e93;margin-top:3px">🗂️ 마지막 저장소 저장: '+(ghAt?timeAgo(ghAt):"아직 없음")+'</div>'; }
+  if (ghToken()) { const ghAt = lsNum("gh_sync_at"); return '<div style="font-size:10px;color:#8e8e93;margin-top:3px">🗂️ 저장소에 저장 · '+(ghAt?timeAgo(ghAt):"아직 없음")+'</div>'; }
   const synced = lsNum("asset_last_synced_at");
   const phrase = (()=>{ try { return localStorage.getItem("asset_phrase_set")==="1"; } catch { return false; } })();
-  return '<div style="font-size:10px;color:#8e8e93;margin-top:3px">☁️ 마지막 클라우드 저장: '+(synced?timeAgo(synced):"아직 없음")+(phrase?' · 🔐 복구 문장 사용 중':'')+'</div>';
+  return '<div style="font-size:10px;color:#8e8e93;margin-top:3px">☁️ 클라우드에 저장 · '+(synced?timeAgo(synced):"아직 없음")+(phrase?' · 🔐 복구 문장':'')+'</div>';
 }
 
 function buildPage() {
@@ -2465,37 +2507,18 @@ function buildPage() {
     :'<div style="display:flex;gap:4px;margin-bottom:10px;overflow-x:auto;padding-bottom:2px">'+getProfiles().map(p=>'<button style="background:'+(curProfile===p?'#3182f6':'#000000')+';border:1px solid '+(curProfile===p?'#3182f6':'#2c2c2e')+';color:'+(curProfile===p?'#fff':'#aeaeb2')+';padding:5px 12px;border-radius:20px;font-size:12px;font-weight:'+(curProfile===p?'700':'400')+';white-space:nowrap;cursor:pointer;flex-shrink:0" data-profile="'+p+'">👤 '+p+'</button>').join("")+'<button style="background:transparent;border:1px dashed #2c2c2e;color:#3182f6;padding:5px 10px;border-radius:20px;font-size:12px;cursor:pointer;flex-shrink:0" id="btn-add-profile">+</button></div>';
 
   return (loading?'<div class="loading-bar"><div class="loading-bar-inner"></div></div>':"")
-    +'<div class="hdr"><div><div class="hdr-title">📊 자산 대시보드</div><div class="hdr-sub"'+(fetchError&&!loading?' style="color:#f59e0b"':'')+'>'+subStr+'</div><div class="hdr-rate">'+rateStr+'</div>'
-    +'<div style="font-size:10px;color:#2c2c2e;margin-top:2px;display:flex;align-items:center;gap:6px" title="이 키가 있어야만 클라우드 백업을 열어볼 수 있어요(종단간 암호화). 키를 잃어버리면 개발자도 복구해줄 수 없으니 꼭 안전한 곳에 저장하세요.">'
-    +'<span'+(uidRevealed?' style="user-select:all;font-family:ui-monospace,Consolas,monospace"':'')+'>🔑 '+(uidRevealed?groupKey(cloudToken()):"••••••••••••")+'</span>'
-    +'<button id="btn-uid-toggle" style="background:transparent;border:none;color:#636366;font-size:10px;cursor:pointer;padding:0;text-decoration:underline">'+(uidRevealed?"숨기기":"보기")+'</button>'
-    +'<button id="btn-uid-copy" style="background:transparent;border:none;color:#636366;font-size:10px;cursor:pointer;padding:0;text-decoration:underline">복사</button>'
-    +(uidRevealed?'<button id="btn-uid-regen" style="background:transparent;border:none;color:#636366;font-size:10px;cursor:pointer;padding:0;text-decoration:underline" title="I/l/1, O/0처럼 헷갈리는 글자 없는 새 키로 재발급">새 키 발급</button>':'')
-    +'</div>'+syncStatusLineHtml()+'</div>'
+    +'<div class="hdr"><div><div class="hdr-title">📊 자산 대시보드</div><div class="hdr-sub"'+(fetchError&&!loading?' style="color:#f59e0b"':'')+'>'+subStr+(usdKrw?' · $1=₩'+Math.round(usdKrw).toLocaleString():'')+'</div>'
+    +syncStatusLineHtml()+'</div>'
     +'<div class="hdr-btns"><button class="btn" id="btn-tutorial" title="사용법 튜토리얼">❓</button><button class="btn" id="btn-refresh">↻</button>'
     +'<div class="data-menu-wrap"><button class="btn" id="btn-data-menu" title="백업 및 복원">⋯</button>'
-    +(dataMenuOpen ? '<div class="data-menu-bg" id="data-menu-bg"></div><div class="data-menu">'
-      +(window.pinLock&&pinLock.isSet()
-        ?'<button class="data-menu-item" id="btn-pin-change" style="color:#3182f6">🔒 <span>PIN 변경</span></button><button class="data-menu-item" id="btn-pin-off" style="color:#8e8e93">🔓 <span>PIN 잠금 끄기</span></button>'
-        :'<button class="data-menu-item" id="btn-pin-set" style="color:#3182f6">🔒 <span>PIN 잠금 설정</span></button>')
-      +'<button class="data-menu-item" id="btn-backup">💾 <span>백업 (내보내기)</span></button>'
-      +'<label class="data-menu-item">📂 <span>복원 (파일)</span><input type="file" accept=".json" id="inp-restore" style="display:none"/></label>'
-      +'<label class="data-menu-item" style="color:#10b981">📥 <span>거래내역 가져오기 (JSON)</span><input type="file" accept=".json,application/json,text/plain" id="inp-import" style="display:none"/></label>'
-      +'<button class="data-menu-item" data-copy-import-prompt style="color:#10b981">📋 <span>거래내역 변환 안내문 복사</span></button>'
-      +'<button class="data-menu-item" id="btn-cloud-save" style="color:'+(cloudStatus==="error"?"#ef4444":"#10b981")+'">'+(cloudStatus==="saving"?"⟳":cloudStatus==="saved"?"✅":cloudStatus==="error"?"❌":"☁️")+' <span>'+(cloudStatus==="saving"?"저장 중...":cloudStatus==="saved"?"저장됨":cloudStatus==="error"?"저장 실패":"클라우드 저장")+'</span></button>'
-      +'<button class="data-menu-item" id="btn-cloud-load" style="color:#3182f6">☁️ <span>클라우드 복원</span></button>'
-      +'<button class="data-menu-item" id="btn-phrase-set" style="color:#a855f7">🔐 <span>복구 문장 설정</span></button>'
-      +'<button class="data-menu-item" id="btn-gh-sync" style="color:'+(ghSyncStatus==="error"?"#ef4444":"#f59e0b")+'">'+(ghSyncStatus==="syncing"?"⟳":ghSyncStatus==="synced"?"✅":ghSyncStatus==="error"?"❌":"🗂️")+' <span>'+(!ghToken()?"저장소 동기화 켜기":ghSyncStatus==="syncing"?"저장소에 저장 중...":ghSyncStatus==="error"?"저장소 동기화 실패":"저장소에 지금 저장")+'</span></button>'
-      +'<button class="data-menu-item" id="btn-gh-restore" style="color:#f59e0b">📥 <span>저장소에서 복원</span></button>'
-      +(ghToken()?'<button class="data-menu-item" id="btn-gh-token" style="color:#8e8e93">🔑 <span>저장소 토큰 변경·끄기</span></button>':'')
-      +'</div>' : '')
+    +(dataMenuOpen ? '<div class="data-menu-bg" id="data-menu-bg"></div><div class="data-menu">'+dataMenuHtml()+'</div>' : '')
     +'</div>'
     +'<button class="btn'+(editMode?" on":"")+'" id="btn-edit">'+(editMode?"✓":"✏")+'</button></div></div>'
     +profileUI
     +(editMode?'<div class="btn-row">'
       +'<button class="btn-sm" id="btn-add-acc" style="color:#3182f6;border-color:#3182f6">➕ 계좌 추가</button>'
       +'</div>':'')
-    +(!uidAcknowledged ? '<div style="font-size:10px;color:#8e8e93;margin:-6px 0 10px">⚠️ 위 🔑 키(암호화 키 포함)가 클라우드 데이터의 유일한 복구 수단이에요. 이 키가 없으면 개발자를 포함해 아무도 클라우드 백업 내용을 복구할 수 없어요. 메모장 등 안전한 곳에 꼭 저장해두세요. ("복사" 버튼으로 실제로 복사해서 저장하면 이 안내는 사라져요 — "보기"만으로는 안 사라져요)</div>' : '')
+    +((!uidAcknowledged && !ghToken() && !isPristineData() && (()=>{ try { return localStorage.getItem("asset_phrase_set")!=="1"; } catch { return true; } })()) ? noticeHtml("blue", "🔐 <b>복구 수단이 아직 없어요.</b> 브라우저 데이터가 지워지면 되살릴 수 없어요. 복구 문장을 정해 두세요.", [["btn-phrase-set","복구 문장 설정"]]) : '')
     +syncBannerHtml()+backupBannerHtml()+emptyRestoreHintHtml()
     +'<div class="tabs">'+tabHtml+'</div>'
     +(tab==="overview"?buildOverview():"")
@@ -3271,6 +3294,8 @@ function bindDepositModalEvents() {
 
   // 탭 전환
   $("dm-in-tab")?.addEventListener("click",()=>{ depositModal.mode="in"; render(); });
+  $("dm-go-exchange")?.addEventListener("click",()=>{ const id=depositModal.accId; depositModal=null; exchangeModal={accId:id, direction:"krw2usd"}; render(); });
+  $("dm-go-transfer")?.addEventListener("click",()=>{ const id=depositModal.accId; depositModal=null; transferModal={fromId:id}; render(); });
   $("dm-out-tab")?.addEventListener("click",()=>{ depositModal.mode="out"; render(); });
 
   // 현금계좌: 항목 선택 드롭다운
@@ -3771,7 +3796,8 @@ function bindEvents() {
   $("inp-restore")?.addEventListener("change",e=>{ dataMenuOpen=false; restoreData(e.target.files[0]); });
   $("inp-import")?.addEventListener("change",e=>{ dataMenuOpen=false; render(); importTradesFile(e.target.files[0]); });
   $("btn-add-acc")?.addEventListener("click",()=>{showModal=true;modalType="mixed";modalColor=COLORS[ST.accounts.length%COLORS.length];modalAlreadyInvested=false;render();});
-  $("btn-data-menu")?.addEventListener("click",()=>{ dataMenuOpen=!dataMenuOpen; render(); });
+  $("btn-data-menu")?.addEventListener("click",()=>{ dataMenuOpen=!dataMenuOpen; dataMenuSub=null; render(); });
+  document.querySelectorAll("[data-dm-sub]").forEach(b=>b.addEventListener("click",e=>{ e.stopPropagation(); dataMenuSub=b.dataset.dmSub||null; render(); }));
   $("data-menu-bg")?.addEventListener("click",()=>{ dataMenuOpen=false; render(); });
   document.querySelectorAll("[data-transfer-acc]").forEach(el=>el.addEventListener("click",()=>{ transferModal={fromId:el.dataset.transferAcc}; render(); }));
   document.querySelectorAll("[data-exchange-acc]").forEach(el=>el.addEventListener("click",()=>{ exchangeModal={accId:el.dataset.exchangeAcc, direction:"krw2usd"}; render(); }));
