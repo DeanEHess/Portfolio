@@ -722,7 +722,6 @@ let thesisViewModal = null; // {text: string}
 let tutorialStep = null; // null이면 닫힘, 아니면 0부터 시작하는 현재 단계 인덱스
 let transferModal = null; // {fromId, fromItemId, toId, toItemId, ccy}
 let exchangeModal = null; // {accId, direction:"krw2usd"|"usd2krw", amount}
-let dividendPickModal = null; // {accId, ticker, market}
 // 모달마다 "직전 렌더에서 이미 열려있었는지"를 기억해뒀다가, 이미 열려있던 채로 재렌더될 땐
 // 슬라이드업 진입 애니메이션을 억제함(입력값 바꿀 때마다 매번 재생돼서 튀어보이는 문제 방지)
 let _prevOpenModals = {};
@@ -1234,7 +1233,7 @@ function applyTradeImport(d) {
   if (d && d.accounts) throw new Error("이 파일은 전체 백업 파일이에요. ⋯ → 복원 → 파일에서 복원을 쓰세요.");
   if (!d || !Array.isArray(d.rows) || !d.rows.length) throw new Error("rows 배열이 없어요. 변환 안내문의 형식을 확인하세요.");
   const accType = ["mixed","krx","coin"].includes(d.account?.type) ? d.account.type : "mixed";
-  let name = String(d.account?.name || ACCOUNT_TYPES[accType].label).trim();
+  let name = safeTxt(String(d.account?.name || ACCOUNT_TYPES[accType].label).trim());
   if (ST.accounts.some(a => a.name === name)) name += " (가져옴)";
   const num = v => { const n = Number(String(v ?? "").replace(/,/g, "")); return isFinite(n) ? n : NaN; };
   const isKrxCode = t => /^\d{6}$|^\d{4}[0-9A-Z]{2}$/.test(t);
@@ -1268,7 +1267,7 @@ function applyTradeImport(d) {
     const date = String(r.date || "");
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) { errs.push(line + "날짜 형식 오류(" + date + ")"); continue; }
     const type = String(r.type || "").toLowerCase();
-    const memo = r.memo ? MEMO + " · " + r.memo : MEMO;
+    const memo = r.memo ? MEMO + " · " + safeTxt(String(r.memo)) : MEMO;
     if (type === "deposit" || type === "withdraw") {
       const amt = num(r.amount), ccy = accType === "mixed" ? String(r.currency || "krw").toLowerCase() : "krw";
       if (!(amt > 0) || !["krw","usd"].includes(ccy)) { errs.push(line + "입출금 금액·통화 오류"); continue; }
@@ -1280,9 +1279,9 @@ function applyTradeImport(d) {
       acc.deposits.push({ id: nid("imp_d"), year: date.slice(0, 4), date, type: "fx-convert", fromCcy: from, toCcy: to, fromAmount: fa, toAmount: ta, rate: from === "krw" ? fa / ta : ta / fa, memo });
       cnt.fx++;
     } else if (type === "buy" || type === "sell" || type === "dividend") {
-      const t = String(r.ticker || "").trim().toUpperCase();
+      const t = safeTxt(String(r.ticker || "").trim().toUpperCase());
       if (!t) { errs.push(line + "ticker 없음"); continue; }
-      const it = getItem(t, r.name);
+      const it = getItem(t, safeTxt(r.name));
       if (type === "dividend") {
         const amt = num(r.amount);
         if (!(amt > 0)) { errs.push(line + "배당 금액 오류"); continue; }
@@ -1390,6 +1389,7 @@ function liveDiffs(snap) {
       if (item && (item.trades || []).some(t => t.date >= asOfDate)) continue;
       const key = asOf + "|" + sa.id + "|" + sym + "|" + live;
       if (acks.includes(key)) continue;
+      if (!isFinite(live)) continue;
       const delta = live - dash, side = delta > 0 ? "buy" : "sell", qty = Math.abs(delta);
       // 매수는 평단 변화로 체결가를 역산해 기본값으로 넣는다(수수료 때문에 약간 다를 수 있음)
       let hint = "";
@@ -1397,7 +1397,7 @@ function liveDiffs(snap) {
         const implied = (live * Number(pos.avg_price) - dash * (Number(item?.a) || 0)) / qty;
         if (implied > 0 && isFinite(implied)) hint = String(Math.round(implied * 10000) / 10000);
       }
-      out.push({ key, acc: best, saName: sa.name || sa.id, sym, name: (item && item.n) || "", dash, live, side, qty, hint, pos, asOfDate });
+      out.push({ key, acc: best, saName: safeTxt(sa.name || sa.id), sym: safeTxt(sym), name: (item && item.n) || "", dash, live, side, qty, hint, pos, asOfDate });
     }
   }
   return out;
@@ -1420,7 +1420,7 @@ function showLiveDiffs(snap, diffs) {
   }).join("");
   liveBox.innerHTML = '<div class="modal" style="max-height:85dvh;overflow-y:auto">'
     + '<div class="modal-title">📝 기록 안 된 매매가 있어요</div>'
-    + '<div style="font-size:12px;color:var(--muted-1);margin-bottom:12px">실계좌 스냅샷(' + String(snap.as_of || "").replace("T", " ").slice(0, 16) + ')과 대시보드 수량이 달라요. 체결 단가와 매매 사유를 적으면 거래로 기록돼요. 매수 단가는 평단 변화로 추정한 값이라 확인해 주세요.</div>'
+    + '<div style="font-size:12px;color:var(--muted-1);margin-bottom:12px">실계좌 스냅샷(' + escHtml(String(snap.as_of || "").replace("T", " ").slice(0, 16)) + ')과 대시보드 수량이 달라요. 체결 단가와 매매 사유를 적으면 거래로 기록돼요. 매수 단가는 평단 변화로 추정한 값이라 확인해 주세요.</div>'
     + rows + '<button class="btn" data-act="later" style="width:100%">나중에</button></div>';
   document.body.appendChild(liveBox);
   liveBox.addEventListener("click", e => {
@@ -1608,6 +1608,11 @@ let accHistoryExpanded = {}; // {accId: true/false}
 let accHistoryFilter = {}; // {accId: {kind: "all"|"buy"|"sell"|"dividend"|"cash", search: ""}}
 
 function buildAccountHistorySection(acc) {
+  if (!foldOpen["hist_"+acc.id]) {
+    const n = acc.items.reduce((s,it)=>s+(it.trades||[]).length, 0) + (acc.deposits||[]).length;
+    if (!n) return "";
+    return '<div class="card" style="margin-bottom:12px">'+foldHtml("hist_"+acc.id, '<div class="card-hdr" style="margin:0"><span class="card-title">📜 거래 기록 <span style="font-weight:400;color:#8d8d98">'+n+'건</span></span><span style="font-size:12px;color:#63636e">펼치기 ▾</span></div>', '')+'</div>';
+  }
   const isUS = acc.type === "us";
   const isCoin = acc.type === "coin";
   const isMixed = acc.type === "mixed";
@@ -1667,19 +1672,6 @@ function buildAccountHistorySection(acc) {
   const showAll = accHistoryExpanded[acc.id] === true;
   const visibleEvents = showAll ? filteredEvents : filteredEvents.slice(0, 5);
 
-  const filterTabs = (isMixed ? ['all','buy','sell','dividend','cash','fx'] : ['all','buy','sell','dividend','cash']).map(k=>{
-    const labels = {all:"전체", buy:"매수", sell:"매도", dividend:"배당", cash:"입출금", fx:"환전"};
-    const isOn = filter.kind === k;
-    return '<button class="btn-sm" data-history-filter="'+acc.id+'" data-filter-kind="'+k+'" style="padding:4px 10px;font-size:11px;'+(isOn?'background:'+acc.color+';color:#fff;border-color:'+acc.color:'')+'">'+labels[k]+'</button>';
-  }).join("");
-
-  // 연도 필터 탭 (이벤트에서 실제 존재하는 연도만 추출)
-  const availYears = [...new Set(events.map(e=>(e.date||"").slice(0,4)).filter(y=>/^\d{4}$/.test(y)))].sort((a,b)=>b-a);
-  const yearTabs = availYears.length > 1 ? ['all', ...availYears].map(y=>{
-    const isOn = (filter.year||"all") === y;
-    const label = y === 'all' ? '전체연도' : y+'년';
-    return '<button class="btn-sm" data-history-year="'+acc.id+'" data-filter-year="'+y+'" style="padding:4px 10px;font-size:11px;'+(isOn?'background:#2b2b31;color:#fff;border-color:#8d8d98':'')+'">'+label+'</button>';
-  }).join("") : "";
 
   // 필터링된 결과 합계 (배당/매도손익/입출금 등)
   let summaryHtml = "";
@@ -1712,6 +1704,7 @@ function buildAccountHistorySection(acc) {
 
   const hasTickerSearch = acc.type !== "cash";
 
+  const availYears = [...new Set(events.map(e=>(e.date||"").slice(0,4)).filter(y=>/^\d{4}$/.test(y)))].sort((a,b)=>b-a);
   const kindKeys = isMixed ? ['all','buy','sell','dividend','cash','fx'] : ['all','buy','sell','dividend','cash'];
   const KIND_LBL = {all:"전체 종류", buy:"매수", sell:"매도", dividend:"배당", cash:"입출금", fx:"환전"};
   const selStyle = 'flex:1;background:#000;color:#fff;border:1px solid #2b2b31;border-radius:8px;padding:7px 8px;font-size:12px';
@@ -1833,10 +1826,7 @@ function buildAccountSection(acc) {
 
   // 계좌 헤더 우측: 평가금액 / 수익금 / 수익률
   const depositBtnHtml = '<button class="btn-sm" style="flex:none;color:#10b981;border-color:#10b981;padding:6px 10px;font-size:12px;font-weight:700;white-space:nowrap" data-deposit-acc="'+acc.id+'">입출금</button>';
-  const exchangeBtnHtml = isMixed ? '<button class="btn-sm" style="flex:none;color:#f59e0b;border-color:#f59e0b;padding:6px 10px;font-size:12px;font-weight:700;white-space:nowrap" data-exchange-acc="'+acc.id+'">💱 환전</button>' : '';
-  const transferBtnHtml = ST.accounts.length>=2 ? '<button class="btn-sm" style="flex:none;color:#06b6d4;border-color:#06b6d4;padding:6px 10px;font-size:12px;font-weight:700;white-space:nowrap" data-transfer-acc="'+acc.id+'">🔁 이체</button>' : '';
   const rebalanceBtnHtml = isCash ? '' : '<button class="btn-sm" style="flex:none;color:#8b5cf6;border-color:#8b5cf6;padding:6px 10px;font-size:12px;font-weight:700;white-space:nowrap" data-rebalance-acc="'+acc.id+'">🎯 리밸런싱</button>';
-  const dividendBtnHtml = isCash ? '' : '<button class="btn-sm" style="flex:none;color:#f59e0b;border-color:#f59e0b;padding:6px 10px;font-size:12px;font-weight:700;white-space:nowrap" data-dividend-acc="'+acc.id+'">💵 배당</button>';
   // 환전·이체는 입출금 안으로, 배당은 종목 안으로 옮겼다(버튼 6개 → 3개)
   const buyBtn = isCash
     ? depositBtnHtml
@@ -2566,13 +2556,12 @@ function syncStatusLineHtml() {
 
 function buildPage() {
   const subStr=loading?"⟳ 갱신 중...":fetchError?"⚠️ 갱신 실패 · ↻ 눌러 재시도":(lastUp?lastUp.toLocaleTimeString("ko-KR")+" 기준":"—");
-  const rateStr=usdKrw?"USD/KRW ₩"+Math.round(usdKrw).toLocaleString():"환율 로딩 중...";
   const tabHtml=['<button class="tab'+(tab==="overview"?" on":"")+'" data-tab="overview"'+(editMode?' draggable="true" data-drag="overview"':'')+'>'+( editMode?'<span style="font-size:9px;color:#8d8d98;margin-right:3px">⠿</span>':'')+'전체</button>']
     .concat(ST.accounts.map(a=>'<button class="tab'+(tab===a.id?" on":"")+'" data-tab="'+a.id+'" style="'+(tab===a.id?"background:"+a.color+";color:#fff":"")+';"'+(editMode?' draggable="true" data-drag="'+a.id+'"':'')+'>'+( editMode?'<span style="font-size:9px;color:#8d8d98;margin-right:3px">⠿</span>':'')+a.name+'</button>')).join("");
   const activeAcc=ST.accounts.find(a=>a.id===tab);
   const profileUI=editMode
-    ?'<div style="margin-bottom:10px">'+getProfiles().map(p=>'<div style="display:flex;gap:6px;align-items:center;margin-bottom:6px"><div style="width:8px;height:8px;border-radius:50%;background:'+(curProfile===p?'#3182f6':'#63636e')+';flex-shrink:0"></div><input class="inp inp-l" style="flex:1;font-size:12px" data-profile-rename="'+p+'" value="'+p+'"/>'+(getProfiles().length>1?'<button class="del-btn" data-profile-del="'+p+'">✕</button>':"")+'</div>').join("")+'<button class="add-btn" id="btn-add-profile" style="margin-top:4px">+ 프로필 추가</button></div>'
-    :'<div style="display:flex;gap:4px;margin-bottom:10px;overflow-x:auto;padding-bottom:2px">'+getProfiles().map(p=>'<button style="background:'+(curProfile===p?'#3182f6':'#16161a')+';border:1px solid '+(curProfile===p?'#3182f6':'#2b2b31')+';color:'+(curProfile===p?'#fff':'#b0b0ba')+';padding:5px 12px;border-radius:20px;font-size:12px;font-weight:'+(curProfile===p?'700':'400')+';white-space:nowrap;cursor:pointer;flex-shrink:0" data-profile="'+p+'">👤 '+p+'</button>').join("")+'<button style="background:transparent;border:1px dashed #2b2b31;color:#3182f6;padding:5px 10px;border-radius:20px;font-size:12px;cursor:pointer;flex-shrink:0" id="btn-add-profile">+</button></div>';
+    ?'<div style="margin-bottom:10px">'+getProfiles().map(p=>'<div style="display:flex;gap:6px;align-items:center;margin-bottom:6px"><div style="width:8px;height:8px;border-radius:50%;background:'+(curProfile===p?'#3182f6':'#63636e')+';flex-shrink:0"></div><input class="inp inp-l" style="flex:1;font-size:12px" data-profile-rename="'+escHtml(p)+'" value="'+escHtml(p)+'"/>'+(getProfiles().length>1?'<button class="del-btn" data-profile-del="'+p+'">✕</button>':"")+'</div>').join("")+'<button class="add-btn" id="btn-add-profile" style="margin-top:4px">+ 프로필 추가</button></div>'
+    :'<div style="display:flex;gap:4px;margin-bottom:10px;overflow-x:auto;padding-bottom:2px">'+getProfiles().map(p=>'<button style="background:'+(curProfile===p?'#3182f6':'#16161a')+';border:1px solid '+(curProfile===p?'#3182f6':'#2b2b31')+';color:'+(curProfile===p?'#fff':'#b0b0ba')+';padding:5px 12px;border-radius:20px;font-size:12px;font-weight:'+(curProfile===p?'700':'400')+';white-space:nowrap;cursor:pointer;flex-shrink:0" data-profile="'+escHtml(p)+'">👤 '+escHtml(p)+'</button>').join("")+'<button style="background:transparent;border:1px dashed #2b2b31;color:#3182f6;padding:5px 10px;border-radius:20px;font-size:12px;cursor:pointer;flex-shrink:0" id="btn-add-profile">+</button></div>';
 
   return (loading?'<div class="loading-bar"><div class="loading-bar-inner"></div></div>':"")
     +'<div class="hdr"><div><div class="hdr-title">📊 자산 대시보드</div><div class="hdr-sub"'+(fetchError&&!loading?' style="color:#f59e0b"':'')+'>'+subStr+(usdKrw?' · $1=₩'+Math.round(usdKrw).toLocaleString():'')+'</div>'
@@ -2601,7 +2590,7 @@ function buildPage() {
     +buildTutorialModal()
     +buildTransferModal()
     +buildExchangeModal()
-    +buildDividendPickModal();
+    ;
 }
 
 // ─── 팝업 ────────────────────────────────────────────────────
@@ -3230,95 +3219,6 @@ function bindExchangeModalEvents() {
   });
 }
 
-// ─── 배당 종목 선택 모달 ────────────────────────────────────
-// "💵 배당" 버튼으로 열림 — 보유중이든 청산됐든(q=0) 상관없이 계좌의 종목 중 하나를 고르면
-// 기존 트레이드 모달을 배당 탭으로 바로 열어줌(배당 입력 로직은 100% 재사용, 여기선 종목만 고름)
-function buildDividendPickModal() {
-  if (!dividendPickModal) return "";
-  const acc = ST.accounts.find(a=>a.id===dividendPickModal.accId);
-  if (!acc) return "";
-  const isMixed = acc.type === "mixed";
-  const candidates = acc.items.filter(it=>it.t); // 현금 항목 제외, 보유중/청산 종목 모두 포함
-  // 시장(국내/해외)을 아직 안 골랐으면 "+ 신규매수"와 동일하게 기본 국내(krx). 혼합계좌가 아니면 계좌 타입 그대로(코인 전용 계좌는 시장선택 없이 바로 coin)
-  const market = isMixed ? (dividendPickModal.market||"krx") : acc.type;
-  const tickerPlaceholder = market==="krx" ? "예) 005930" : (market==="coin" ? "예) BTC, ETH" : "예) AAPL");
-  const tickerAttrs = market==="krx" ? ' inputmode="numeric" maxlength="6"' : "";
-  const marketPickerHtml = isMixed ? `<div class="trade-inp-group">
-        <div class="trade-inp-label">시장</div>
-        <div style="display:flex;gap:6px">
-          ${[["krx","🇰🇷 국내"],["us","🌎 해외"]].map(([m,label])=>
-            `<button type="button" class="btn-sm" data-dp-market="${m}" style="flex:1;${market===m?'background:#3182f6;color:#fff;border-color:#3182f6':''}">${label}</button>`
-          ).join("")}
-        </div>
-       </div>` : "";
-
-  // 입력한 티커가 이 계좌에 실제로 있는(보유중이든 청산이든) 종목인지 바로 찾아서 미리보기 — 없으면 배당을 막음(신규종목을 몰래 만들지 않음)
-  const typed = (dividendPickModal.ticker||"").toUpperCase().trim();
-  const matched = typed ? candidates.find(it=>it.t===typed && itemMarket(it,acc.type)===market) : null;
-  let previewHtml = "";
-  if (typed) {
-    if (matched) {
-      const mkt = itemMarket(matched, acc.type);
-      const statusLabel = (matched.q && matched.q > 0) ? ('보유 '+matched.q+(mkt==="coin"?"":"주")) : "청산됨";
-      previewHtml = `<div style="font-size:12px;color:#10b981;margin-top:4px">✓ ${matched.n||matched.t} — ${statusLabel}</div>`;
-    } else {
-      previewHtml = `<div style="font-size:12px;color:#f59e0b;margin-top:4px">⚠ 이 계좌에서 매수한 기록이 없는 티커예요. 배당은 이미 매수한 종목에만 입력할 수 있어요.</div>`;
-    }
-  }
-
-  return `<div class="trade-modal-bg" id="dividend-pick-modal-bg">
-    <div class="trade-modal"${modalAnimStyle('dividendPick')}>
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
-        <div class="modal-title" style="margin:0">💵 ${acc.name} 배당 입력</div>
-        <button id="dp-close" style="background:transparent;border:none;color:#8d8d98;font-size:20px;cursor:pointer">✕</button>
-      </div>
-      ${candidates.length === 0
-        ? `<div style="font-size:12px;color:#8d8d98;padding:24px 0;text-align:center">등록된 종목이 없어요.<br/>먼저 종목을 매수한 뒤 이용해주세요.</div>`
-        : `${marketPickerHtml}
-          <div class="trade-inp-group">
-            <div class="trade-inp-label">티커${market==="krx"?"(종목코드)":""}</div>
-            <input class="trade-inp" id="dp-ticker" placeholder="${tickerPlaceholder}"${tickerAttrs} style="text-transform:uppercase" value="${dividendPickModal.ticker||""}"/>
-            ${previewHtml}
-          </div>
-          <button class="trade-btn" style="background:#f59e0b${matched?"":";opacity:0.4"}" id="dp-confirm" ${matched?"":"disabled"}>선택</button>`
-      }
-    </div>
-  </div>`;
-}
-
-function bindDividendPickModalEvents() {
-  if (!dividendPickModal) return;
-  const $ = id => document.getElementById(id);
-  const acc = ST.accounts.find(a=>a.id===dividendPickModal.accId);
-  $("dp-close")?.addEventListener("click",()=>{ dividendPickModal=null; render(); });
-  $("dividend-pick-modal-bg")?.addEventListener("click",e=>{ if(e.target.id==="dividend-pick-modal-bg"){dividendPickModal=null;render();} });
-  document.querySelectorAll("[data-dp-market]").forEach(b=>b.addEventListener("click",()=>{ dividendPickModal.market=b.dataset.dpMarket; dividendPickModal.ticker=""; render(); }));
-  $("dp-ticker")?.addEventListener("input", e=>{
-    if (!acc) return;
-    const isMixed = acc.type === "mixed";
-    const market = isMixed ? (dividendPickModal.market||"krx") : acc.type;
-    // 국내(krx) 시장에서는 "+ 신규매수"와 동일하게 숫자 외 문자를 입력 즉시 제거
-    if (market === "krx") {
-      const filtered = e.target.value.replace(/\D/g,"").slice(0,6);
-      if (filtered !== e.target.value) e.target.value = filtered;
-    }
-    dividendPickModal.ticker = e.target.value.toUpperCase().trim();
-    render();
-  });
-  $("dp-confirm")?.addEventListener("click", ()=>{
-    if (!acc) return;
-    const isMixed = acc.type === "mixed";
-    const market = isMixed ? (dividendPickModal.market||"krx") : acc.type;
-    const typed = (dividendPickModal.ticker||"").toUpperCase().trim();
-    const matched = acc.items.find(it=>it.t===typed && itemMarket(it,acc.type)===market);
-    if (!matched) return;
-    const accId = dividendPickModal.accId;
-    dividendPickModal = null;
-    tradeModal = {accId, itemId:matched.id, mode:"dividend"};
-    render();
-  });
-}
-
 // ─── 입금/출금 모달 이벤트 ───────────────────────────────────
 function bindDepositModalEvents() {
   if (!depositModal) return;
@@ -3821,7 +3721,23 @@ function restoreFocusedInput(saved) {
     catch { try { const t=el.type; el.type="text"; el.setSelectionRange(saved.selStart, saved.selEnd); el.type=t; } catch {} }
   }
 }
+// 이름·티커·메모·계좌명은 HTML에 그대로 들어가므로, 가져오기·복원·동기화로 들어온 값에
+// 태그나 따옴표가 섞여 있어도 코드로 실행되지 않게 < > " 를 전각 문자로 바꾼다(한 번 바꾸면 그대로라 반복해도 안전).
+const SAFE_MAP = {"<":"＜", ">":"＞", '"':"＂"};
+const safeTxt = s => typeof s === "string" ? s.replace(/[<>"]/g, c => SAFE_MAP[c]) : s;
+function sanitizeState() {
+  for (const acc of (ST.accounts || [])) {
+    acc.name = safeTxt(acc.name);
+    for (const it of (acc.items || [])) {
+      it.n = safeTxt(it.n); it.t = safeTxt(it.t);
+      for (const tr of (it.trades || [])) tr.memo = safeTxt(tr.memo);
+    }
+    for (const d of (acc.deposits || [])) d.memo = safeTxt(d.memo);
+  }
+}
+
 function render() {
+  sanitizeState();
   const _focusSave = captureFocusedInput();
   try { document.getElementById("app").innerHTML=buildPage(); bindEvents(); }
   catch(e) { document.getElementById("app").innerHTML='<div style="padding:20px;color:#f04452;font-size:13px">오류: '+e.message+'<br><pre style="font-size:10px;color:#b0b0ba;white-space:pre-wrap">'+e.stack+'</pre></div>'; }
@@ -3831,7 +3747,6 @@ function render() {
     trade: !!tradeModal, deposit: !!depositModal, transfer: !!transferModal, exchange: !!exchangeModal,
     rebalance: !!rebalanceModal, thesis: !!thesisViewModal,
     tutorial: tutorialStep != null, accountAdd: !!showModal, "opening-cash": !!openingCashModal,
-    dividendPick: !!dividendPickModal,
   };
 }
 
@@ -3867,8 +3782,6 @@ function bindEvents() {
   $("btn-data-menu")?.addEventListener("click",()=>{ dataMenuOpen=!dataMenuOpen; dataMenuSub=null; render(); });
   document.querySelectorAll("[data-dm-sub]").forEach(b=>b.addEventListener("click",e=>{ e.stopPropagation(); dataMenuSub=b.dataset.dmSub||null; render(); }));
   $("data-menu-bg")?.addEventListener("click",()=>{ dataMenuOpen=false; render(); });
-  document.querySelectorAll("[data-transfer-acc]").forEach(el=>el.addEventListener("click",()=>{ transferModal={fromId:el.dataset.transferAcc}; render(); }));
-  document.querySelectorAll("[data-exchange-acc]").forEach(el=>el.addEventListener("click",()=>{ exchangeModal={accId:el.dataset.exchangeAcc, direction:"krw2usd"}; render(); }));
   $("btn-toggle-usd")?.addEventListener("click",()=>{showUSD=!showUSD;render();});
 
   // 클라우드 키(UID) 표시/복사 — 그냥 "보기"만으로는 경고 배너를 없애지 않음(실제로 어딘가 저장했다는
@@ -3993,13 +3906,6 @@ function bindEvents() {
     render();
   }));
 
-  // ─ 배당 버튼
-  document.querySelectorAll("[data-dividend-acc]").forEach(b=>b.addEventListener("click",e=>{
-    e.stopPropagation();
-    dividendPickModal={accId:b.dataset.dividendAcc, ticker:"", market:null};
-    render();
-  }));
-
   // ─ 종목 행 탭 → 매수/매도 모달
   document.querySelectorAll("[data-trade-item]").forEach(tr=>tr.addEventListener("click",()=>{
     if(editMode) return;
@@ -4043,24 +3949,8 @@ function bindEvents() {
     if (s.dataset.historyKindSel) accHistoryFilter[accId].kind = s.value; else accHistoryFilter[accId].year = s.value;
     render();
   }));
-  document.querySelectorAll("details[data-fold]").forEach(d=>d.addEventListener("toggle",()=>{ foldOpen[d.dataset.fold]=d.open; }));
+  document.querySelectorAll("details[data-fold]").forEach(d=>d.addEventListener("toggle",()=>{ const was=!!foldOpen[d.dataset.fold]; foldOpen[d.dataset.fold]=d.open; if (d.open && !was && d.dataset.fold.startsWith("hist_")) render(); }));
   document.querySelectorAll("[data-donut-mode]").forEach(b=>b.addEventListener("click",()=>{ donutMode[b.dataset.donutMode]=Number(b.dataset.donutVal); render(); }));
-  // 히스토리 필터 탭
-  document.querySelectorAll("[data-history-filter]").forEach(b=>b.addEventListener("click",()=>{
-    const accId = b.dataset.historyFilter, kind = b.dataset.filterKind;
-    if (!accHistoryFilter[accId]) accHistoryFilter[accId] = {kind:"all", search:"", year:"all"};
-    accHistoryFilter[accId].kind = kind;
-    render();
-  }));
-
-  // 히스토리 연도 필터
-  document.querySelectorAll("[data-history-year]").forEach(b=>b.addEventListener("click",()=>{
-    const accId = b.dataset.historyYear, year = b.dataset.filterYear;
-    if (!accHistoryFilter[accId]) accHistoryFilter[accId] = {kind:"all", search:"", year:"all"};
-    accHistoryFilter[accId].year = year;
-    render();
-  }));
-
   // 환전/입출금 기록 삭제
   document.querySelectorAll("[data-deposit-del]").forEach(b=>b.addEventListener("click",e=>{
     e.stopPropagation();
@@ -4119,7 +4009,6 @@ function bindEvents() {
   if (tutorialStep != null) bindTutorialEvents();
   if (transferModal) bindTransferModalEvents();
   if (exchangeModal) bindExchangeModalEvents();
-  if (dividendPickModal) bindDividendPickModalEvents();
 }
 
 // ─── 모달 ESC 닫기 ───────────────────────────────────────────
@@ -4131,7 +4020,6 @@ document.addEventListener("keydown", e=>{
   else if (depositModal) { depositModal=null; render(); }
   else if (transferModal) { transferModal=null; render(); }
   else if (exchangeModal) { exchangeModal=null; render(); }
-  else if (dividendPickModal) { dividendPickModal=null; render(); }
   else if (thesisViewModal) { thesisViewModal=null; render(); }
   else if (showModal) { showModal=false; render(); }
   else if (tutorialStep != null) { tutorialStep=null; markTutorialSeen(); render(); }
@@ -4142,10 +4030,10 @@ document.addEventListener("keydown", e=>{
 try { if (!localStorage.getItem(TUTORIAL_SEEN_KEY)) tutorialStep = 0; } catch {}
 render();
 fetchAll();
-setInterval(fetchAll,60000);
+setInterval(()=>{ if (!document.hidden) fetchAll(); },60000);
 // 모바일에서 백그라운드로 갔다가 돌아왔을 때, 직전 시세 갱신이 실패/미완료 상태였다면 자동 재시도
 document.addEventListener("visibilitychange", () => {
-  if (!document.hidden && !loading && (fetchError || !usdKrw)) fetchAll();
+  if (!document.hidden && !loading && (fetchError || !usdKrw || !lastUp || Date.now() - lastUp.getTime() > 60000)) fetchAll();
 });
 // 실계좌 스냅샷과 대조해 기록 안 된 매매를 알린다(앱을 열 때, 10분 넘게 지나 돌아올 때)
 setTimeout(()=>liveCheck(true), 1500);
