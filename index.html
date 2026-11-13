@@ -549,6 +549,8 @@ const TUTORIAL_SEEN_KEY = "tutorial_seen_v1";
 // need: 이 단계에 들어갈 때 강제로 맞춰줄 앱 상태({tab, editMode})를 반환하는 함수(선택)
 const TUTORIAL_STEPS = [
   { title:"👋 환영합니다", body:"이 앱을 만든 이유를 먼저 말씀드릴게요.<br><br>전설적인 투자자 필립 피셔는 이렇게 말했어요 — \"내가 주식을 매수할 때 가졌던 당초의 시각을 바꿀 만한 일이 벌어지지 않았다면, 나는 적어도 3년은 계속 보유할 것이다.\"<br><br>하지만 우리는 종종 잦은 뇌동매매로 후회하곤 하죠. 그래서 이 앱은 매수·매도할 때마다 '투자 근거'를 꼭 남기게 해요 — 나중에 그 근거가 정말 바뀌었는지 스스로 되짚어볼 수 있도록요. 여러분의 소중한 손가락(그리고 계좌)을 지킬 수 있으면 좋겠습니다 🙏<br><br>자, 실제 버튼을 하이라이트하면서 짧게 사용법을 안내할게요. 언제든 '그만두기'로 중단할 수 있어요.", target:()=>null },
+  { title:"💾 내 데이터는 어디에 저장되나요?", body:"<b>이 기기의 브라우저 안에만</b> 저장돼요. 서버로 보내지 않아서, 같은 주소를 다른 사람이 열어도 내 데이터는 보이지 않아요.<br><br>대신 브라우저 데이터를 지우거나 폰을 바꾸면 사라져요. 그래서 <b>복구 수단을 꼭 하나 만들어 두세요.</b><br>• <b>⋯ → 🔐 복구 문장 설정</b> (추천): 데이터를 이 기기에서 암호화한 뒤 클라우드에 저장해요. 개발자도 내용을 못 읽고, 문장만 기억하면 어디서든 되살릴 수 있어요. 마지막 저장 후 5년간 보관돼요.<br>• <b>⋯ → 💾 백업(내보내기)</b>: 파일로 내려받아 직접 보관해요.<br><br>시세는 저장하지 않고 열 때마다 새로 받아와요. 홈 화면에 앱으로 설치할 수 있고, <b>⋯ → 🔒 PIN 잠금</b>도 켤 수 있어요.", target:()=>null },
+  { title:"🧭 어떻게 시작할까요?", body:"<b>A. 지금부터 새로 기록 (5분)</b><br>계좌를 만들 때 '이미 투자 중'을 켜고, 지금 예수금은 '기초 예수금', 지금 보유 종목은 '이월 잔고'로 넣어요. 과거 매매 이력과 실현손익은 없지만 가장 빨라요. 다음 단계부터 이 방법을 안내해요.<br><br><b>B. 과거 거래내역 가져오기</b><br>① 증권사 앱·웹에서 거래내역서(엑셀·CSV·PDF)를 내려받아요.<br>② 아래 버튼으로 <b>변환 안내문</b>을 복사해서, ChatGPT·Claude 같은 AI에 거래내역서와 함께 주세요. 계좌번호·이름은 지우고 주세요.<br>③ AI가 만든 JSON을 .json 파일로 저장하고 <b>⋯ → 📥 거래내역 가져오기</b>로 넣으면 새 계좌가 만들어지고 평단·실현손익·예수금이 자동 계산돼요.<br><br><button class=\"btn\" data-copy-import-prompt style=\"width:100%;color:#10b981;border-color:#10b981\">📋 변환 안내문 복사</button>", target:()=>null },
   { title:"1️⃣ 계좌 추가하기", body:"편집 버튼을 눌러 편집 모드로 들어가세요. '➕ 계좌 추가' 버튼이 나타나면, 어떤 자산을 관리할 계좌인지 고르고(증권계좌/국내전용/코인/현금) 이름을 입력해 계좌를 만들 수 있어요. 같은 증권사에 원화·달러가 섞여 있다면 '증권계좌' 타입을 추천해요.",
     target:()=> editMode ? "#btn-add-acc" : "#btn-edit" },
   { title:"2️⃣ 이미 투자 중이신가요?", body:"이미 보유 중인 종목·예수금이 있는 계좌를 등록하는 거라면 이 체크박스를 꼭 켜주세요. 켜두면 예수금은 '기초 예수금', 종목은 '이월 잔고'로 등록하도록 안내해드려요 — 처음부터 다시 거래내역을 입력할 필요 없이 지금 상태 그대로 시작할 수 있어요.",
@@ -1145,6 +1147,160 @@ function restoreData(file) {
   reader.onload=e=>{ try { const d=JSON.parse(e.target.result); if(!d.accounts) throw new Error("올바른 백업 파일이 아니에요"); d.accounts.forEach(a=>{if(a.type==="mixed"&&Array.isArray(a.items)) a.items.forEach(it=>{if(!it.market) it.market=/^\d{5,6}$/.test(it.t||"")?"krx":"us";});}); Object.assign(ST,d); saveData(); render(); fetchAll(); alert("✅ 복원 완료!"); } catch(err){alert("❌ 복원 실패: "+err.message);} };
   reader.readAsText(file);
 }
+
+// ─── 과거 거래내역 가져오기 (간단 JSON → 새 계좌) ──────────────────
+// 증권사 거래내역서를 AI로 아래 형식의 JSON으로 바꿔서 넣으면, 새 계좌를 하나 만들고
+// 입출금·환전·매수·매도·배당을 그대로 재생해 평단·실현손익·예수금을 계산한다.
+// 기존 계좌에 섞지 않는다(이월 잔고와 이중으로 잡히는 걸 막기 위해 항상 새 계좌로 만든다).
+const IMPORT_PROMPT = `아래 증권사 거래내역을 "자산 대시보드" 가져오기용 JSON으로 바꿔줘. 설명 없이 JSON만 출력해.
+
+형식:
+{
+  "account": { "name": "토스증권", "type": "mixed" },
+  "rows": [
+    { "date": "2024-01-05", "type": "deposit",  "currency": "krw", "amount": 1000000 },
+    { "date": "2024-01-05", "type": "fx", "from": "krw", "to": "usd", "fromAmount": 1340000, "toAmount": 1000 },
+    { "date": "2024-01-06", "type": "buy",  "ticker": "AAPL", "name": "Apple", "qty": 2, "price": 185.2, "fee": 0.09 },
+    { "date": "2024-03-01", "type": "sell", "ticker": "AAPL", "qty": 1, "price": 190, "fee": 0.05 },
+    { "date": "2024-05-15", "type": "dividend", "ticker": "AAPL", "amount": 0.41 },
+    { "date": "2024-06-01", "type": "withdraw", "currency": "krw", "amount": 50000 }
+  ]
+}
+
+규칙:
+- account.type: 국내·해외 주식이 섞인 일반 증권계좌는 "mixed", ISA·IRP·연금저축처럼 국내 상장 종목만 있는 계좌는 "krx", 코인은 "coin".
+- date는 YYYY-MM-DD. 같은 날 거래는 실제 순서대로 적어.
+- type은 deposit(입금), withdraw(출금), fx(환전), buy(매수), sell(매도), dividend(배당·분배금, 세후 실수령액) 중 하나.
+- ticker: 미국 주식은 티커(AAPL), 국내 종목은 6자리 종목코드(005930, 0072R0), 코인은 심볼(BTC).
+- price와 amount는 그 종목이 거래된 통화 기준이야. 미국 주식은 달러, 국내 종목·코인은 원화.
+- currency(입출금)는 "krw" 또는 "usd". krx·coin 계좌는 항상 "krw".
+- fee: 수수료와 세금을 합친 금액(거래 통화 기준). 없으면 생략.
+- 주식 분할·병합은 분할 전 거래의 수량과 단가를 분할 비율로 고쳐서 적어.
+- 이자, 이벤트 지급금은 deposit으로, 해외 배당 원천징수세는 배당에서 빼고 실수령액만 적어.
+- 확실하지 않은 줄은 빼지 말고 "memo" 필드에 이유를 적어.`;
+
+function importTradesFile(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    let d;
+    try { d = JSON.parse(String(e.target.result).replace(/^﻿/, "").replace(/^```(?:json)?\s*|\s*```\s*$/g, "")); }
+    catch (err) { alert("❌ JSON을 읽지 못했어요: " + err.message); return; }
+    try { applyTradeImport(d); } catch (err) { alert("❌ 가져오기 실패: " + err.message); }
+  };
+  reader.readAsText(file);
+}
+
+function applyTradeImport(d) {
+  if (d && d.accounts) throw new Error("이 파일은 전체 백업 파일이에요. ⋯ → 복원 (파일)을 쓰세요.");
+  if (!d || !Array.isArray(d.rows) || !d.rows.length) throw new Error("rows 배열이 없어요. 변환 안내문의 형식을 확인하세요.");
+  const accType = ["mixed","krx","coin"].includes(d.account?.type) ? d.account.type : "mixed";
+  let name = String(d.account?.name || ACCOUNT_TYPES[accType].label).trim();
+  if (ST.accounts.some(a => a.name === name)) name += " (가져옴)";
+  const num = v => { const n = Number(String(v ?? "").replace(/,/g, "")); return isFinite(n) ? n : NaN; };
+  const isKrxCode = t => /^\d{6}$|^\d{4}[0-9A-Z]{2}$/.test(t);
+  const ts = Date.now();
+  const acc = { id: "a" + ts, name, type: accType, color: "#3182f6", items: [], deposits: [], alreadyInvested: false };
+  if (accType === "mixed") { acc.cashKrw = 0; acc.cashUsd = 0; } else acc.cash = 0;
+
+  const rows = d.rows.map((r, i) => ({ ...r, _i: i })).sort((a, b) => String(a.date).localeCompare(String(b.date)) || a._i - b._i);
+  const errs = [], cnt = { deposit:0, withdraw:0, fx:0, buy:0, sell:0, dividend:0 };
+  let seq = 0; const nid = p => p + ts + "_" + (seq++);
+  const getItem = (t, nm) => {
+    let it = acc.items.find(x => x.t === t);
+    if (!it) {
+      it = { id: nid("imp_i"), t, n: nm || US_DB[t] || KRX_DB[t] || "", q: 0, a: 0, trades: [] };
+      if (accType === "mixed") it.market = isKrxCode(t) ? "krx" : "us";
+      acc.items.push(it);
+    }
+    if (nm && !it.n) it.n = nm;
+    return it;
+  };
+  const ccyOf = it => accType === "mixed" ? (it.market === "us" ? "usd" : "krw") : "krw";
+  const addDep = (date, ccy, amount, type, memo) => {
+    const dep = { id: nid("imp_d"), year: date.slice(0, 4), date, amount: type === "cash-out" ? -Math.abs(amount) : amount, type, memo };
+    if (accType === "mixed") dep.ccy = ccy;
+    acc.deposits.push(dep);
+  };
+  const MEMO = "거래내역 가져오기";
+
+  for (const r of rows) {
+    const line = "#" + (r._i + 1) + " ";
+    const date = String(r.date || "");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) { errs.push(line + "날짜 형식 오류(" + date + ")"); continue; }
+    const type = String(r.type || "").toLowerCase();
+    const memo = r.memo ? MEMO + " · " + r.memo : MEMO;
+    if (type === "deposit" || type === "withdraw") {
+      const amt = num(r.amount), ccy = accType === "mixed" ? String(r.currency || "krw").toLowerCase() : "krw";
+      if (!(amt > 0) || !["krw","usd"].includes(ccy)) { errs.push(line + "입출금 금액·통화 오류"); continue; }
+      addDep(date, ccy, Math.abs(amt), type === "deposit" ? "cash-in" : "cash-out", memo); cnt[type]++;
+    } else if (type === "fx") {
+      if (accType !== "mixed") { errs.push(line + "환전은 mixed 계좌에서만 가능"); continue; }
+      const from = String(r.from || "").toLowerCase(), to = String(r.to || "").toLowerCase(), fa = num(r.fromAmount), ta = num(r.toAmount);
+      if (!["krw","usd"].includes(from) || !["krw","usd"].includes(to) || from === to || !(fa > 0) || !(ta > 0)) { errs.push(line + "환전 값 오류"); continue; }
+      acc.deposits.push({ id: nid("imp_d"), year: date.slice(0, 4), date, type: "fx-convert", fromCcy: from, toCcy: to, fromAmount: fa, toAmount: ta, rate: from === "krw" ? fa / ta : ta / fa, memo });
+      cnt.fx++;
+    } else if (type === "buy" || type === "sell" || type === "dividend") {
+      const t = String(r.ticker || "").trim().toUpperCase();
+      if (!t) { errs.push(line + "ticker 없음"); continue; }
+      const it = getItem(t, r.name);
+      if (type === "dividend") {
+        const amt = num(r.amount);
+        if (!(amt > 0)) { errs.push(line + "배당 금액 오류"); continue; }
+        it.trades.push({ id: nid("imp_t"), type: "dividend", date, amount: amt, memo, thesis: "" }); cnt.dividend++;
+      } else {
+        const qty = num(r.qty), price = num(r.price);
+        if (!(qty > 0) || !(price >= 0)) { errs.push(line + "수량·단가 오류"); continue; }
+        const tr = { id: nid("imp_t"), type, date, qty, price, memo, thesis: "" };
+        if (type === "sell") {
+          const { qty: held, avg } = computeMovingAverage(it.trades);
+          if (qty > held + 1e-9) { errs.push(line + t + " 보유(" + held + ")보다 많이 매도(" + qty + "). 분할·누락 거래를 확인하세요"); continue; }
+          tr.pnl = (price - avg) * qty;
+        }
+        it.trades.push(tr); cnt[type]++;
+      }
+      const fee = num(r.fee);
+      if (fee > 0) addDep(date, ccyOf(it), fee, "cash-out", "수수료·세금 (" + t + " " + (TRADE_TYPE_KO[type] || type) + ")");
+    } else errs.push(line + "알 수 없는 type(" + r.type + ")");
+  }
+
+  acc.items.forEach(it => { const { qty, avg } = computeMovingAverage(it.trades); it.q = qty; it.a = avg; });
+  // 예수금: 입출금·환전·거래를 처음부터 합산(recalcAccountCash와 같은 규칙)
+  const sumCash = ccy => {
+    let c = 0;
+    for (const dp of acc.deposits) {
+      if (dp.type === "fx-convert") { if (dp.fromCcy === ccy) c -= dp.fromAmount; else if (dp.toCcy === ccy) c += dp.toAmount; continue; }
+      if (accType === "mixed" && (dp.ccy || "krw") !== ccy) continue;
+      c += dp.type === "cash-in" ? dp.amount : -Math.abs(dp.amount);
+    }
+    for (const it of acc.items) {
+      if (ccyOf(it) !== ccy) continue;
+      for (const tr of it.trades) c += tr.type === "buy" ? -tr.qty * tr.price : tr.type === "sell" ? tr.qty * tr.price : tr.amount || 0;
+    }
+    return c;
+  };
+  if (accType === "mixed") { acc.cashKrw = sumCash("krw"); acc.cashUsd = sumCash("usd"); } else acc.cash = sumCash("krw");
+
+  const holding = acc.items.filter(it => it.q > 1e-9).length;
+  const cashTxt = accType === "mixed" ? won(acc.cashKrw) + " / " + usd(acc.cashUsd) : won(acc.cash);
+  const summary = "계좌: " + name + " (" + ACCOUNT_TYPES[accType].label + ")\n"
+    + "입금 " + cnt.deposit + " · 출금 " + cnt.withdraw + (accType === "mixed" ? " · 환전 " + cnt.fx : "") + "\n"
+    + "매수 " + cnt.buy + " · 매도 " + cnt.sell + " · 배당 " + cnt.dividend + "\n"
+    + "종목 " + acc.items.length + "개 (현재 보유 " + holding + "개)\n"
+    + "계산된 예수금: " + cashTxt;
+  if (!cnt.buy && !cnt.deposit) throw new Error("가져올 거래가 없어요." + (errs.length ? "\n\n" + errs.slice(0, 5).join("\n") : ""));
+  const errTxt = errs.length ? "\n\n⚠️ 건너뛴 줄 " + errs.length + "개:\n" + errs.slice(0, 5).join("\n") + (errs.length > 5 ? "\n…" : "") : "";
+  if (!confirm("이대로 새 계좌를 만들까요?\n\n" + summary + errTxt + "\n\n기존 계좌는 건드리지 않아요. 예수금이 실제와 다르면 계좌 화면에서 입출금으로 맞추세요.")) return;
+  ST.accounts.push(acc); tab = acc.id; saveData(); render(); fetchAll();
+  alert("✅ 가져오기 완료! '" + name + "' 계좌를 만들었어요.");
+}
+
+function copyImportPrompt() {
+  const done = () => alert("📋 변환 안내문을 복사했어요.\n\nChatGPT·Claude 같은 AI에 붙여 넣고, 증권사에서 내려받은 거래내역서(엑셀·CSV·PDF)를 함께 주세요.\n받은 JSON을 .json 파일로 저장한 뒤 ⋯ → 거래내역 가져오기로 넣으면 돼요.\n\n⚠️ 거래내역서의 계좌번호·이름은 지우고 AI에 주세요.");
+  const fallback = () => { prompt("아래 안내문을 전체 선택해서 복사하세요.", IMPORT_PROMPT); };
+  if (navigator.clipboard?.writeText) navigator.clipboard.writeText(IMPORT_PROMPT).then(done).catch(fallback); else fallback();
+}
+document.addEventListener("click", e => { if (e.target.closest && e.target.closest("[data-copy-import-prompt]")) copyImportPrompt(); });
 
 // ─── SVG 도넛 ────────────────────────────────────────────────
 function buildDonutSVG(segs, total, cx, cy, R, r, interactive) {
@@ -2183,6 +2339,8 @@ function buildPage() {
         :'<button class="data-menu-item" id="btn-pin-set" style="color:#3182f6">🔒 <span>PIN 잠금 설정</span></button>')
       +'<button class="data-menu-item" id="btn-backup">💾 <span>백업 (내보내기)</span></button>'
       +'<label class="data-menu-item">📂 <span>복원 (파일)</span><input type="file" accept=".json" id="inp-restore" style="display:none"/></label>'
+      +'<label class="data-menu-item" style="color:#10b981">📥 <span>거래내역 가져오기 (JSON)</span><input type="file" accept=".json,application/json,text/plain" id="inp-import" style="display:none"/></label>'
+      +'<button class="data-menu-item" data-copy-import-prompt style="color:#10b981">📋 <span>거래내역 변환 안내문 복사</span></button>'
       +'<button class="data-menu-item" id="btn-cloud-save" style="color:'+(cloudStatus==="error"?"#ef4444":"#10b981")+'">'+(cloudStatus==="saving"?"⟳":cloudStatus==="saved"?"✅":cloudStatus==="error"?"❌":"☁️")+' <span>'+(cloudStatus==="saving"?"저장 중...":cloudStatus==="saved"?"저장됨":cloudStatus==="error"?"저장 실패":"클라우드 저장")+'</span></button>'
       +'<button class="data-menu-item" id="btn-cloud-load" style="color:#3182f6">☁️ <span>클라우드 복원</span></button>'
       +'<button class="data-menu-item" id="btn-phrase-set" style="color:#a855f7">🔐 <span>복구 문장 설정</span></button>'
@@ -3468,6 +3626,7 @@ function bindEvents() {
   $("btn-edit")?.addEventListener("click",()=>{editMode=!editMode;render();});
   $("btn-backup")?.addEventListener("click",()=>{ dataMenuOpen=false; backupData(); render(); });
   $("inp-restore")?.addEventListener("change",e=>{ dataMenuOpen=false; restoreData(e.target.files[0]); });
+  $("inp-import")?.addEventListener("change",e=>{ dataMenuOpen=false; render(); importTradesFile(e.target.files[0]); });
   $("btn-add-acc")?.addEventListener("click",()=>{showModal=true;modalType="mixed";modalColor=COLORS[ST.accounts.length%COLORS.length];modalAlreadyInvested=false;render();});
   $("btn-data-menu")?.addEventListener("click",()=>{ dataMenuOpen=!dataMenuOpen; render(); });
   $("data-menu-bg")?.addEventListener("click",()=>{ dataMenuOpen=false; render(); });
