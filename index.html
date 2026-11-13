@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"/>
   <title>자산 대시보드</title>
   <meta name="mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
@@ -132,21 +132,23 @@
 <div id="app"></div>
 <div id="tip"></div>
 <style>
+  /* 앱처럼 고정: 두 번 탭 확대 막기 */
+  html, body { touch-action: manipulation; -webkit-text-size-adjust: 100%; }
   /* ─── PIN 잠금 화면 ─── */
   #pin-lock, #pin-cover { position:fixed; inset:0; z-index:2147483000; background:#000; color:#fff; display:flex; flex-direction:column; align-items:center; justify-content:center; user-select:none; -webkit-user-select:none; touch-action:manipulation; }
   #pin-cover .pin-logo { font-size:40px; opacity:.6; }
-  #pin-lock .pin-title { font-size:17px; font-weight:600; margin-bottom:20px; }
-  #pin-lock .pin-dots { display:flex; gap:14px; margin-bottom:12px; }
-  #pin-lock .pin-dots i { width:13px; height:13px; border-radius:50%; border:2px solid #636366; box-sizing:border-box; }
+  #pin-lock .pin-title { font-size:clamp(20px,5.5vw,26px); font-weight:700; margin-bottom:28px; }
+  #pin-lock .pin-dots { display:flex; gap:clamp(16px,4.5vw,22px); margin-bottom:16px; }
+  #pin-lock .pin-dots i { width:clamp(16px,4.2vw,20px); height:clamp(16px,4.2vw,20px); border-radius:50%; border:2px solid #636366; box-sizing:border-box; }
   #pin-lock .pin-dots i.on { background:#3182f6; border-color:#3182f6; }
-  #pin-lock .pin-msg { min-height:18px; font-size:13px; color:#ef4444; margin-bottom:24px; text-align:center; padding:0 16px; }
-  #pin-lock .pin-pad { display:grid; grid-template-columns:repeat(3,72px); gap:14px 22px; }
-  #pin-lock .pin-pad button { width:72px; height:72px; border-radius:50%; border:none; background:#1c1c1e; color:#fff; font-size:26px; cursor:pointer; -webkit-tap-highlight-color:transparent; }
+  #pin-lock .pin-msg { min-height:22px; font-size:15px; color:#ef4444; margin-bottom:36px; text-align:center; padding:0 16px; }
+  #pin-lock .pin-pad { display:grid; grid-template-columns:repeat(3,clamp(76px,23vw,104px)); gap:clamp(14px,4vw,22px) clamp(20px,7vw,36px); }
+  #pin-lock .pin-pad button { width:clamp(76px,23vw,104px); height:clamp(76px,23vw,104px); border-radius:50%; border:none; background:#1c1c1e; color:#fff; font-size:clamp(28px,8vw,36px); font-weight:500; cursor:pointer; -webkit-tap-highlight-color:transparent; }
   #pin-lock .pin-pad button:active { background:#2c2c2e; }
-  #pin-lock .pin-pad button.ghost { background:transparent; font-size:15px; color:#8e8e93; }
+  #pin-lock .pin-pad button.ghost { background:transparent; font-size:17px; color:#8e8e93; }
   #pin-lock .pin-pad button:disabled { opacity:.35; }
-  #pin-lock .pin-foot { margin-top:26px; display:flex; gap:18px; }
-  #pin-lock .pin-foot button { background:none; border:none; color:#8e8e93; font-size:13px; text-decoration:underline; cursor:pointer; }
+  #pin-lock .pin-foot { margin-top:32px; display:flex; gap:18px; }
+  #pin-lock .pin-foot button { background:none; border:none; color:#8e8e93; font-size:15px; padding:8px; text-decoration:underline; cursor:pointer; }
   #pin-lock.shake .pin-dots { animation:pinshake .35s; }
   @keyframes pinshake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-10px)} 75%{transform:translateX(10px)} }
 </style>
