@@ -2373,7 +2373,7 @@ function buildTradeModal() {
         <input class="trade-inp" id="tm-ticker" placeholder="${tickerPlaceholder}"${tickerAttrs} style="text-transform:uppercase"/>
         <div id="tm-name-preview" style="font-size:11px;color:#3182f6;margin-top:4px;min-height:16px"></div>
        </div>
-       ${showCarryover?"":`<details style="margin-bottom:12px"><summary style="font-size:12px;color:#8d8d98;cursor:pointer;padding:4px 0">예전부터 갖고 있던 종목인가요?</summary>`}
+       ${showCarryover?"":`<details id="tm-carry-more" style="margin-bottom:12px"><summary style="font-size:12px;color:#8d8d98;cursor:pointer;padding:4px 0">예전부터 갖고 있던 종목인가요?</summary>`}
        <div style="display:flex;align-items:center;justify-content:space-between;background:#16161a;border-radius:8px;padding:10px 12px;margin-bottom:12px${showCarryover?"":";margin-top:6px"}">
         <div>
           <div style="font-size:12px;font-weight:600">📋 이미 보유 중인 종목이에요</div>
@@ -2459,7 +2459,7 @@ function buildTradeModal() {
         <div class="trade-inp-label">투자 근거 / 노트 ${isDividend?"(선택)":"(필수 입력사항)"}</div>
         <textarea class="trade-inp" id="tm-thesis" rows="4" style="resize:vertical;font-family:inherit" placeholder="왜 사고/파나요? 이 근거가 깨지는 조건은?"></textarea>
       </div>
-      <details style="margin-bottom:12px">
+      <details id="tm-more" style="margin-bottom:12px">
         <summary style="font-size:12px;color:#8d8d98;cursor:pointer;padding:4px 0">추가 입력 (${isDividend?"":"단가 · "}메모 · 근거 파일)</summary>
         ${isDividend?"":`<div class="trade-inp-group" style="margin-top:8px">
           <div class="trade-inp-label">단가 (비워두면 총 매매금액÷수량)</div>
@@ -3755,11 +3755,40 @@ function sanitizeState() {
   }
 }
 
+// 입력 중인 창의 값 지키기: 1분마다 시세 갱신 등으로 화면 전체를 다시 그려도
+// 같은 창이 열려 있으면 모든 입력칸·체크박스·선택상자·접힘 상태를 그대로 되살린다.
+function modalSignature() {
+  return JSON.stringify([tradeModal&&[tradeModal.accId,tradeModal.itemId,tradeModal.mode,tradeModal.market], depositModal&&[depositModal.accId,depositModal.mode],
+    transferModal&&transferModal.fromId, exchangeModal&&[exchangeModal.accId,exchangeModal.direction], rebalanceModal&&rebalanceModal.accId, showModal, openingCashModal&&1]);
+}
+function captureFormState() {
+  const app = document.getElementById("app"); if (!app) return null;
+  const fields = {};
+  app.querySelectorAll("input[id], textarea[id], select[id]").forEach(el => {
+    if (el.type === "file") return;
+    fields[el.id] = (el.type === "checkbox" || el.type === "radio") ? { checked: el.checked } : { value: el.value };
+  });
+  const opened = {};
+  app.querySelectorAll("details[id]").forEach(d => { opened[d.id] = d.open; });
+  return { sig: modalSignature(), fields, opened };
+}
+function restoreFormState(s) {
+  if (!s || s.sig !== modalSignature()) return;
+  for (const [id, v] of Object.entries(s.fields)) {
+    const el = document.getElementById(id); if (!el || el.type === "file") continue;
+    if ("checked" in v) { if (el.checked !== v.checked) { el.checked = v.checked; el.dispatchEvent(new Event("change", { bubbles: true })); } }
+    else if (el.value !== v.value) { el.value = v.value; el.dispatchEvent(new Event("input", { bubbles: true })); }
+  }
+  for (const [id, open] of Object.entries(s.opened)) { const d = document.getElementById(id); if (d) d.open = open; }
+}
+
 function render() {
   sanitizeState();
+  const _formSave = captureFormState();
   const _focusSave = captureFocusedInput();
   try { document.getElementById("app").innerHTML=buildPage(); bindEvents(); }
   catch(e) { document.getElementById("app").innerHTML='<div style="padding:20px;color:#f04452;font-size:13px">오류: '+e.message+'<br><pre style="font-size:10px;color:#b0b0ba;white-space:pre-wrap">'+e.stack+'</pre></div>'; }
+  restoreFormState(_formSave);
   restoreFocusedInput(_focusSave);
   // 이번 렌더에서 반영된 모달 열림 상태를 스냅샷 — 다음 렌더에서 modalAnimStyle()이 참조함
   _prevOpenModals = {
